@@ -22,6 +22,9 @@ import Data.Char
   ')'       { TokCloseB }
   '['       { TokOpenSB }
   ']'       { TokCloseSB }
+  new       { TokNew }
+  arrL      { TokOpenArr }
+  arrR      { TokCloseArr }
 
 %%
 
@@ -30,6 +33,8 @@ Constraint : '{' Names '}' Constraint { CEx $2 $4 }
            | Term '=' Term       { CEq $1 $3 }
            | true                { CTrue }
            | false               { CFalse }
+           | new name            { CNew $2 }
+           | name arrL name arrR name { CEdge $1 $3 $5 }
 
 Names : name           { [ $1 ] }
       | Names ',' name { $3 : $1 }
@@ -54,6 +59,8 @@ data Constraint
   | CAnd Constraint Constraint
   | CEq Term Term
   | CEx [String] Constraint
+  | CNew String
+  | CEdge String String String
   deriving Show
 
 data Token
@@ -68,6 +75,9 @@ data Token
   | TokCloseB
   | TokOpenSB
   | TokCloseSB
+  | TokOpenArr
+  | TokCloseArr
+  | TokNew
   deriving Show
 
 varName :: Token -> String
@@ -76,15 +86,23 @@ varName _ = error "Parser error: not a name"
 
 lexer :: String -> [Token]
 lexer [] = []
+
 lexer (c:cs)
   | isSpace c = lexer cs
   | isAlpha c = lexVar (c:cs)
+
 lexer (',':cs) = TokComma   : lexer cs
 lexer ('=':cs) = TokEq      : lexer cs
+
 lexer ('{':cs) = TokOpenBr  : lexer cs
 lexer ('}':cs) = TokCloseBr : lexer cs
+
 lexer ('(':cs) = TokOpenB   : lexer cs
 lexer (')':cs) = TokCloseB  : lexer cs
+
+lexer ('-':'[':cs) = TokOpenArr : lexer cs
+lexer (']':'-':'>':cs) = TokCloseArr : lexer cs
+
 lexer ('[':cs) = TokOpenSB  : lexer cs
 lexer (']':cs) = TokCloseSB : lexer cs
 
@@ -93,8 +111,10 @@ lexVar cs =
   case span isAlpha cs of
     ("true", ds)  -> TokTrue    : lexer ds
     ("false", ds) -> TokFalse   : lexer ds
+    ("new", ds)   -> TokNew     : lexer ds
     (var, ds)     -> TokVar var : lexer ds
 
-parser = getContents >>= print . parseConstraint . lexer
+parser :: String -> Constraint
+parser = parseConstraint . lexer
 
 }

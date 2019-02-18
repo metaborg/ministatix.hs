@@ -7,4 +7,5 @@ import Statix.Syntax.Parser
 someFunc :: IO ()
 someFunc = do
   prog <- getContents
-  print $ parseConstraint $ lexer prog
+  let ast = parser prog
+  print ast
