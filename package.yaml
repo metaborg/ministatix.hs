@@ -22,6 +22,15 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - base >= 4.7 && < 5
 - array
+- mtl
+- containers
+- unification-fd
+- list-extras >= 0.4.1.4
+
+
+default-extensions:
+- UnicodeSyntax
+- PatternSynonyms
 
 library:
   source-dirs: src

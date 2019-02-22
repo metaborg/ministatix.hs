@@ -4,6 +4,8 @@ module Statix.Syntax.Parser where
 import Data.List
 import Data.Char
 
+import Statix.Syntax.Constraint
+
 }
 
 %name parseConstraint
@@ -34,12 +36,13 @@ Constraint : '{' Names '}' Constraint { CEx $2 $4 }
            | true                { CTrue }
            | false               { CFalse }
            | new name            { CNew $2 }
-           | name arrL name arrR name { CEdge $1 $3 $5 }
+           | Term arrL name arrR Term { CEdge $1 $3 $5 }
 
 Names : name           { [ $1 ] }
       | Names ',' name { $3 : $1 }
 
-Term  : name '(' Terms ')'      { TCon $1 $3 }
+Term  : name '(' Terms ')'      { Con $1 $3 }
+      | name                    { Var $1 }
 
 Terms :                         { []  }
        | Term                   { [$1] }
@@ -49,36 +52,6 @@ Terms :                         { []  }
 
 parseError :: [Token] -> error
 parseError _ = error "Parse error!"
-
-data Term
-  = TCon String ([ Term ])
-  deriving Show
-
-data Constraint
-  = CTrue | CFalse
-  | CAnd Constraint Constraint
-  | CEq Term Term
-  | CEx [String] Constraint
-  | CNew String
-  | CEdge String String String
-  deriving Show
-
-data Token
-  = TokVar String
-  | TokTrue
-  | TokFalse
-  | TokComma
-  | TokEq
-  | TokOpenBr
-  | TokCloseBr
-  | TokOpenB
-  | TokCloseB
-  | TokOpenSB
-  | TokCloseSB
-  | TokOpenArr
-  | TokCloseArr
-  | TokNew
-  deriving Show
 
 varName :: Token -> String
 varName (TokVar s) = s
