@@ -26,6 +26,7 @@ dependencies:
 - containers
 - unification-fd
 - list-extras >= 0.4.1.4
+- Stream
 
 
 default-extensions:

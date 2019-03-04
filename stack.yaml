@@ -35,11 +35,15 @@ resolver: lts-13.8
 #  - wai
 packages:
 - .
+- ./lib/unification.hs/
+
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - list-extras-0.4.1.4
+- Stream-0.4.7.2
+- lazysmallcheck-0.6
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

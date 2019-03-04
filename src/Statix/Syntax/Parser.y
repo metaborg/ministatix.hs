@@ -87,7 +87,7 @@ lexVar cs =
     ("new", ds)   -> TokNew     : lexer ds
     (var, ds)     -> TokVar var : lexer ds
 
-parser :: String -> Constraint
+parser :: String -> Constraint (Term s n)
 parser = parseConstraint . lexer
 
 }
