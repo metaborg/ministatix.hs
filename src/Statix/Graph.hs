@@ -27,6 +27,8 @@ import Statix.Regex as Re
 import Statix.Graph.Paths
 import Statix.Syntax.Constraint
 
+import Debug.Trace
+
 {- Int Graphs without safety guarantees -}
 data IntGraphEdge l = IntEdge l Int
   deriving (Show)
@@ -56,17 +58,17 @@ instance Show (STNodeRef s l d) where
 type STGraph s l d = [STNodeRef s l d]
 
 resolve :: (Eq l) ⇒ STNodeRef s l d → Regex l →
-           ST s ([Path (STNodeRef s l d) l])
+           ST s [Path (STNodeRef s l d) l]
 resolve n re = runReaderT (_resolve n re) Set.empty
   where
   _resolve :: (Eq l) ⇒ STNodeRef s l d → Regex l →
-              ReaderT (Set Int) (ST s) ([Path (STNodeRef s l d) l])
+              ReaderT (Set Int) (ST s) [Path (STNodeRef s l d) l]
   _resolve n@(STNRef i r) re
     | Re.empty re = return []
     | otherwise   = do
      -- check if we visited this node yet on the path here
      seen ← ask
-     if Set.member i seen
+     if Set.member (traceShowId i) seen
        then return []
        else
        -- add this node to the visisted node set

@@ -24,6 +24,7 @@ import Control.Monad.Trans
 import Control.Unification
 
 import Unsafe.Coerce
+import Debug.Trace
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
@@ -35,6 +36,7 @@ import Statix.Syntax.Parser
   
 {- Specialize that stuff for our term language -}
 newtype T s = PackT (UTerm (TermF (STNodeRef s Label (T s))) (STU s))
+  deriving (Show)
 
 type C s    = Constraint (T s)
 type STU s  = STVar s (TermF (STNodeRef s Label (T s)))
@@ -172,14 +174,19 @@ internalize c = cata _intern c
 type Goal s   = (Env s, C s)
 type Solution d = Either StatixError (IntGraph Label d)
 
+-- | Apply bindings of the monad to a term
 subst :: T s → SolverM s (T s)
 subst t = do
-  e ← ask
-  return $ coerce $ (cook (flip Map.lookup e) (coerce t))
+  e  ← ask
+  let t' = cook (flip Map.lookup e) (coerce t)
+  tm ← applyBindings t'
+  return $ coerce tm
 
+-- | Continue with the next goal
 next :: SolverM s ()
 next = return ()
 
+-- | Solve a focused constraint
 solveFocus :: C s → SolverM s ()
 solveFocus CTrue  = return ()
 solveFocus CFalse = throwError UnsatisfiableError
@@ -189,8 +196,8 @@ solveFocus (CEq t1 t2) = do
   _ ← unifyOccurs (coerce t1') (coerce t2') {- TODO unify -}
   next
 solveFocus (CAnd l r) = do
-  pushGoal l
-  solveFocus r
+  pushGoal r
+  solveFocus l
 solveFocus (CEx []     c) = solveFocus c
 solveFocus (CEx (n:ns) c) = do
   v ← freeVar
@@ -223,6 +230,7 @@ solveFocus (CQuery t r x) = do
         (UVar _)  → pushGoal (CQuery (PackT t') r x)
         otherwise → throwError UnsatisfiableError
 
+-- | Construct a solver for a raw constraint
 kick :: Constraint RawTerm → (forall s. SolverM s (IntGraph Label ()))
 kick c = do
     pushGoal (internalize c)
@@ -231,7 +239,7 @@ kick c = do
   loop = do
     st ← get
     c  ← popGoal
-    case c of
+    case (traceShowId c) of
       Just (env , c) → do
         local (const env) (solveFocus c)
         loop
@@ -240,11 +248,14 @@ kick c = do
         g ← liftST $ toIntGraph (graph s)
         return (fmap (fmap (\ d → ())) g) {- trash the data in the graph for now -}
 
+-- | Construct and run a solver for a constraint
 eval :: Constraint RawTerm → Solution ()
 eval c = runSolver (kick c)
 
+-- | Construct and run a solver for a program
 solve :: String → Solution ()
 solve prog = eval (parser prog)
 
+-- | Check satisfiability of a program
 check :: String → Bool
 check prog = isRight $ solve prog 
