@@ -229,7 +229,7 @@ solve CFalse = throwError UnsatisfiableError
 solve (CEq t1 t2) = do
   t1' ← subst t1
   t2' ← subst t2
-  _ ← unifyOccurs t1' t2' {- TODO use unify -}
+  _ ← unify t1' t2'
   return ()
 
 solve (CAnd l r) = do
