@@ -76,14 +76,14 @@ instance Eq n => Unifiable (TermF n) where
   zipMatch _ _ = Nothing
 
 -- convert some raw, syntactic variables monadically to semantic variables
-cook :: (RawVar → Maybe v) → UTerm (TermF n) v → Maybe (UTerm (TermF n) v)
-cook f (UVar x)  = Just (UVar x)
+cook :: (RawVar → Maybe v) → UTerm (TermF n) v → UTerm (TermF n) v
+cook f (UVar x)  = UVar x
 cook f (UTerm t) = _cook t
   where
-    _cook (TConF c ts) = do
-      ts' ← mapM (\t → cook f t) ts
-      return (Con c ts')
-    _cook (TVarF x) = UVar <$> f x
+    _cook (TConF c ts) = let ts' = map (cook f) ts in Con c ts'
+    _cook (TVarF x) = case f x of
+      Just v  → UVar v
+      Nothing → Var x
 
 -- Statix internal terms
 type Term n v = UTerm (TermF n) v

@@ -22,6 +22,7 @@ import Control.Monad.Error
 import Control.Monad.Trans
 import Control.Unification
 import Unsafe.Coerce
+import Debug.Trace
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
@@ -35,13 +36,13 @@ data STVar s t =
         {-# UNPACK #-} !(STRef s (Maybe (UTerm t (STVar s t))))
 
 instance Show (STVar s t) where
-    show (STVar i _) = "STVar " ++ show i
+  show (STVar i _) = "UVar " ++ show i
 
 instance Eq (STVar s t) where
-    (STVar i _) == (STVar j _) = (i == j)
+  (STVar i _) == (STVar j _) = (i == j)
 
 instance Variable (STVar s t) where
-getVarID (STVar i _) = i
+  getVarID (STVar i _) = i
 
 
   
@@ -60,6 +61,9 @@ data NodeRef  s l d = NRef !Int !(STRef s (NodeData s l d))
 
 instance Eq (NodeRef s l d) where
   (NRef i _) == (NRef j _) = i == j
+
+instance Show (NodeRef s l d) where
+  show (NRef i _) = show i
 
 -- newtype STG s l d a = STG { unSTG :: ST s a}
 
@@ -183,7 +187,7 @@ instance BindingMonad (TermF (STN s)) (STU s) (SolverM s) where
   
   freeVar = do
     sv     ← get
-    let xi = nextU sv
+    xi     ← freshVarName
     xr     ← liftST $ newSTRef Nothing
     return (STVar xi xr)
 
@@ -215,9 +219,7 @@ type Goal s = (Env s, C s)
 subst :: T s → SolverM s (T s)
 subst t = do
   e ← ask
-  case (cook (\ x → Map.lookup x e) t) of
-    Nothing → throwError UnboundVariable
-    Just t  → return t
+  return (cook (flip Map.lookup e) t)
 
 solve :: C s → SolverM s ()
 
@@ -227,26 +229,31 @@ solve CFalse = throwError UnsatisfiableError
 solve (CEq t1 t2) = do
   t1' ← subst t1
   t2' ← subst t2
-  _ ← t1' =:= t2'
+  _ ← unifyOccurs t1' t2' {- TODO use unify -}
   return ()
 
 solve (CAnd l r) = do
   pushGoal l
   solve r
 
+solve (CEx []     c) = solve c
 solve (CEx (n:ns) c) = do
   v ← freeVar
-  local (Map.insert n v) (solve c)
+  local (Map.insert n v) (solve (CEx ns c))
 
 solve (CNew t) = do
   t' ← subst t
-  case t' of
-    (UVar x) → do
-      u ← newNode ()
-      bindVar x (Node u)
-      return ()
-    otherwise →
-      throwError UnsatisfiableError
+  u  ← newNode ()
+  unify t' (Node u)
+  return ()
+  
+  -- case t' of
+  --   (UVar x) → do
+  --     -- bindVar x (Node u)
+  --     unify (Uvar x) (Node u)
+  --     return ()
+  --   otherwise →
+  --     throwError UnsatisfiableError
 
 
 solve c@(CEdge t₁ l t₂) = do
