@@ -33,6 +33,7 @@ dependencies:
 default-extensions:
 - UnicodeSyntax
 - PatternSynonyms
+- LambdaCase
 
 library:
   source-dirs: src
