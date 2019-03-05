@@ -8,7 +8,8 @@ module Statix.Eval where
 import Prelude hiding (lookup, null)
 import Data.Map.Strict hiding (map, null)
 import qualified Data.Map.Strict as Map
-import Data.Stream
+import qualified Data.IntMap as IM
+import Data.Either
 import Data.Maybe
 import Data.STRef
 import Data.Sequence
@@ -26,8 +27,8 @@ import Debug.Trace
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
-
-
+import Statix.Graph
+import Statix.Syntax.Parser
 
 {- ST unification variables with identity -}
 data STVar s t =
@@ -56,7 +57,8 @@ class (Monad m) => MonadGraph n l d m | m -> n l d where
 
 
 {- Graph node/data types for graph in ST -} 
-data NodeData s l d = NData [(l , NodeRef s l d)] d
+type STEdge s l d = (l , NodeRef s l d)
+data NodeData s l d = NData [STEdge s l d] d
 data NodeRef  s l d = NRef !Int !(STRef s (NodeData s l d))
 
 instance Eq (NodeRef s l d) where
@@ -65,53 +67,7 @@ instance Eq (NodeRef s l d) where
 instance Show (NodeRef s l d) where
   show (NRef i _) = show i
 
--- newtype STG s l d a = STG { unSTG :: ST s a}
-
--- instance Functor (STG s l d) where
---   fmap f = STG . fmap f . unSTG
-
--- instance Applicative (STG s l d) where
---   pure   = return
---   (<*>)  = ap
---   (*>)   = (>>)
---   x <* y = x >>= \a -> y >> return a
-
--- instance Monad (STG s l d) where
---   return v = STG (return v)
---   m >>= f  = STG (unSTG m >>= unSTG . f)
-
--- {- ST can be graph monad! -}
--- instance (Eq l) ⇒ MonadGraph (NodeRef s l d) l d (STG s l (NodeData s l d)) where
---   newNode d = do
---     r ← STG $ newSTRef (NData [] d)
---     i ← _
---     return (NRef i r)
-
---   newEdge (x, l, y) =
---     STG $ modifySTRef x (\case NData es d → NData ((l , y) : es) d)
-    
---   datum n = do
---     NData _ d ← STG (readSTRef n)
---     return d
-
--- instance (MonadGraph n l d m) ⇒ MonadGraph n l d (ReaderT e m) where
---   newNode d = lift (newNode d)
---   newEdge e = lift (newEdge e)
---   datum n   = lift (datum n)
-
--- instance (MonadGraph n l d m) ⇒ MonadGraph n l d (StateT s m) where
---   newNode d = lift (newNode d)
---   newEdge e = lift (newEdge e)
---   datum n   = lift (datum n)
-
--- instance (Error e, MonadGraph n l d m) ⇒ MonadGraph n l d (ErrorT e m) where
---   newNode d = lift (newNode d)
---   newEdge e = lift (newEdge e)
---   datum n   = lift (datum n)
-
-
-
-
+type STGraph s = [STN s]
 
 
   
@@ -129,19 +85,22 @@ data Solver s = Solver
   { queue :: Seq (Env s, Constraint (UTerm (TermF (STN s)) (STU s)))
   , nextU :: Int
   , nextN :: Int
+  , graph :: STGraph s
   }
 
 emptySolver :: Solver s
 emptySolver = Solver
   { queue = Seq.empty
   , nextU = 0
-  , nextN = 0 }
+  , nextN = 0
+  , graph = []
+  }
 
 data StatixError =
     UnificationError
   | UnboundVariable
   | UnsatisfiableError
-  | Panic String
+  | Panic String deriving (Show)
 
 instance Error StatixError where
   strMsg = Panic
@@ -198,7 +157,9 @@ instance MonadGraph (STN s) Label () (SolverM s) where
   newNode d = do
     ni ← freshNodeName
     nr ← liftST $ newSTRef (NData [] d)
-    return (NRef ni nr)
+    let node = (NRef ni nr)
+    modify (\ s → s { graph = node : graph s })
+    return node
 
   newEdge (NRef i r, l, y) =
     liftST $ modifySTRef r (\case NData es d → NData ((l , y) : es) d)
@@ -221,42 +182,33 @@ subst t = do
   e ← ask
   return (cook (flip Map.lookup e) t)
 
-solve :: C s → SolverM s ()
+solveFocus :: C s → SolverM s ()
 
-solve CTrue  = return ()
-solve CFalse = throwError UnsatisfiableError
+solveFocus CTrue  = return ()
+solveFocus CFalse = throwError UnsatisfiableError
 
-solve (CEq t1 t2) = do
+solveFocus (CEq t1 t2) = do
   t1' ← subst t1
   t2' ← subst t2
-  _ ← unify t1' t2'
+  _ ← unifyOccurs t1' t2' {- TODO unify -}
   return ()
 
-solve (CAnd l r) = do
+solveFocus (CAnd l r) = do
   pushGoal l
-  solve r
+  solveFocus r
 
-solve (CEx []     c) = solve c
-solve (CEx (n:ns) c) = do
+solveFocus (CEx []     c) = solveFocus c
+solveFocus (CEx (n:ns) c) = do
   v ← freeVar
-  local (Map.insert n v) (solve (CEx ns c))
+  local (Map.insert n v) (solveFocus (CEx ns c))
 
-solve (CNew t) = do
+solveFocus (CNew t) = do
   t' ← subst t
   u  ← newNode ()
   unify t' (Node u)
   return ()
   
-  -- case t' of
-  --   (UVar x) → do
-  --     -- bindVar x (Node u)
-  --     unify (Uvar x) (Node u)
-  --     return ()
-  --   otherwise →
-  --     throwError UnsatisfiableError
-
-
-solve c@(CEdge t₁ l t₂) = do
+solveFocus c@(CEdge t₁ l t₂) = do
   t₁' ← subst t₁
   t₂' ← subst t₂
   case (t₁' , t₂') of
@@ -295,12 +247,9 @@ internalize c = cata _intern c
     _intern (CAndF c d) = CAnd c d
     _intern (CExF ns c) = CEx ns c
 
-eval :: Constraint RawTerm → Bool
-eval c = case runSolver (kick c) of
-  Left e  → False
-  Right b → True
+type Solution = Either StatixError (IntGraph Label ())
 
-kick :: Constraint RawTerm → (forall s. SolverM s Bool)
+kick :: Constraint RawTerm → (forall s. SolverM s (IntGraph Label ()))
 kick c = do
     pushGoal (internalize c)
     loop
@@ -310,7 +259,31 @@ kick c = do
     c  ← popGoal
     case c of
       Just (env , c) → do
-        local (const env) (solve c)
+        local (const env) (solveFocus c)
         loop
-      Nothing →
-        return True
+      Nothing → do
+        s ← get
+        ground (graph s)
+
+ground :: STGraph s → SolverM s (IntGraph Label ())
+ground stg = do
+  ns ← (mapM _groundN stg)
+  return (IM.fromList ns)
+  where
+    _groundE :: STEdge s l d → IntGraphEdge l
+    _groundE (l , NRef i r) = IntEdge l i
+
+    _groundN :: NodeRef s l d → SolverM s (Int, IntGraphNode l d)
+    _groundN (NRef i r) = do
+      (NData es d) ← liftST $ readSTRef r
+      let es' = fmap _groundE es
+      return (i , IntNode i es' d)
+
+eval :: Constraint RawTerm → Solution
+eval c = runSolver (kick c)
+
+solve :: String → Solution
+solve prog = eval (parser prog)
+
+check :: String → Bool
+check prog = isRight $ solve prog 

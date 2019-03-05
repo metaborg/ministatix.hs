@@ -1,12 +1,8 @@
-module Lib
-    ( repl
-    ) where
+module Lib where
 
-import Statix.Syntax.Parser
 import Statix.Eval
 
 repl :: IO ()
 repl = do
   prog <- getContents
-  let ast = parser prog
-  print (eval ast)
+  print (solve prog)
