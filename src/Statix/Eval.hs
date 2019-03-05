@@ -65,6 +65,7 @@ data StatixError =
     UnificationError
   | UnboundVariable
   | UnsatisfiableError
+  | TypeError
   | Panic String deriving (Show)
 
 instance Error StatixError where
@@ -188,25 +189,31 @@ next = return ()
 
 -- | Solve a focused constraint
 solveFocus :: C s → SolverM s ()
+
 solveFocus CTrue  = return ()
 solveFocus CFalse = throwError UnsatisfiableError
+
 solveFocus (CEq t1 t2) = do
   t1' ← subst t1
   t2' ← subst t2
   _ ← unifyOccurs (coerce t1') (coerce t2') {- TODO unify -}
   next
+
 solveFocus (CAnd l r) = do
   pushGoal r
   solveFocus l
+
 solveFocus (CEx []     c) = solveFocus c
 solveFocus (CEx (n:ns) c) = do
   v ← freeVar
   local (Map.insert n v) (solveFocus (CEx ns c))
+
 solveFocus (CNew t) = do
   t' ← subst t
   u  ← newNode Nothing
   unify (coerce t') (Node u)
   next
+
 solveFocus (CEdge t₁ l t₂) = do
   t₁' ← subst t₁
   t₂' ← subst t₂
@@ -214,21 +221,24 @@ solveFocus (CEdge t₁ l t₂) = do
     (Node n, Node m) → newEdge (n, l, m)
     (UVar x, _)      → pushGoal (CEdge t₁' l t₂')
     (_ , UVar x)     → pushGoal (CEdge t₁' l t₂')
-    otherwise        → throwError UnsatisfiableError
+    otherwise        → throwError TypeError
+
 solveFocus (CQuery t r x) = do
   PackT t' ← subst t
+
+  -- x should be a bound unification variable
   x' ← asks (Map.lookup x)
   case x' of
     Nothing → throwError UnboundVariable
-    -- if x has an associated semantic variable
     Just v →
+      -- check if t' is sufficiently instantiated
       case t' of
         (Node n)  → do
           ans ← runQuery n r
           unify (UVar v) (Answer ans)
           next
         (UVar _)  → pushGoal (CQuery (PackT t') r x)
-        otherwise → throwError UnsatisfiableError
+        otherwise → throwError TypeError
 
 -- | Construct a solver for a raw constraint
 kick :: Constraint RawTerm → (forall s. SolverM s (IntGraph Label ()))
