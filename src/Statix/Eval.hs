@@ -119,6 +119,7 @@ instance BindingMonad (TermF (STNodeRef s Label (T s))) (STU s) (SolverM s) wher
     liftST $ writeSTRef xr (Just t)
 
 instance MonadGraph (STNodeRef s Label (T s)) Label (T s) (SolverM s) where
+
   newNode d = do
     ni ← freshNodeName
     nr ← liftST $ newSTRef (STNData [] d)
@@ -132,6 +133,9 @@ instance MonadGraph (STNodeRef s Label (T s)) Label (T s) (SolverM s) where
   getDatum (STNRef i r) = do
     STNData _ d ← liftST (readSTRef r)
     return d
+
+  runQuery n re = do
+    liftST $ resolve n re
 
 pushGoal :: C s → SolverM s ()
 pushGoal c = do
@@ -162,6 +166,7 @@ internalize c = cata _intern c
     _intern CFalseF = CFalse
     _intern (CAndF c d) = CAnd c d
     _intern (CExF ns c) = CEx ns c
+    _intern (CQueryF t r x) = CQuery (tintern t) r x
 
 {- Evaluation -}
 type Goal s   = (Env s, C s)
@@ -172,6 +177,9 @@ subst t = do
   e ← ask
   return $ coerce $ (cook (flip Map.lookup e) (coerce t))
 
+next :: SolverM s ()
+next = return ()
+
 solveFocus :: C s → SolverM s ()
 solveFocus CTrue  = return ()
 solveFocus CFalse = throwError UnsatisfiableError
@@ -179,7 +187,7 @@ solveFocus (CEq t1 t2) = do
   t1' ← subst t1
   t2' ← subst t2
   _ ← unifyOccurs (coerce t1') (coerce t2') {- TODO unify -}
-  return ()
+  next
 solveFocus (CAnd l r) = do
   pushGoal l
   solveFocus r
@@ -191,8 +199,8 @@ solveFocus (CNew t) = do
   t' ← subst t
   u  ← newNode Nothing
   unify (coerce t') (Node u)
-  return ()
-solveFocus c@(CEdge t₁ l t₂) = do
+  next
+solveFocus (CEdge t₁ l t₂) = do
   t₁' ← subst t₁
   t₂' ← subst t₂
   case (coerce t₁' , coerce t₂') of
@@ -200,6 +208,20 @@ solveFocus c@(CEdge t₁ l t₂) = do
     (UVar x, _)      → pushGoal (CEdge t₁' l t₂')
     (_ , UVar x)     → pushGoal (CEdge t₁' l t₂')
     otherwise        → throwError UnsatisfiableError
+solveFocus (CQuery t r x) = do
+  PackT t' ← subst t
+  x' ← asks (Map.lookup x)
+  case x' of
+    Nothing → throwError UnboundVariable
+    -- if x has an associated semantic variable
+    Just v →
+      case t' of
+        (Node n)  → do
+          ans ← runQuery n r
+          unify (UVar v) (Answer ans)
+          next
+        (UVar _)  → pushGoal (CQuery (PackT t') r x)
+        otherwise → throwError UnsatisfiableError
 
 kick :: Constraint RawTerm → (forall s. SolverM s (IntGraph Label ()))
 kick c = do

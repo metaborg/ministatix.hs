@@ -24,6 +24,7 @@ module Statix.Syntax.Constraint
   , pattern Node
   , pattern Label
   , pattern Var
+  , pattern Answer
   , cook
 
   {- Constraint syntax -}
@@ -36,6 +37,7 @@ module Statix.Syntax.Constraint
   , pattern CEx
   , pattern CNew
   , pattern CEdge
+  , pattern CQuery
 
   , Label
   , Node
@@ -48,6 +50,9 @@ import Data.Functor.Fixedpoint
 import Control.Unification
 import Control.Unification.STVar
 
+import Statix.Regex
+import Statix.Graph.Paths
+
 type Node   = String
 type Label  = String
 type RawVar = String
@@ -57,10 +62,12 @@ data TermF n r
   | TNodeF n
   | TLabelF Label
   | TVarF RawVar
+  | TAnswerF [Path n Label]
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 instance Eq n => Unifiable (TermF n) where
-  -- one step of the unfication algorithm
+  -- One step of the unfication algorithm.
+  -- Answers are not unifiable.
   zipMatch (TConF c ts) (TConF c' ts')
     | c /= c'   = Nothing
     | otherwise = TConF c <$> pairWith (\l r -> Right(l , r)) ts ts'
@@ -91,6 +98,7 @@ pattern Con c ts = UTerm (TConF c ts)
 pattern Node n   = UTerm (TNodeF n)
 pattern Label l  = UTerm (TLabelF l)
 pattern Var x    = UTerm (TVarF x)
+pattern Answer ps = UTerm (TAnswerF ps)
 
 -- Statix surface terms
 type RawTerm = Fix (TermF Void)
@@ -105,6 +113,7 @@ data ConstraintF t r
   | CExF [String] r
   | CNewF t
   | CEdgeF t Label t
+  | CQueryF t (Regex Label) String
   deriving (Show, Functor)
 
 type Constraint t = Fix (ConstraintF t)
@@ -116,6 +125,7 @@ pattern CEq l r  = Fix (CEqF l r)
 pattern CEx ns c = Fix (CExF ns c)
 pattern CNew t   = Fix (CNewF t)
 pattern CEdge n l m = Fix (CEdgeF n l m)
+pattern CQuery t re x = Fix (CQueryF t re x)
 
 type RawConstraint = Constraint RawTerm
 
