@@ -4,10 +4,12 @@ import Text.Printf
 import Statix.Eval
 
 main :: IO ()
-main = hspec spec
+main = hspec $ do
+  corespec
+  newspec
 
-spec :: Spec
-spec =
+corespec :: Spec
+corespec =
   describe "core" $ do
     it "[✓] ∃ x. x = x" $ do
       check "{x} x = x" `shouldBe` True
@@ -20,3 +22,14 @@ spec =
 
     it "[×] ∃ x y. f(x) = y" $ do
       check "{x, y} f(x) = y" `shouldBe` True
+
+newspec :: Spec
+newspec = describe "new" $ do
+    it "[✓] ∃ x . new x" $ do
+      check "{x} new x" `shouldBe` True
+
+    it "[×] ∃ x . new x, new x" $ do
+      check "{x} new x, new x" `shouldBe` False
+
+    it "[✓] ∃ x y . new x, new y" $ do
+      check "{x, y} new x, new y" `shouldBe` True
