@@ -1,0 +1,3 @@
+[submodule "lib/unification.hs"]
+	path = lib/unification.hs
+	url = git@github.com:ajrouvoet/unification-fd.git
