@@ -9,8 +9,14 @@ https://winterkoninkje.dreamwidth.org/tag/unification
 
 module Statix.Syntax.Constraint
   ( TermF
-  , ConstraintF
+  , ConstraintF(..)
   , RawVar
+
+  , RawTerm
+  , pattern RCon
+  , pattern RLabel
+  , pattern RVar
+  , RawConstraint
 
   {- Solver terms-}
   , Term
@@ -31,11 +37,11 @@ module Statix.Syntax.Constraint
   , pattern CNew
   , pattern CEdge
 
-  , Token(..)
   , Label
   , Node
   ) where
 
+import Data.Void
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 
@@ -69,6 +75,7 @@ instance Eq n => Unifiable (TermF n) where
     | otherwise = Nothing
   zipMatch _ _ = Nothing
 
+-- convert some raw, syntactic variables monadically to semantic variables
 cook :: (RawVar → Maybe v) → UTerm (TermF n) v → Maybe (UTerm (TermF n) v)
 cook f (UVar x)  = Just (UVar x)
 cook f (UTerm t) = _cook t
@@ -85,6 +92,12 @@ pattern Node n   = UTerm (TNodeF n)
 pattern Label l  = UTerm (TLabelF l)
 pattern Var x    = UTerm (TVarF x)
 
+-- Statix surface terms
+type RawTerm = Fix (TermF Void)
+pattern RCon c ts = Fix (TConF c ts)
+pattern RLabel l  = Fix (TLabelF l)
+pattern RVar x    = Fix (TVarF x)
+
 data ConstraintF t r
   = CTrueF | CFalseF
   | CAndF r r
@@ -92,7 +105,7 @@ data ConstraintF t r
   | CExF [String] r
   | CNewF t
   | CEdgeF t Label t
-  deriving Show
+  deriving (Show, Functor)
 
 type Constraint t = Fix (ConstraintF t)
 pattern CTrue    = Fix CTrueF
@@ -104,21 +117,6 @@ pattern CEx ns c = Fix (CExF ns c)
 pattern CNew t   = Fix (CNewF t)
 pattern CEdge n l m = Fix (CEdgeF n l m)
 
-type Constraints  t = [Constraint t]
+type RawConstraint = Constraint RawTerm
 
-data Token
-  = TokVar String
-  | TokFalse
-  | TokTrue
-  | TokComma
-  | TokEq
-  | TokOpenBr
-  | TokCloseBr
-  | TokOpenB
-  | TokCloseB
-  | TokOpenSB
-  | TokCloseSB
-  | TokOpenArr
-  | TokCloseArr
-  | TokNew
-  deriving Show
+type Constraints  t = [Constraint t]

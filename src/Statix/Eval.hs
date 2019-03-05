@@ -18,6 +18,7 @@ import Data.Stream
 import Data.Maybe
 import Data.STRef
 import Data.Sequence
+import Data.Functor.Fixedpoint
 import qualified Data.Sequence as Seq
 
 import Control.Monad.ST
@@ -26,6 +27,7 @@ import Control.Monad.Reader
 import Control.Monad.Error
 import Control.Monad.Trans
 import Control.Unification
+import Unsafe.Coerce
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
@@ -131,6 +133,12 @@ data Solver s = Solver
   , nextN :: Int
   }
 
+emptySolver :: Solver s
+emptySolver = Solver
+  { queue = Seq.empty
+  , nextU = 0
+  , nextN = 0 }
+
 data StatixError =
     UnificationError
   | UnboundVariable
@@ -144,13 +152,10 @@ instance Fallible t v StatixError where
   occursFailure v t     = UnsatisfiableError
   mismatchFailure t1 t2 = UnsatisfiableError
 
-type SolverM s =
-  ReaderT (Env s)
-  (StateT (Solver s)
-   (ErrorT StatixError (ST s)))
+type SolverM s = ReaderT (Env s) (StateT (Solver s) (ErrorT StatixError (ST s)))
 
-
-
+runSolver :: (forall s. SolverM s a) → Either StatixError a
+runSolver c = runST (runErrorT (evalStateT (runReaderT c Map.empty) emptySolver))
 
 {- Solver is a bunch of stuff -}
 liftST :: ST s a → SolverM s a
@@ -239,20 +244,25 @@ solve (CEx (n:ns) c) = do
   v ← freeVar
   local (Map.insert n v) (solve c)
 
-solve (CNew t)
-  | (UVar x) ← t = do
-    u ← newNode ()
-    bindVar x (Node u)
-    return ()
-  | otherwise =
-    throwError UnsatisfiableError
+solve (CNew t) = do
+  t' ← subst t
+  case t' of
+    (UVar x) → do
+      u ← newNode ()
+      bindVar x (Node u)
+      return ()
+    otherwise →
+      throwError UnsatisfiableError
 
 
-solve c@(CEdge t₁ l t₂)
-  | (Node n) ← t₁, (Node m) ← t₂ = newEdge (n, l, m)
-  | (UVar x) ← t₁                = pushGoal c
-  | (UVar x) ← t₂                = pushGoal c
-  | otherwise                    = throwError UnsatisfiableError
+solve c@(CEdge t₁ l t₂) = do
+  t₁' ← subst t₁
+  t₂' ← subst t₂
+  case (t₁' , t₂') of
+    (Node n, Node m) → newEdge (n, l, m)
+    (UVar x, _)      → pushGoal (CEdge t₁' l t₂')
+    (_ , UVar x)     → pushGoal (CEdge t₁' l t₂')
+    otherwise        → throwError UnsatisfiableError
 
 pushGoal :: C s → SolverM s ()
 pushGoal c = do
@@ -269,13 +279,37 @@ popGoal = do
       liftSt $ put (st { queue = cs })
       return (Just c)
 
-eval :: SolverM s Bool
-eval = do
-  st ← get
-  c  ← popGoal
-  case c of
-    Just (env , c) → do
-      local (const env) (solve c)
-      eval
-    Nothing →
-      return True
+internalize :: RawConstraint → (forall s . C s)
+internalize c = cata _intern c
+  where
+    tintern :: RawTerm → T s
+    tintern t = unsafeCoerce $ unfreeze t
+
+    _intern :: ConstraintF RawTerm (C s) → C s
+    _intern (CEqF t₁ t₂) = CEq (tintern t₁) (tintern t₂)
+    _intern (CNewF t) = CNew (tintern t)
+    _intern (CEdgeF t₁ l t₂) = CEdge (tintern t₁) l (tintern t₂)
+    _intern CTrueF = CTrue
+    _intern CFalseF = CFalse
+    _intern (CAndF c d) = CAnd c d
+    _intern (CExF ns c) = CEx ns c
+
+eval :: Constraint RawTerm → Bool
+eval c = case runSolver (kick c) of
+  Left e  → False
+  Right b → True
+
+kick :: Constraint RawTerm → (forall s. SolverM s Bool)
+kick c = do
+    pushGoal (internalize c)
+    loop
+  where
+  loop = do
+    st ← get
+    c  ← popGoal
+    case c of
+      Just (env , c) → do
+        local (const env) (solve c)
+        loop
+      Nothing →
+        return True

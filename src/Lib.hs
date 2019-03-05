@@ -1,12 +1,12 @@
 module Lib
-    ( someFunc
+    ( repl
     ) where
 
 import Statix.Syntax.Parser
+import Statix.Eval
 
-someFunc :: IO ()
-someFunc = print "hi"
--- do
---   prog <- getContents
---   let ast = parser prog
---   print ast
+repl :: IO ()
+repl = do
+  prog <- getContents
+  let ast = parser prog
+  print (eval ast)

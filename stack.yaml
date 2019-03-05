@@ -44,6 +44,7 @@ extra-deps:
 - list-extras-0.4.1.4
 - Stream-0.4.7.2
 - lazysmallcheck-0.6
+- STMonadTrans-0.4.3
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

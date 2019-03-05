@@ -1,4 +1,5 @@
 {
+{-# LANGUAGE RankNTypes #-}
 module Statix.Syntax.Parser where
 
 import Data.List
@@ -35,20 +36,37 @@ Constraint : '{' Names '}' Constraint { CEx $2 $4 }
            | Term '=' Term       { CEq $1 $3 }
            | true                { CTrue }
            | false               { CFalse }
-           | new name            { CNew $2 }
+           | new name            { CNew (RVar $2) }
            | Term arrL name arrR Term { CEdge $1 $3 $5 }
 
 Names : name           { [ $1 ] }
       | Names ',' name { $3 : $1 }
 
-Term  : name '(' Terms ')'      { Con $1 $3 }
-      | name                    { Var $1 }
+Term  : name '(' Terms ')'      { RCon $1 $3 }
+      | name                    { RVar $1 }
 
 Terms :                         { []  }
        | Term                   { [$1] }
        | Terms ',' Term         { $3 : $1 }
 
 {
+
+data Token
+  = TokVar String
+  | TokFalse
+  | TokTrue
+  | TokComma
+  | TokEq
+  | TokOpenBr
+  | TokCloseBr
+  | TokOpenB
+  | TokCloseB
+  | TokOpenSB
+  | TokCloseSB
+  | TokOpenArr
+  | TokCloseArr
+  | TokNew
+  deriving Show
 
 parseError :: [Token] -> error
 parseError _ = error "Parse error!"
@@ -87,7 +105,7 @@ lexVar cs =
     ("new", ds)   -> TokNew     : lexer ds
     (var, ds)     -> TokVar var : lexer ds
 
-parser :: String -> Constraint (Term s n)
+parser :: String -> Constraint RawTerm 
 parser = parseConstraint . lexer
 
 }
