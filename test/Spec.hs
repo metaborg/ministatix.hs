@@ -7,6 +7,7 @@ main :: IO ()
 main = hspec $ do
   corespec
   newspec
+  queryspec
 
 corespec :: Spec
 corespec =
@@ -33,3 +34,17 @@ newspec = describe "new" $ do
 
     it "[✓] ∃ x y . new x, new y" $ do
       check "{x, y} new x, new y" `shouldBe` True
+
+queryspec :: Spec
+queryspec = describe "query" $ do
+    it "[×] new x, query x `l as y, one(y , z)" $ do
+      check "{x, y, z} new x, query x `l as y, one(y , z)" `shouldBe` False
+
+    it "[✓] new x, query x `l* as y, one(y , z)" $ do
+      check "{x, y, z} new x, query x `l* as y, one(y , z)" `shouldBe` True
+
+    it "[×] new x, query x `l+ as y, one(y , z)" $ do
+      check "{x, y, z} new x, query x `l+ as y, one(y , z)" `shouldBe` False
+
+    it "[×] new x, query x `l`p as y, one(y , z)" $ do
+      check "{x, y, z} new x, query x `l`p as y, one(y , z)" `shouldBe` False

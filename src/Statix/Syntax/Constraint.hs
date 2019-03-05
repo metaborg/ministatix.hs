@@ -38,6 +38,7 @@ module Statix.Syntax.Constraint
   , pattern CNew
   , pattern CEdge
   , pattern CQuery
+  , pattern COne
 
   , Label
   , Node
@@ -114,6 +115,7 @@ data ConstraintF t r
   | CNewF t
   | CEdgeF t Label t
   | CQueryF t (Regex Label) String
+  | COneF String t
   deriving (Show, Functor)
 
 type Constraint t = Fix (ConstraintF t)
@@ -126,6 +128,7 @@ pattern CEx ns c = Fix (CExF ns c)
 pattern CNew t   = Fix (CNewF t)
 pattern CEdge n l m = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)
+pattern COne x t = Fix (COneF x t)
 
 type RawConstraint = Constraint RawTerm
 

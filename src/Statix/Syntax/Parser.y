@@ -37,6 +37,7 @@ import Statix.Syntax.Constraint
   in        { TokIn }
   regexquote { TokRegexQuote }
   quote     { TokQuote }
+  one       { TokOne }
 
 %%
 
@@ -48,6 +49,7 @@ Constraint : '{' Names '}' Constraint { CEx $2 $4 }
            | new name            { CNew (RVar $2) }
            | Term arrL name arrR Term { CEdge $1 $3 $5 }
            | query name Regex as name { CQuery (RVar $2) $3 $5 }
+           | one '(' name ',' Term ')' { COne $3 $5 }
 
 RegexLit : '`' name          { RMatch $2  }
          | RegexLit RegexLit { RSeq $1 $2 }
@@ -91,6 +93,7 @@ data Token
   | TokPlus
   | TokQuote
   | TokTick
+  | TokOne
   deriving Show
 
 parseError :: [Token] -> error
@@ -137,6 +140,7 @@ lexWord cs =
     ("in", ds)    -> TokIn      : lexer ds
     ("as", ds)    -> TokAs      : lexer ds
     ("query", ds) -> TokQuery   : lexer ds
+    ("one", ds)   -> TokOne     : lexer ds
     (var, ds)     -> TokVar var : lexer ds
 
 parser :: String -> Constraint RawTerm 

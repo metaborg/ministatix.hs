@@ -170,10 +170,18 @@ internalize c = cata _intern c
     _intern (CAndF c d) = CAnd c d
     _intern (CExF ns c) = CEx ns c
     _intern (CQueryF t r x) = CQuery (tintern t) r x
+    _intern (COneF x t) = COne x (tintern t)
 
 {- Evaluation -}
 type Goal s   = (Env s, C s)
 type Solution d = Either StatixError (IntGraph Label d)
+
+lookupRawVar :: RawVar → SolverM s (STU s)
+lookupRawVar x = do
+  w ← asks (Map.lookup x)
+  case w of
+    Just v  → return v
+    Nothing → throwError UnboundVariable
 
 -- | Apply bindings of the monad to a term
 subst :: T s → SolverM s (T s)
@@ -224,21 +232,28 @@ solveFocus (CEdge t₁ l t₂) = do
     otherwise        → throwError TypeError
 
 solveFocus (CQuery t r x) = do
+  -- instantiate
   PackT t' ← subst t
+  v        ← lookupRawVar x
 
-  -- x should be a bound unification variable
-  x' ← asks (Map.lookup x)
-  case x' of
-    Nothing → throwError UnboundVariable
-    Just v →
-      -- check if t' is sufficiently instantiated
-      case t' of
-        (Node n)  → do
-          ans ← runQuery n r
-          unify (UVar v) (Answer ans)
-          next
-        (UVar _)  → pushGoal (CQuery (PackT t') r x)
-        otherwise → throwError TypeError
+  -- check if t' is sufficiently instantiated
+  case t' of
+    (Node n)  → do
+      ans ← runQuery n r
+      unify (UVar v) (Answer ans)
+      next
+    (UVar _)  → pushGoal (CQuery (PackT t') r x)
+    otherwise → throwError TypeError
+
+solveFocus c@(COne x t) = do
+  -- instantiate
+  PackT t ← subst t
+  v       ← lookupRawVar x
+  ans     ← lookupVar v
+  case ans of
+    Nothing                → pushGoal c
+    Just (Answer (p : [])) → next -- TODO unify
+    _                      → throwError UnsatisfiableError
 
 -- | Construct a solver for a raw constraint
 kick :: Constraint RawTerm → (forall s. SolverM s (IntGraph Label ()))
