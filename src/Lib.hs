@@ -1,6 +1,6 @@
 module Lib where
 
-import Statix.Eval
+import Statix.Solver
 
 repl :: IO ()
 repl = do

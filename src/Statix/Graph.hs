@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -19,6 +20,9 @@ module Statix.Graph
 import Data.IntMap as IM
 import Data.Set as Set
 import Data.STRef
+import Data.List
+import Data.Coerce
+
 import Control.Monad.ST
 import Control.Monad.Reader
 import Control.Monad.Trans
@@ -31,15 +35,29 @@ import Debug.Trace
 
 {- Int Graphs without safety guarantees -}
 data IntGraphEdge l = IntEdge l Int
-  deriving (Show)
 
 data IntGraphNode l d = IntNode
   { id    :: Int
   , edges :: [IntGraphEdge l]
   , datum :: Maybe d
-  } deriving (Show)
+  }
 
-type IntGraph l d = IntMap (IntGraphNode l d)
+newtype IntGraph l d = IntGraph (IntMap (IntGraphNode l d))
+  deriving (Functor)
+
+instance Show l ⇒ Show (IntGraphEdge l) where
+  show (IntEdge l i) = "─[ " ++ show l ++ " ]⟶ " ++ show i
+
+instance (Show l, Show d) ⇒ Show (IntGraphNode l d) where
+  show (IntNode i es d) =
+    "∇ (" ++ (show i) ++ ") ↦ " ++ show d ++ "\n"
+    ++ intercalate "\n" (fmap (\e → "    " ++ show e) es)
+    ++ "\n"
+
+instance (Show l, Show d) ⇒ Show (IntGraph l d) where
+  show (IntGraph g) =
+    "Graph:\n"
+    ++ concatMap (\ n → "- " ++ show n) g
 
 instance Functor (IntGraphNode l) where
   fmap f (IntNode i es d) = IntNode i es (fmap f d)
@@ -68,7 +86,7 @@ resolve n re = runReaderT (_resolve n re) Set.empty
     | otherwise   = do
      -- check if we visited this node yet on the path here
      seen ← ask
-     if Set.member (traceShowId i) seen
+     if Set.member i seen
        then return []
        else
        -- add this node to the visisted node set
@@ -87,7 +105,7 @@ resolve n re = runReaderT (_resolve n re) Set.empty
 toIntGraph :: STGraph s l d → ST s (IntGraph l d)
 toIntGraph stg = do
   ns ← (mapM _groundN stg)
-  return (IM.fromList ns)
+  return $ coerce $ (IM.fromList ns)
   where
     _groundE :: STEdge s l d → IntGraphEdge l
     _groundE (l , STNRef i r) = IntEdge l i

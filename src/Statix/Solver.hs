@@ -3,17 +3,15 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Statix.Eval where
+module Statix.Solver where
 
 import Prelude hiding (lookup, null)
-import Data.Map.Strict hiding (map, null)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict as Map hiding (map, null)
 import Data.Either
 import Data.Maybe
 import Data.STRef
-import Data.Sequence
+import Data.Sequence as Seq
 import Data.Functor.Fixedpoint
-import qualified Data.Sequence as Seq
 import Data.Coerce
 
 import Control.Monad.ST
@@ -24,140 +22,36 @@ import Control.Monad.Trans
 import Control.Unification
 
 import Unsafe.Coerce
-import Debug.Trace
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
 import Statix.Graph
-import Statix.UVars
-import Statix.Syntax.Parser
+import Statix.Solver.Types
+import Statix.Solver.Monad
 
-
-  
-{- Specialize that stuff for our term language -}
-newtype T s = PackT (UTerm (TermF (STNodeRef s Label (T s))) (STU s))
-  deriving (Show)
-
-type C s    = Constraint (T s)
-type STU s  = STVar s (TermF (STNodeRef s Label (T s)))
-
-{- READER -}
-type Env s = Map RawVar (STU s)
-
-{- STATE -}
-data Solver s = Solver
-  { queue :: Seq (Env s, C s)
-  , nextU :: Int
-  , nextN :: Int
-  , graph :: STGraph s Label (T s)
-  }
-
-emptySolver :: Solver s
-emptySolver = Solver
-  { queue = Seq.empty
-  , nextU = 0
-  , nextN = 0
-  , graph = []
-  }
-
-{- ERROR -}
-data StatixError =
-    UnificationError
-  | UnboundVariable
-  | UnsatisfiableError
-  | TypeError
-  | Panic String deriving (Show)
-
-instance Error StatixError where
-  strMsg = Panic
-
-instance Fallible t v StatixError where
-  occursFailure v t     = UnsatisfiableError
-  mismatchFailure t1 t2 = UnsatisfiableError
-
-{- The Solver Monad -}
-type SolverM s = ReaderT (Env s) (StateT (Solver s) (ErrorT StatixError (ST s)))
-
-runSolver :: (forall s. SolverM s a) → Either StatixError a
-runSolver c = runST (runErrorT (evalStateT (runReaderT c Map.empty) emptySolver))
-
-{- Solver is a bunch of stuff -}
-liftST :: ST s a → SolverM s a
-liftST = lift . lift . lift
-
-liftSt :: StateT (Solver s) (ErrorT StatixError (ST s)) a → SolverM s a
-liftSt = lift
-  
-{- Semantic operations -}
-freshVarName :: SolverM s Int
-freshVarName = do
-  s ← get
-  let n = nextU s
-  put (s { nextU = n + 1})
-  return n
-  
-freshNodeName :: SolverM s Int
-freshNodeName = do
-  s ← get
-  let n = nextN s
-  put (s { nextN = n + 1})
-  return n
-
-instance BindingMonad (TermF (STNodeRef s Label (T s))) (STU s) (SolverM s) where
-  lookupVar (STVar i r) = do
-    liftST $ readSTRef r
-
-  newVar t = do
-    xi     ← freshVarName
-    xr     ← liftST $ newSTRef (Just t)
-    return (STVar xi xr)
-  
-  freeVar = do
-    sv     ← get
-    xi     ← freshVarName
-    xr     ← liftST $ newSTRef Nothing
-    return (STVar xi xr)
-
-  bindVar (STVar _ xr) t = do
-    liftST $ writeSTRef xr (Just t)
-
-instance MonadGraph (STNodeRef s Label (T s)) Label (T s) (SolverM s) where
-
-  newNode d = do
-    ni ← freshNodeName
-    nr ← liftST $ newSTRef (STNData [] d)
-    let node = (STNRef ni nr)
-    modify (\ s → s { graph = node : graph s })
-    return node
-
-  newEdge (STNRef i r, l, y) =
-    liftST $ modifySTRef r (\case STNData es d → STNData ((l , y) : es) d)
-    
-  getDatum (STNRef i r) = do
-    STNData _ d ← liftST (readSTRef r)
-    return d
-
-  runQuery n re = do
-    liftST $ resolve n re
-
+-- | Push a constraint to the work queue
 pushGoal :: C s → SolverM s ()
 pushGoal c = do
   st  ← get
   env ← ask
   put (st { queue = queue st |> (env , c)})
 
+-- | Pop a constraint to the work queue if it is non-empty
 popGoal :: SolverM s (Maybe (Goal s))
 popGoal = do
   st ← get
   case viewl (queue st) of
     EmptyL        → return Nothing
     (c :< cs) → do
-      liftSt $ put (st { queue = cs })
+      liftState $ put (st { queue = cs })
       return (Just c)
 
+-- | Convert a raw constraint to the internal constraint representation in ST
 internalize :: RawConstraint → (forall s . C s)
 internalize c = cata _intern c
   where
+    -- We use unsafeCoerce to lift the resulting term without nodes
+    -- into the larger language with (potentially) nodes.
     tintern :: RawTerm → T s
     tintern t = unsafeCoerce $ unfreeze t
 
@@ -172,10 +66,8 @@ internalize c = cata _intern c
     _intern (CQueryF t r x) = CQuery (tintern t) r x
     _intern (COneF x t) = COne x (tintern t)
 
-{- Evaluation -}
-type Goal s   = (Env s, C s)
-type Solution d = Either StatixError (IntGraph Label d)
-
+-- | Convert a raw variable (surface language name) into a unification variable.
+-- If the variable is not bound, this with error.
 lookupRawVar :: RawVar → SolverM s (STU s)
 lookupRawVar x = do
   w ← asks (Map.lookup x)
@@ -184,6 +76,9 @@ lookupRawVar x = do
     Nothing → throwError UnboundVariable
 
 -- | Apply bindings of the monad to a term
+-- This is a two stage conversion;
+--   (1) convert raw variables to unification variables
+--   (2) convert unification variables to T's using the unifier
 subst :: T s → SolverM s (T s)
 subst t = do
   e  ← ask
@@ -195,7 +90,15 @@ subst t = do
 next :: SolverM s ()
 next = return ()
 
--- | Solve a focused constraint
+-- | Open existential quantifier and run the continuation in the
+-- resulting context
+openExist :: [RawVar] → SolverM s a → SolverM s a
+openExist [] c = c
+openExist (n:ns) c = do
+  v ← freeVar
+  local (Map.insert n v) (openExist ns c)
+
+-- | Try to solve a focused constraint
 solveFocus :: C s → SolverM s ()
 
 solveFocus CTrue  = return ()
@@ -211,10 +114,8 @@ solveFocus (CAnd l r) = do
   pushGoal r
   solveFocus l
 
-solveFocus (CEx []     c) = solveFocus c
-solveFocus (CEx (n:ns) c) = do
-  v ← freeVar
-  local (Map.insert n v) (solveFocus (CEx ns c))
+solveFocus (CEx ns c) = do
+  openExist ns (solveFocus c)
 
 solveFocus (CNew t) = do
   t' ← subst t
@@ -255,30 +156,49 @@ solveFocus c@(COne x t) = do
     Just (Answer (p : [])) → next -- TODO unify
     _                      → throwError UnsatisfiableError
 
+-- | Constraint closure
+type Goal s   = (Env s, C s)
+
+-- | (ST-less) solution to a constraint program
+type Solution = Either StatixError (IntGraph Label ())
+
 -- | Construct a solver for a raw constraint
 kick :: Constraint RawTerm → (forall s. SolverM s (IntGraph Label ()))
-kick c = do
-    pushGoal (internalize c)
-    loop
+kick c =
+  -- convert the raw constraint to the internal representatio
+  case internalize c of
+    -- open the top level exists if it exists
+    (CEx ns b) → openExist ns $ do
+      pushGoal b
+      loop
+    c → do
+      pushGoal c
+      loop
+
   where
+  -- | The solver loop just continuously checks the work queue,
+  -- steals an item and focuses it down, until nothing remains.
+  -- When the work is done it grounds the solution and returns it.
+  loop :: SolverM s (IntGraph Label ())
   loop = do
     st ← get
     c  ← popGoal
-    case (traceShowId c) of
+    case c of
       Just (env , c) → do
         local (const env) (solveFocus c)
         loop
       Nothing → do
+        -- done, gather up the solution (graph and top-level unifier)
         s ← get
         g ← liftST $ toIntGraph (graph s)
-        return (fmap (fmap (\ d → ())) g) {- trash the data in the graph for now -}
+        return (fmap (\ d → ()) g) {- trash the data in the graph for now -}
 
 -- | Construct and run a solver for a constraint
-eval :: Constraint RawTerm → Solution ()
+eval :: Constraint RawTerm → Solution
 eval c = runSolver (kick c)
 
 -- | Construct and run a solver for a program
-solve :: String → Solution ()
+solve :: String → Solution
 solve prog = eval (parser prog)
 
 -- | Check satisfiability of a program

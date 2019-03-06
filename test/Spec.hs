@@ -1,7 +1,7 @@
 import Test.Hspec
 import Text.Printf
 
-import Statix.Eval
+import Statix.Solver
 
 main :: IO ()
 main = hspec $ do
@@ -48,3 +48,9 @@ queryspec = describe "query" $ do
 
     it "[×] new x, query x `l`p as y, one(y , z)" $ do
       check "{x, y, z} new x, query x `l`p as y, one(y , z)" `shouldBe` False
+
+    it "[✓] new x, new y, x -[ l ]-> y, query x `l+ as z, one(z, zt)" $ do
+      check "{x,y,z,zt} new x, new y, x -[ l ]-> y, query x `l+ as z, one(z, zt)" `shouldBe` True
+
+    it "[×] new x, new y, x -[ l ]-> y, query x `l* as z, one(z, zt)" $ do
+      check "{x,y,z,zt} new x, new y, x -[ l ]-> y, query x `l* as z, one(z, zt)" `shouldBe` False
