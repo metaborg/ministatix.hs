@@ -164,8 +164,8 @@ showUnifier = do
                      do
                        b ← lookupVar v
                        case b of
-                         Nothing → return $ (show k) ++ " ↦ " ++ (show k)
-                         Just t  → return $ (show k) ++ " ↦ " ++ (show t)
+                         Nothing → return $ "  " ++ k ++ " ↦ " ++ k
+                         Just t  → return $ "  " ++ k ++ " ↦ " ++ (show t)
             ) (Map.toList e)
   return (intercalate "\n" ts)
   where
@@ -175,7 +175,7 @@ showUnifier = do
       return $ show t
 
 -- | Construct a solver for a raw constraint
-kick :: Constraint RawTerm → (forall s. SolverM s (String, IntGraph Label ()))
+kick :: Constraint RawTerm → (forall s. SolverM s (String, IntGraph Label String))
 kick c =
   -- convert the raw constraint to the internal representatio
   case internalize c of
@@ -191,7 +191,7 @@ kick c =
   -- | The solver loop just continuously checks the work queue,
   -- steals an item and focuses it down, until nothing remains.
   -- When the work is done it grounds the solution and returns it.
-  loop :: SolverM s (String, IntGraph Label ())
+  loop :: SolverM s (String, IntGraph Label String)
   loop = do
     st ← get
     c  ← popGoal
@@ -204,7 +204,7 @@ kick c =
         s ← get
         g ← liftST $ toIntGraph (graph s)
         φ ← showUnifier
-        return (φ, fmap (\ d → ()) g) {- trash the data in the graph for now -}
+        return (φ, fmap show g)
 
 -- | Construct and run a solver for a constraint
 eval :: Constraint RawTerm → Solution

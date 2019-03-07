@@ -83,4 +83,4 @@ type SolverM s = ReaderT (Env s) (StateT (Solver s) (ErrorT StatixError (ST s)))
 type Goal s   = (Env s, C s)
 
 -- | (ST-less) solution to a constraint program
-type Solution = Either StatixError (String, IntGraph Label ())
+type Solution = Either StatixError (String, IntGraph Label String)

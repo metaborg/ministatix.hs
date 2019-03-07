@@ -69,9 +69,9 @@ data TermF n r
 
 instance (Show n, Show r) ⇒ Show (TermF n r) where
   show (TConF c ts) = c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
-  show (TNodeF n)   = show n
+  show (TNodeF n)   = "Node(" ++ show n ++ ")"
 
-  show (TLabelF l)  = show l
+  show (TLabelF l)  = "`" ++ show l
   show (TVarF x)    = x
   show (TAnswerF ps) = "ζ"
 

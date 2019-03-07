@@ -28,6 +28,7 @@ dependencies:
 - list-extras >= 0.4.1.4
 - Stream
 - STMonadTrans
+- ansi-terminal
 
 
 default-extensions:
