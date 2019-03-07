@@ -157,22 +157,18 @@ solveFocus c@(COne x t) = do
     Just (Answer (p : [])) → next -- TODO unify
     _                      → throwError UnsatisfiableError
 
+-- | A simple means to getting a unifier out of State, convert everything to a string
 showUnifier :: SolverM s String
 showUnifier = do
   e  ← ask
-  ts ← mapM (\case (k, v) →
-                     do
-                       b ← lookupVar v
-                       case b of
-                         Nothing → return $ "  " ++ k ++ " ↦ " ++ k
-                         Just t  → return $ "  " ++ k ++ " ↦ " ++ (show t)
-            ) (Map.toList e)
+  ts ← mapM formatBinding (Map.toList e)
   return (intercalate "\n" ts)
   where
-    _ground :: UTerm (TermF (STNodeRef s Label (T s))) (STU s) → SolverM s String
-    _ground t = do
-      t ← applyBindings t
-      return $ show t
+    formatBinding (k, v) = do
+      b ← lookupVar v
+      case b of
+        Nothing → return $ "  " ++ k ++ " ↦ " ++ k
+        Just t  → return $ "  " ++ k ++ " ↦ " ++ (show t)
 
 -- | Construct a solver for a raw constraint
 kick :: Constraint RawTerm → (forall s. SolverM s (String, IntGraph Label String))
