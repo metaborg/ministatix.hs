@@ -13,6 +13,7 @@ import Data.STRef
 import Data.Sequence as Seq
 import Data.Functor.Fixedpoint
 import Data.Coerce
+import Data.List
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -95,7 +96,7 @@ next = return ()
 openExist :: [RawVar] → SolverM s a → SolverM s a
 openExist [] c = c
 openExist (n:ns) c = do
-  v ← freeVar
+  v ← freeNamedVar n
   local (Map.insert n v) (openExist ns c)
 
 -- | Try to solve a focused constraint
@@ -156,14 +157,25 @@ solveFocus c@(COne x t) = do
     Just (Answer (p : [])) → next -- TODO unify
     _                      → throwError UnsatisfiableError
 
--- | Constraint closure
-type Goal s   = (Env s, C s)
-
--- | (ST-less) solution to a constraint program
-type Solution = Either StatixError (IntGraph Label ())
+showUnifier :: SolverM s String
+showUnifier = do
+  e  ← ask
+  ts ← mapM (\case (k, v) →
+                     do
+                       b ← lookupVar v
+                       case b of
+                         Nothing → return $ (show k) ++ " ↦ " ++ (show k)
+                         Just t  → return $ (show k) ++ " ↦ " ++ (show t)
+            ) (Map.toList e)
+  return (intercalate "\n" ts)
+  where
+    _ground :: UTerm (TermF (STNodeRef s Label (T s))) (STU s) → SolverM s String
+    _ground t = do
+      t ← applyBindings t
+      return $ show t
 
 -- | Construct a solver for a raw constraint
-kick :: Constraint RawTerm → (forall s. SolverM s (IntGraph Label ()))
+kick :: Constraint RawTerm → (forall s. SolverM s (String, IntGraph Label ()))
 kick c =
   -- convert the raw constraint to the internal representatio
   case internalize c of
@@ -179,7 +191,7 @@ kick c =
   -- | The solver loop just continuously checks the work queue,
   -- steals an item and focuses it down, until nothing remains.
   -- When the work is done it grounds the solution and returns it.
-  loop :: SolverM s (IntGraph Label ())
+  loop :: SolverM s (String, IntGraph Label ())
   loop = do
     st ← get
     c  ← popGoal
@@ -191,7 +203,8 @@ kick c =
         -- done, gather up the solution (graph and top-level unifier)
         s ← get
         g ← liftST $ toIntGraph (graph s)
-        return (fmap (\ d → ()) g) {- trash the data in the graph for now -}
+        φ ← showUnifier
+        return (φ, fmap (\ d → ()) g) {- trash the data in the graph for now -}
 
 -- | Construct and run a solver for a constraint
 eval :: Constraint RawTerm → Solution

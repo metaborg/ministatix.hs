@@ -45,6 +45,7 @@ module Statix.Syntax.Constraint
   ) where
 
 import Data.Void
+import Data.List
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 
@@ -64,7 +65,15 @@ data TermF n r
   | TLabelF Label
   | TVarF RawVar
   | TAnswerF [Path n Label]
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Eq, Functor, Foldable, Traversable)
+
+instance (Show n, Show r) ⇒ Show (TermF n r) where
+  show (TConF c ts) = c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
+  show (TNodeF n)   = show n
+
+  show (TLabelF l)  = show l
+  show (TVarF x)    = x
+  show (TAnswerF ps) = "ζ"
 
 instance Eq n => Unifiable (TermF n) where
   -- One step of the unfication algorithm.

@@ -56,8 +56,7 @@ instance (Show l, Show d) ⇒ Show (IntGraphNode l d) where
 
 instance (Show l, Show d) ⇒ Show (IntGraph l d) where
   show (IntGraph g) =
-    "Graph:\n"
-    ++ concatMap (\ n → "- " ++ show n) g
+    concatMap (\ n → "- " ++ show n) g
 
 instance Functor (IntGraphNode l) where
   fmap f (IntNode i es d) = IntNode i es (fmap f d)

@@ -23,17 +23,19 @@ import Statix.Syntax.Constraint
 -- | Unification variables in ST
 data STVar s t =
     STVar
-        {-# UNPACK #-} !Int
-        {-# UNPACK #-} !(STRef s (Maybe (UTerm t (STVar s t))))
-
+      { ident :: {-# UNPACK #-} !Int
+      , ref   :: {-# UNPACK #-} !(STRef s (Maybe (UTerm t (STVar s t))))
+      , name  :: String
+      }
+    
 instance Show (STVar s t) where
-  show (STVar i _) = "STVar " ++ show i
+  show (STVar _ _ n) = n
 
 instance Eq (STVar s t) where
-  (STVar i _) == (STVar j _) = (i == j)
+  (STVar i _ _) == (STVar j _ _) = (i == j)
 
 instance Variable (STVar s t) where
-  getVarID (STVar i _) = i
+  getVarID u = ident u
 
 {- Specialize stuff for our term language -}
 newtype T s = PackT (UTerm (TermF (STNodeRef s Label (T s))) (STU s)) deriving (Show)
@@ -76,3 +78,9 @@ emptySolver = Solver
 
 -- | The monad that we use to solve Statix constraints
 type SolverM s = ReaderT (Env s) (StateT (Solver s) (ErrorT StatixError (ST s)))
+
+-- | Constraint closure
+type Goal s   = (Env s, C s)
+
+-- | (ST-less) solution to a constraint program
+type Solution = Either StatixError (String, IntGraph Label ())

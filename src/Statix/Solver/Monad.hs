@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -24,21 +25,17 @@ import Statix.Graph
 
 -- | The SolverM type implements the Binding interface from unification-fd
 instance BindingMonad (TermF (STNodeRef s Label (T s))) (STU s) (SolverM s) where
-  lookupVar (STVar i r) = do
+  lookupVar :: (STU s) → SolverM s (Maybe (UTerm (TermF (STNodeRef s Label (T s))) (STU s)))
+  lookupVar (STVar _ r _) = do
     liftST $ readSTRef r
-
-  newVar t = do
-    xi     ← freshVarName
-    xr     ← liftST $ newSTRef (Just t)
-    return (STVar xi xr)
   
   freeVar = do
     sv     ← get
     xi     ← freshVarName
     xr     ← liftST $ newSTRef Nothing
-    return (STVar xi xr)
+    return (STVar xi xr ("_" ++ show xi))
 
-  bindVar (STVar _ xr) t = do
+  bindVar (STVar _ xr _) t = do
     liftST $ writeSTRef xr (Just t)
 
 -- | The SolverM type implement the graph manipulation operations
@@ -60,6 +57,16 @@ instance MonadGraph (STNodeRef s Label (T s)) Label (T s) (SolverM s) where
 
   runQuery n re = do
     liftST $ resolve n re
+
+freeNamedVar :: String → SolverM s (STU s)
+freeNamedVar x = do
+  (STVar id r _) ← freeVar
+  return (STVar id r x)
+
+newNamedVar :: String → UTerm (TermF (STNodeRef s Label (T s))) (STU s) → SolverM s (STU s)
+newNamedVar x t = do
+  (STVar id r _) ← newVar t
+  return (STVar id r x)
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a
