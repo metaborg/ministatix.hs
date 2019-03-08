@@ -1,8 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Statix.Graph
   ( IntGraphEdge(..)

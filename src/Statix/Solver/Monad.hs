@@ -1,8 +1,5 @@
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Statix.Solver.Monad where
 
@@ -25,7 +22,7 @@ import Statix.Graph
 
 -- | The SolverM type implements the Binding interface from unification-fd
 instance BindingMonad (TermF (STNodeRef s Label (T s))) (STU s) (SolverM s) where
-  lookupVar :: (STU s) → SolverM s (Maybe (UTerm (TermF (STNodeRef s Label (T s))) (STU s)))
+
   lookupVar (STVar _ r _) = do
     liftST $ readSTRef r
   

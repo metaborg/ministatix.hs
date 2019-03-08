@@ -35,6 +35,8 @@ default-extensions:
 - UnicodeSyntax
 - PatternSynonyms
 - LambdaCase
+- FunctionalDependencies
+- FlexibleInstances
 
 library:
   source-dirs: src
