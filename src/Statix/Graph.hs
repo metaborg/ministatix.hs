@@ -47,16 +47,16 @@ newtype IntGraph l d = IntGraph (IntMap (IntGraphNode l d))
   deriving (Functor)
 
 instance Show l ⇒ Show (IntGraphEdge l) where
-  show (IntEdge l i) = "─[ " ++ show l ++ " ]⟶ " ++ show i
+  show (IntEdge l i) = "─⟨ " ++ show l ++ " ⟩⟶ " ++ show i
 
 instance (Show l, Show d) ⇒ Show (IntGraphNode l d) where
   show (IntNode i es d) =
-    "∇ (" ++ (show i) ++ ") ↦ " ++ show d ++ "\n"
-    ++ intercalate "\n" (fmap (\e → "    " ++ show e) es)
+    "∇ (" ++ (show i) ++ ") ↦ " ++ show d
+    ++ concatMap (\e → "\n    " ++ show e) es
 
 instance (Show l, Show d) ⇒ Show (IntGraph l d) where
   show (IntGraph g) =
-    concatMap (\ n → "  " ++ show n) g
+    concatMap (\ n → "  " ++ show n ++ "\n") g
 
 instance Functor (IntGraphNode l) where
   fmap f (IntNode i es d) = IntNode i es (fmap f d)
