@@ -42,11 +42,23 @@ type C s    = Constraint (T s)
 type STU s  = STVar s (TermF (STNodeRef s Label (T s)))
 
 {- READER -}
-type Env s = Map RawVar (STU s)
+data Env s = Env
+ { program :: Program
+ , locals  :: Map VarName (T s)
+ }
+
+emptyEnv :: Env s
+emptyEnv = Env Map.empty Map.empty
+
+getPredicate :: String → Env s → Maybe (Predicate RawTerm)
+getPredicate p env = (program env) Map.!? p
+
+insertLocal :: VarName → T s → Env s → Env s
+insertLocal x u env = env { locals = insert x u (locals env) }
 
 {- ERROR -}
 data StatixError =
-    UnboundVariable RawVar
+    UnboundVariable VarName
   | UnsatisfiableError String
   | TypeError
   | Panic String
@@ -88,3 +100,5 @@ type Goal s   = (Env s, C s)
 
 -- | (ST-less) solution to a constraint program
 type Solution = Either StatixError (String, IntGraph Label String)
+
+type Program  = Map String (Predicate RawTerm)

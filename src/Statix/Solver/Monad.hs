@@ -67,7 +67,7 @@ newNamedVar x t = do
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a
-runSolver c = runST (runErrorT (evalStateT (runReaderT c Map.empty) emptySolver))
+runSolver c = runST (runErrorT (evalStateT (runReaderT c emptyEnv) emptySolver))
 
 -- | Lift ST computations into Solver
 liftST :: ST s a → SolverM s a

@@ -13,7 +13,7 @@ import Data.STRef
 import Data.Sequence as Seq
 import Data.Functor.Fixedpoint
 import Data.Coerce
-import Data.List
+import Data.List as List
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -22,10 +22,10 @@ import Control.Monad.Error
 import Control.Monad.Trans
 import Control.Unification
 
+import Debug.Trace
 import Unsafe.Coerce
 
 import Statix.Syntax.Constraint
-import Statix.Syntax.Parser
 import Statix.Syntax.Terms.Reify
 import Statix.Graph
 import Statix.Solver.Types
@@ -49,7 +49,7 @@ popGoal = do
       return (Just c)
 
 -- | Convert a raw constraint to the internal constraint representation in ST
-internalize :: RawConstraint → (forall s . C s)
+internalize :: RawConstraint → C s
 internalize c = cata _intern c
   where
     -- We use unsafeCoerce to lift the resulting term without nodes
@@ -67,14 +67,15 @@ internalize c = cata _intern c
     _intern (CExF ns c) = CEx ns c
     _intern (CQueryF t r x) = CQuery (tintern t) r x
     _intern (COneF x t) = COne x (tintern t)
+    _intern (CApplyF p ts) = CApply p (fmap tintern ts)
 
 -- | Convert a raw variable (surface language name) into a unification variable.
 -- If the variable is not bound, this with error.
-lookupRawVar :: RawVar → SolverM s (STU s)
-lookupRawVar x = do
-  w ← asks (Map.lookup x)
+lookupVarName :: VarName → SolverM s (T s)
+lookupVarName x = do
+  w ← asks (Map.lookup x . locals)
   case w of
-    Just v  → return v
+    Just t  → return t
     Nothing → throwError (UnboundVariable x)
 
 -- | Apply bindings of the monad to a term
@@ -82,11 +83,10 @@ lookupRawVar x = do
 --   (1) convert raw variables to unification variables
 --   (2) convert unification variables to T's using the unifier
 subst :: T s → SolverM s (T s)
-subst t = do
-  e  ← ask
-  let t' = cook (flip Map.lookup e) (coerce t)
-  tm ← applyBindings t'
-  return $ coerce tm
+subst (PackT t) = do
+  e  ← locals <$> ask
+  let t' = cook (coerce . flip Map.lookup e) t
+  return $ coerce t'
 
 -- | Continue with the next goal
 next :: SolverM s ()
@@ -94,11 +94,11 @@ next = return ()
 
 -- | Open existential quantifier and run the continuation in the
 -- resulting context
-openExist :: [RawVar] → SolverM s a → SolverM s a
+openExist :: [VarName] → SolverM s a → SolverM s a
 openExist [] c = c
 openExist (n:ns) c = do
   v ← freeNamedVar n
-  local (Map.insert n v) (openExist ns c)
+  local (insertLocal n (PackT $ UVar v)) (openExist ns c)
 
 -- | Try to solve a focused constraint
 solveFocus :: C s → SolverM s ()
@@ -122,7 +122,9 @@ solveFocus (CEx ns c) = do
 solveFocus (CNew t) = do
   t' ← subst t
   u  ← newNode Nothing
-  unify (coerce t') (Node u)
+  catchError
+    (unify (coerce t') (Node u))
+    (\ err → throwError (UnsatisfiableError "Not fresh!"))
   next
 
 solveFocus (CEdge t₁ l t₂) = do
@@ -137,13 +139,13 @@ solveFocus (CEdge t₁ l t₂) = do
 solveFocus (CQuery t r x) = do
   -- instantiate
   PackT t' ← subst t
-  v        ← lookupRawVar x
+  b        ← lookupVarName x
 
   -- check if t' is sufficiently instantiated
   case t' of
     (Node n)  → do
       ans ← runQuery n r
-      unify (UVar v) (Answer ans)
+      unify (coerce b) (Answer ans)
       next
     (UVar _)  → pushGoal (CQuery (PackT t') r x)
     otherwise → throwError TypeError
@@ -151,40 +153,55 @@ solveFocus (CQuery t r x) = do
 solveFocus c@(COne x t) = do
   -- instantiate
   PackT t ← subst t
-  v       ← lookupRawVar x
-  ans     ← lookupVar v
+  v       ← lookupVarName x
+  ans     ← applyBindings (coerce v)
   case ans of
-    Nothing                → pushGoal c
-    Just (Answer (p : [])) → do unify t (reify p); return ()
-    Just (Answer [])       → throwError (UnsatisfiableError $ show c ++ " (No paths)")
-    Just (Answer ps)       → throwError (UnsatisfiableError $ show c ++ " (More than one path: " ++ show ps ++ ")")
-    _                      → throwError (UnsatisfiableError $ show c ++ " (Not an answer set)")
+    (Answer (p : [])) → do unify t (reify p); return ()
+    (Answer [])       → throwError (UnsatisfiableError $ show c ++ " (No paths)")
+    (Answer ps)       → throwError (UnsatisfiableError $ show c ++ " (More than one path: " ++ show ps ++ ")")
+    _                 → throwError (UnsatisfiableError $ show c ++ " (Not an answer set)")
+
+solveFocus (CApply p ts) = do
+   mp ← getPredicate p <$> ask
+   case mp of
+     Just (Pred _ ns c) → do
+       -- normalize the parameters
+       ts' ← mapM subst ts
+
+       -- bind the parameters
+       local (\(Env ps _) → Env ps (Map.fromList $ List.zip ns ts')) $
+         -- convert the body to the internal representation
+         let c' = internalize c in
+
+         -- solve the body
+         solveFocus c'
+
+     Nothing → throwError $ UnboundVariable p
 
 -- | A simple means to getting a unifier out of State, convert everything to a string
 showUnifier :: SolverM s String
 showUnifier = do
-  e  ← ask
+  e  ← locals <$> ask
   ts ← mapM formatBinding (Map.toList e)
   return (intercalate "\n" ts)
   where
-    formatBinding (k, v) = do
-      b ← lookupVar v
-      case b of
-        Nothing → return $ "  " ++ k ++ " ↦ " ++ k
-        Just t  → return $ "  " ++ k ++ " ↦ " ++ (show t)
+    formatBinding (k, b) = do
+      b ← applyBindings (coerce b)
+      return $ "  " ++ k ++ " ↦ " ++ (show b)
 
 -- | Construct a solver for a raw constraint
-kick :: Constraint RawTerm → (forall s. SolverM s (String, IntGraph Label String))
-kick c =
+kick :: Program → Constraint RawTerm → (forall s. SolverM s (String, IntGraph Label String))
+kick p c =
   -- convert the raw constraint to the internal representatio
-  case internalize c of
-    -- open the top level exists if it exists
-    (CEx ns b) → openExist ns $ do
-      pushGoal b
-      loop
-    c → do
-      pushGoal c
-      loop
+  local (\_ → Env p Map.empty) $ do
+    case internalize c of
+      -- open the top level exists if it exists
+      (CEx ns b) → openExist ns $ do
+        pushGoal b
+        loop
+      c → do
+        pushGoal c
+        loop
 
   where
   -- | The solver loop just continuously checks the work queue,
@@ -206,13 +223,9 @@ kick c =
         return (φ, fmap show g)
 
 -- | Construct and run a solver for a constraint
-eval :: Constraint RawTerm → Solution
-eval c = runSolver (kick c)
-
--- | Construct and run a solver for a program
-solve :: String → Solution
-solve prog = eval (parser prog)
+solve :: Program → Constraint RawTerm → Solution
+solve p c = runSolver (kick p c)
 
 -- | Check satisfiability of a program
-check :: String → Bool
-check prog = isRight $ solve prog 
+check :: Program → Constraint RawTerm → Bool
+check p c = isRight $ solve p c

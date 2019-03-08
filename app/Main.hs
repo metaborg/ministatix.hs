@@ -3,7 +3,7 @@ module Main where
 import Data.Map.Strict
 import Control.Monad.State
 
-import Lib
+import Repl
 
 main :: IO ()
 main = repl

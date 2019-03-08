@@ -1,5 +1,4 @@
 {
-{-# LANGUAGE RankNTypes #-}
 module Statix.Syntax.Parser where
 
 import Data.List
@@ -10,7 +9,9 @@ import Statix.Syntax.Constraint
 
 }
 
-%name parseConstraint
+%name parseConstraint Constraint
+%name parsePredicate  Predicate
+
 %tokentype { Token }
 %error { parseError }
 
@@ -38,18 +39,21 @@ import Statix.Syntax.Constraint
   regexquote { TokRegexQuote }
   quote     { TokQuote }
   one       { TokOne }
+  leftarrow { TokLeftArrow }
+  colon     { TokColon }
 
 %%
 
-Constraint : '{' Names '}' Constraint { CEx $2 $4 }
-           | Constraint ',' Constraint { CAnd $1 $3 }
-           | Term '=' Term       { CEq $1 $3 }
-           | true                { CTrue }
-           | false               { CFalse }
-           | new name            { CNew (RVar $2) }
-           | Term arrL name arrR Term { CEdge $1 (Lab $3) $5 }
-           | query name Regex as name { CQuery (RVar $2) $3 $5 }
-           | one '(' name ',' Term ')' { COne $3 $5 }
+Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
+           | Constraint ',' Constraint	{ CAnd $1 $3 }
+           | Term '=' Term		{ CEq $1 $3 }
+           | true			{ CTrue }
+           | false			{ CFalse }
+           | new name			{ CNew (RVar $2) }
+           | Term arrL name arrR Term	{ CEdge $1 (Lab $3) $5 }
+           | query name Regex as name	{ CQuery (RVar $2) $3 $5 }
+           | one  '(' name ',' Term ')' { COne $3 $5 }
+           | name '(' Terms ')'		{ CApply $1 $3 }
 
 RegexLit : '`' name          { RMatch (Lab $2)  }
          | RegexLit RegexLit { RSeq $1 $2 }
@@ -58,7 +62,8 @@ RegexLit : '`' name          { RMatch (Lab $2)  }
 
 Regex : RegexLit { $1 }
 
-Names : name           { [ $1 ] }
+Names :                { [] }
+      | name           { [ $1 ] }
       | Names ',' name { $3 : $1 }
 
 Term  : name '(' Terms ')'      { RCon $1 $3 }
@@ -67,6 +72,8 @@ Term  : name '(' Terms ')'      { RCon $1 $3 }
 Terms :                         { []  }
        | Term                   { [$1] }
        | Terms ',' Term         { $3 : $1 }
+
+Predicate : name '(' Names ')' leftarrow Constraint { Pred $1 $3 $6 }
 
 {
 
@@ -94,42 +101,41 @@ data Token
   | TokQuote
   | TokTick
   | TokOne
+  | TokLeftArrow
+  | TokColon
   deriving Show
 
 parseError :: [Token] -> error
-parseError _ = error "Parse error!"
+parseError toks = error $ "Parse error while parsing: " ++ show (take 1 toks)
 
 varName :: Token -> String
 varName (TokVar s) = s
 varName _ = error "Parser error: not a name"
 
 lexer :: String -> [Token]
-lexer [] = []
+lexer []		= []
 
 lexer (c:cs)
-  | isSpace c = lexer cs
-  | isAlpha c = lexWord (c:cs)
+  | isSpace c		= lexer cs
+  | isAlpha c		= lexWord (c:cs)
 
-lexer (',':cs) = TokComma   : lexer cs
-lexer ('=':cs) = TokEq      : lexer cs
-
-lexer ('{':cs) = TokOpenBr  : lexer cs
-lexer ('}':cs) = TokCloseBr : lexer cs
-
-lexer ('(':cs) = TokOpenB   : lexer cs
-lexer (')':cs) = TokCloseB  : lexer cs
-
-lexer ('-':'[':cs) = TokOpenArr : lexer cs
-lexer (']':'-':'>':cs) = TokCloseArr : lexer cs
-
-lexer ('[':cs) = TokOpenSB  : lexer cs
-lexer (']':cs) = TokCloseSB : lexer cs
-
-lexer ('\'':cs) = TokQuote : lexer cs
-
-lexer ('`':cs)  = TokTick : lexer cs
-lexer ('*':cs)  = TokStar : lexer cs
-lexer ('+':cs)  = TokPlus : lexer cs
+lexer ('←':cs)	        = TokLeftArrow : lexer cs
+lexer (':':'-':cs)	= TokLeftArrow : lexer cs
+lexer (':':cs)		= TokColon : lexer cs
+lexer (',':cs)		= TokComma   : lexer cs
+lexer ('=':cs)          = TokEq      : lexer cs
+lexer ('{':cs)		= TokOpenBr  : lexer cs
+lexer ('}':cs)		= TokCloseBr : lexer cs
+lexer ('(':cs)		= TokOpenB   : lexer cs
+lexer (')':cs)		= TokCloseB  : lexer cs
+lexer ('-':'[':cs)	= TokOpenArr : lexer cs
+lexer (']':'-':'>':cs)	= TokCloseArr : lexer cs
+lexer ('[':cs)		= TokOpenSB  : lexer cs
+lexer (']':cs)		= TokCloseSB : lexer cs
+lexer ('\'':cs)		= TokQuote : lexer cs
+lexer ('`':cs)		= TokTick : lexer cs
+lexer ('*':cs)		= TokStar : lexer cs
+lexer ('+':cs)		= TokPlus : lexer cs
 
 lexWord :: String -> [Token]
 lexWord cs =
@@ -142,8 +148,5 @@ lexWord cs =
     ("query", ds) -> TokQuery   : lexer ds
     ("one", ds)   -> TokOne     : lexer ds
     (var, ds)     -> TokVar var : lexer ds
-
-parser :: String -> Constraint RawTerm 
-parser = parseConstraint . lexer
 
 }

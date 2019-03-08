@@ -7,42 +7,7 @@ https://winterkoninkje.dreamwidth.org/tag/unification
 
 -}
 
-module Statix.Syntax.Constraint
-  ( TermF(..)
-  , ConstraintF(..)
-  , RawVar
-
-  , RawTerm
-  , pattern RCon
-  , pattern RLabel
-  , pattern RVar
-  , RawConstraint
-
-  {- Solver terms-}
-  , Term
-  , pattern Con
-  , pattern Node
-  , pattern Label
-  , pattern Var
-  , pattern Answer
-  , cook
-
-  {- Constraint syntax -}
-  , Constraint
-  , Constraints
-  , pattern CTrue
-  , pattern CFalse
-  , pattern CAnd
-  , pattern CEq
-  , pattern CEx
-  , pattern CNew
-  , pattern CEdge
-  , pattern CQuery
-  , pattern COne
-
-  , Label(..)
-  , Node
-  ) where
+module Statix.Syntax.Constraint where
 
 import Data.Void
 import Data.List
@@ -55,18 +20,27 @@ import Control.Unification.STVar
 import Statix.Regex
 import Statix.Graph.Paths
 
+------------------------------------------------------------------
+-- | Some primitives
+
 type Node     = String
+
 newtype Label = Lab String deriving (Eq)
 instance Show Label where
   show (Lab l) = l
 
-type RawVar   = String
+type VarName  = String
+type ConName  = String
+type PredName = String
+
+------------------------------------------------------------------
+-- | The term language
 
 data TermF n r
-  = TConF String [r]
+  = TConF ConName [r]
   | TNodeF n
   | TLabelF Label
-  | TVarF RawVar
+  | TVarF VarName
   | TAnswerF [Path n Label]
   deriving (Eq, Functor, Foldable, Traversable)
 
@@ -96,13 +70,13 @@ instance Eq n => Unifiable (TermF n) where
   zipMatch _ _ = Nothing
 
 -- convert some raw, syntactic variables monadically to semantic variables
-cook :: (RawVar → Maybe v) → UTerm (TermF n) v → UTerm (TermF n) v
+cook :: (VarName → Maybe (UTerm (TermF n) v)) → UTerm (TermF n) v → UTerm (TermF n) v
 cook f (UVar x)  = UVar x
 cook f (UTerm t) = _cook t
   where
     _cook (TConF c ts) = let ts' = map (cook f) ts in Con c ts'
     _cook (TVarF x) = case f x of
-      Just v  → UVar v
+      Just t  → t
       Nothing → Var x
 
 -- Statix internal terms
@@ -119,15 +93,19 @@ pattern RCon c ts = Fix (TConF c ts)
 pattern RLabel l  = Fix (TLabelF l)
 pattern RVar x    = Fix (TVarF x)
 
+------------------------------------------------------------------
+-- | The constraint language
+
 data ConstraintF t r
   = CTrueF | CFalseF
   | CAndF r r
   | CEqF t t
-  | CExF [String] r
+  | CExF [VarName] r
   | CNewF t
   | CEdgeF t Label t
-  | CQueryF t (Regex Label) String
-  | COneF String t
+  | CQueryF t (Regex Label) VarName
+  | COneF VarName t
+  | CApplyF PredName [t]
   deriving (Functor)
 
 instance (Show t, Show r) ⇒ Show (ConstraintF t r) where
@@ -140,8 +118,10 @@ instance (Show t, Show r) ⇒ Show (ConstraintF t r) where
   show (CEdgeF t l t') = show t ++ "─⟨ " ++ show l ++ " ⟩⟶" ++ show t'
   show (CQueryF t r s) = show t ++ "(" ++ show r ++ ")" ++ s
   show (COneF x t) = "one(" ++ x ++ "," ++ show t ++ ")"
+  show (CApplyF p ts) = p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
 
 type Constraint t = Fix (ConstraintF t)
+
 pattern CTrue    = Fix CTrueF
 pattern CFalse   = Fix CFalseF
 pattern CAnd l r = Fix (CAndF l r)
@@ -152,7 +132,16 @@ pattern CNew t   = Fix (CNewF t)
 pattern CEdge n l m = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t = Fix (COneF x t)
+pattern CApply p ts = Fix (CApplyF p ts)
 
 type RawConstraint = Constraint RawTerm
+type Constraints t = [Constraint t]
 
-type Constraints  t = [Constraint t]
+------------------------------------------------------------------
+-- | Predicates
+
+data Predicate t = Pred
+  { predname :: PredName
+  , params   :: [VarName]
+  , body     :: Constraint t
+  } deriving (Show)
