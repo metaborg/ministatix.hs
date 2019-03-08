@@ -15,6 +15,7 @@ module Statix.Graph
   , resolve
   , toIntGraph
   , MonadGraph(..)
+  , Path(..)
   ) where
 
 import Data.IntMap as IM

@@ -26,6 +26,7 @@ import Unsafe.Coerce
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
+import Statix.Syntax.Terms.Reify
 import Statix.Graph
 import Statix.Solver.Types
 import Statix.Solver.Monad
@@ -154,7 +155,7 @@ solveFocus c@(COne x t) = do
   ans     ← lookupVar v
   case ans of
     Nothing                → pushGoal c
-    Just (Answer (p : [])) → next -- TODO unify
+    Just (Answer (p : [])) → do unify t (reify p); return ()
     _                      → throwError UnsatisfiableError
 
 -- | A simple means to getting a unifier out of State, convert everything to a string

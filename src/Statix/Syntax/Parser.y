@@ -47,11 +47,11 @@ Constraint : '{' Names '}' Constraint { CEx $2 $4 }
            | true                { CTrue }
            | false               { CFalse }
            | new name            { CNew (RVar $2) }
-           | Term arrL name arrR Term { CEdge $1 $3 $5 }
+           | Term arrL name arrR Term { CEdge $1 (Lab $3) $5 }
            | query name Regex as name { CQuery (RVar $2) $3 $5 }
            | one '(' name ',' Term ')' { COne $3 $5 }
 
-RegexLit : '`' name          { RMatch $2  }
+RegexLit : '`' name          { RMatch (Lab $2)  }
          | RegexLit RegexLit { RSeq $1 $2 }
          | RegexLit '*'      { RStar $1 }
          | RegexLit '+'      { rplus $1 }

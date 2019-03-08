@@ -8,7 +8,7 @@ https://winterkoninkje.dreamwidth.org/tag/unification
 -}
 
 module Statix.Syntax.Constraint
-  ( TermF
+  ( TermF(..)
   , ConstraintF(..)
   , RawVar
 
@@ -40,7 +40,7 @@ module Statix.Syntax.Constraint
   , pattern CQuery
   , pattern COne
 
-  , Label
+  , Label(..)
   , Node
   ) where
 
@@ -55,9 +55,12 @@ import Control.Unification.STVar
 import Statix.Regex
 import Statix.Graph.Paths
 
-type Node   = String
-type Label  = String
-type RawVar = String
+type Node     = String
+newtype Label = Lab String deriving (Eq)
+instance Show Label where
+  show (Lab l) = l
+
+type RawVar   = String
 
 data TermF n r
   = TConF String [r]
@@ -73,7 +76,7 @@ instance (Show n, Show r) ⇒ Show (TermF n r) where
 
   show (TLabelF l)  = "`" ++ show l
   show (TVarF x)    = x
-  show (TAnswerF ps) = "ζ"
+  show (TAnswerF ps) = "{" ++ intercalate ", " (fmap show ps) ++ "}"
 
 instance Eq n => Unifiable (TermF n) where
   -- One step of the unfication algorithm.
