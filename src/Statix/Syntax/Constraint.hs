@@ -128,7 +128,18 @@ data ConstraintF t r
   | CEdgeF t Label t
   | CQueryF t (Regex Label) String
   | COneF String t
-  deriving (Show, Functor)
+  deriving (Functor)
+
+instance (Show t, Show r) ⇒ Show (ConstraintF t r) where
+
+  show CTrueF  = "⊤"
+  show CFalseF = "⊥"
+  show (CEqF t₁ t₂) = show t₁ ++ "=" ++ show t₂
+  show (CExF ns c) = "∃ " ++ intercalate ", " (fmap show ns) ++ ". " ++ show c
+  show (CNewF t)  = "∇ (" ++ show t ++ ")"
+  show (CEdgeF t l t') = show t ++ "─⟨ " ++ show l ++ " ⟩⟶" ++ show t'
+  show (CQueryF t r s) = show t ++ "(" ++ show r ++ ")" ++ s
+  show (COneF x t) = "one(" ++ x ++ "," ++ show t ++ ")"
 
 type Constraint t = Fix (ConstraintF t)
 pattern CTrue    = Fix CTrueF

@@ -4,9 +4,9 @@ data Regex l
   = RMatch l
   | RStar (Regex l)
   | RSeq  (Regex l) (Regex l)
+  | RAlt (Regex l) (Regex l)
   | Rε
   | REmp
-  | RAlt (Regex l) (Regex l)
   deriving (Show)
 
 (⍮) = RSeq
@@ -18,11 +18,12 @@ empty REmp = True
 empty _    = False
 
 matchε :: Regex l → Bool
-matchε Rε = True
-matchε (RStar r) = True
+matchε Rε           = True
+matchε (RStar r)    = True
 matchε (RSeq r₁ r₂) = matchε r₁ && matchε r₂
 matchε (RAlt r₁ r₂) = matchε r₁ || matchε r₂
-matchε _ = False
+matchε REmp         = False
+matchε (RMatch _)   = False
 
 match :: (Eq l) ⇒ l → Regex l → Regex l
 match l r = case r of

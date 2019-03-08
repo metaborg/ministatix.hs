@@ -33,7 +33,11 @@ instance Variable (STVar s t) where
   getVarID u = ident u
 
 {- Specialize stuff for our term language -}
-newtype T s = PackT (UTerm (TermF (STNodeRef s Label (T s))) (STU s)) deriving (Show)
+newtype T s = PackT (UTerm (TermF (STNodeRef s Label (T s))) (STU s))
+
+instance Show (T s) where
+  show (PackT u) = show u
+
 type C s    = Constraint (T s)
 type STU s  = STVar s (TermF (STNodeRef s Label (T s)))
 
@@ -42,12 +46,17 @@ type Env s = Map RawVar (STU s)
 
 {- ERROR -}
 data StatixError =
-    UnificationError
-  | UnboundVariable
+    UnboundVariable RawVar
   | UnsatisfiableError String
   | TypeError
-  | Panic String deriving (Show)
+  | Panic String
 
+instance Show StatixError where
+  show (UnboundVariable x) = "Found unbound variable " ++ x
+  show (UnsatisfiableError x) = "Constraint unsatisfiable: " ++ x
+  show TypeError = "Constraint unsatisfiable: type error"
+  show (Panic x) = "Panic" ++ x
+ 
 instance Error StatixError where
   strMsg = Panic
 

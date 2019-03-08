@@ -75,7 +75,7 @@ lookupRawVar x = do
   w ← asks (Map.lookup x)
   case w of
     Just v  → return v
-    Nothing → throwError UnboundVariable
+    Nothing → throwError (UnboundVariable x)
 
 -- | Apply bindings of the monad to a term
 -- This is a two stage conversion;
