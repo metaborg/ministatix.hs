@@ -1,16 +1,9 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 
-{-
-
-Tutorial on unification-fd package can be found here:
-https://winterkoninkje.dreamwidth.org/tag/unification
-
--}
-
 module Statix.Syntax.Constraint where
 
 import Data.Void
-import Data.List
+import Data.List as List
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 
@@ -145,3 +138,11 @@ data Predicate t = Pred
   , params   :: [VarName]
   , body     :: Constraint t
   } deriving (Show)
+
+showSig :: Predicate t → String
+showSig (Pred p ns _) = p ++ "(" ++ intercalate "," ns ++ ")"
+
+type Module t = [Predicate t]
+
+showModuleContent :: Module t → String
+showModuleContent mod = concatMap (\p → "  (defined " ++ (showSig p) ++ ")\n") mod

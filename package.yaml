@@ -29,7 +29,9 @@ dependencies:
 - Stream
 - STMonadTrans
 - ansi-terminal
-
+- directory
+- filepath
+- text
 
 default-extensions:
 - UnicodeSyntax

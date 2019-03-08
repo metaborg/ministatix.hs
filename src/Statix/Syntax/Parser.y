@@ -11,6 +11,7 @@ import Statix.Syntax.Constraint
 
 %name parseConstraint Constraint
 %name parsePredicate  Predicate
+%name parseModule     Predicates
 
 %tokentype { Token }
 %error { parseError }
@@ -41,6 +42,7 @@ import Statix.Syntax.Constraint
   one       { TokOne }
   leftarrow { TokLeftArrow }
   colon     { TokColon }
+  period       { TokPeriod }
 
 %%
 
@@ -73,7 +75,11 @@ Terms :                         { []  }
        | Term                   { [$1] }
        | Terms ',' Term         { $3 : $1 }
 
-Predicate : name '(' Names ')' leftarrow Constraint { Pred $1 $3 $6 }
+Predicate : name '(' Names ')' leftarrow Constraint period { Pred $1 $3 $6 }
+
+Predicates :                           { []      }
+           | Predicate                 { [$1]    }
+           | Predicates Predicate      { $2 : $1 }
 
 {
 
@@ -103,6 +109,7 @@ data Token
   | TokOne
   | TokLeftArrow
   | TokColon
+  | TokPeriod
   deriving Show
 
 parseError :: [Token] -> error
@@ -136,6 +143,7 @@ lexer ('\'':cs)		= TokQuote : lexer cs
 lexer ('`':cs)		= TokTick : lexer cs
 lexer ('*':cs)		= TokStar : lexer cs
 lexer ('+':cs)		= TokPlus : lexer cs
+lexer ('.':cs)		= TokPeriod : lexer cs
 
 lexWord :: String -> [Token]
 lexWord cs =

@@ -2,9 +2,12 @@ module Repl where
 
 import System.IO
 import System.Console.ANSI
+import System.Directory
+import System.FilePath
 
 import Data.Map.Strict as Map
 import Data.Char
+import qualified Data.Text as Text
 
 import Statix.Syntax.Constraint
 import Statix.Solver
@@ -27,7 +30,8 @@ instance Read Cmd where
             let p = parsePredicate (lexer ys) in
             [(Define p, [])]
           ("load", ys) →
-            [(Load ys, [])]
+            let path = Text.unpack $ Text.strip $ Text.pack ys in
+            [(Load path, [])]
 
     -- otherwise it is just a constraint
     | otherwise   =
@@ -77,3 +81,17 @@ repl = loop Map.empty
         loop preds
       (Define p) → do
         loop (Map.insert (predname p) p preds)
+      (Load file) → do
+        here ← getCurrentDirectory
+        let path = here </> file
+        content ← readFile path
+        let mod = parseModule (lexer content)
+
+        setSGR [SetColor Foreground Dull Green]
+        putStrLn ""
+        putStrLn "  ⟨✓⟩ Loaded module"
+        setSGR [Reset]
+        putStrLn $ showModuleContent mod
+        putStrLn ""
+
+        loop (Map.union (Map.fromList $ fmap (\p → (predname p, p)) mod) preds)
