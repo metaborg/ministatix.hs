@@ -140,7 +140,7 @@ data Predicate t = Pred
   } deriving (Show)
 
 showSig :: Predicate t → String
-showSig (Pred p ns _) = p ++ "(" ++ intercalate "," ns ++ ")"
+showSig (Pred p ns _) = p ++ "(" ++ intercalate "," (reverse ns) ++ ")"
 
 type Module t = [Predicate t]
 

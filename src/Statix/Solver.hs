@@ -128,18 +128,18 @@ solveFocus (CNew t) = do
   next
 
 solveFocus (CEdge t₁ l t₂) = do
-  t₁' ← subst t₁
-  t₂' ← subst t₂
+  t₁' ← subst t₁ >>= applyBindings . coerce
+  t₂' ← subst t₂ >>= applyBindings . coerce
   case (coerce t₁' , coerce t₂') of
     (Node n, Node m) → newEdge (n, l, m)
-    (UVar x, _)      → pushGoal (CEdge t₁' l t₂')
-    (_ , UVar x)     → pushGoal (CEdge t₁' l t₂')
+    (UVar x, _)      → pushGoal (CEdge (coerce t₁') l (coerce t₂'))
+    (_ , UVar x)     → pushGoal (CEdge (coerce t₁') l (coerce t₂'))
     otherwise        → throwError TypeError
 
 solveFocus (CQuery t r x) = do
   -- instantiate
-  PackT t' ← subst t
-  b        ← lookupVarName x
+  t' ← subst t >>= applyBindings . coerce
+  b  ← lookupVarName x
 
   -- check if t' is sufficiently instantiated
   case t' of
@@ -152,14 +152,15 @@ solveFocus (CQuery t r x) = do
 
 solveFocus c@(COne x t) = do
   -- instantiate
-  PackT t ← subst t
+  t       ← subst t >>= applyBindings . coerce
   v       ← lookupVarName x
   ans     ← applyBindings (coerce v)
   case ans of
+    (UVar x)          → pushGoal c
     (Answer (p : [])) → do unify t (reify p); return ()
     (Answer [])       → throwError (UnsatisfiableError $ show c ++ " (No paths)")
     (Answer ps)       → throwError (UnsatisfiableError $ show c ++ " (More than one path: " ++ show ps ++ ")")
-    _                 → throwError (UnsatisfiableError $ show c ++ " (Not an answer set)")
+    _                 → throwError (UnsatisfiableError $ show c ++ " (" ++ show ans ++ " is not an answer set)")
 
 solveFocus (CApply p ts) = do
    mp ← getPredicate p <$> ask
