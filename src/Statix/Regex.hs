@@ -21,6 +21,7 @@ matchε :: Regex l → Bool
 matchε Rε = True
 matchε (RStar r) = True
 matchε (RSeq r₁ r₂) = matchε r₁ && matchε r₂
+matchε (RAlt r₁ r₂) = matchε r₁ || matchε r₂
 matchε _ = False
 
 match :: (Eq l) ⇒ l → Regex l → Regex l

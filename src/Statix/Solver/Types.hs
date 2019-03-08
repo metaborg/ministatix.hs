@@ -44,7 +44,7 @@ type Env s = Map RawVar (STU s)
 data StatixError =
     UnificationError
   | UnboundVariable
-  | UnsatisfiableError
+  | UnsatisfiableError String
   | TypeError
   | Panic String deriving (Show)
 
@@ -52,8 +52,8 @@ instance Error StatixError where
   strMsg = Panic
 
 instance Fallible t v StatixError where
-  occursFailure v t     = UnsatisfiableError
-  mismatchFailure t1 t2 = UnsatisfiableError
+  occursFailure v t     = UnsatisfiableError "Recursive term"
+  mismatchFailure t1 t2 = UnsatisfiableError "Term mismatch"
 
 {- STATE -}
 data Solver s = Solver

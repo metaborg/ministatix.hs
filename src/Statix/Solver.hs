@@ -104,7 +104,7 @@ openExist (n:ns) c = do
 solveFocus :: C s → SolverM s ()
 
 solveFocus CTrue  = return ()
-solveFocus CFalse = throwError UnsatisfiableError
+solveFocus CFalse = throwError (UnsatisfiableError "Derived ⊥")
 
 solveFocus (CEq t1 t2) = do
   t1' ← subst t1
@@ -156,7 +156,9 @@ solveFocus c@(COne x t) = do
   case ans of
     Nothing                → pushGoal c
     Just (Answer (p : [])) → do unify t (reify p); return ()
-    _                      → throwError UnsatisfiableError
+    Just (Answer [])       → throwError (UnsatisfiableError $ show c ++ " (No paths)")
+    Just (Answer ps)       → throwError (UnsatisfiableError $ show c ++ " (More than one path: " ++ show ps ++ ")")
+    _                      → throwError (UnsatisfiableError $ show c ++ " (Not an answer set)")
 
 -- | A simple means to getting a unifier out of State, convert everything to a string
 showUnifier :: SolverM s String
