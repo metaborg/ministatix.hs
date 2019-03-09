@@ -1,7 +1,10 @@
 module Statix.Graph.Paths where
 
-data Path n l = End n | Via (n , l) (Path n l)
-  deriving (Eq)
+import Control.Monad.Reader
+import Control.Monad.Trans
+
+import Statix.Regex as Re
+import Statix.Graph.Types
 
 toList :: Path n l → ([(n, l)], n)
 toList (End n)   = ([], n)

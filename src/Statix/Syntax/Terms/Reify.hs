@@ -7,6 +7,7 @@ import Control.Unification
 
 import Statix.Syntax.Constraint
 import Statix.Graph
+import Statix.Graph.Types
 import Statix.Graph.Paths as P
 
 class Reifiable a n r where

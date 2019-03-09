@@ -19,6 +19,8 @@ import Control.Unification
 import Statix.Syntax.Constraint
 import Statix.Solver.Types
 import Statix.Graph
+import Statix.Graph.Types
+import Statix.Graph.Paths
 
 -- | The SolverM type implements the Binding interface from unification-fd
 instance BindingMonad (TermF (STNodeRef s Label (T s))) (STU s) (SolverM s) where
@@ -52,8 +54,9 @@ instance MonadGraph (STNodeRef s Label (T s)) Label (T s) (SolverM s) where
     STNData _ d ← liftST (readSTRef r)
     return d
 
-  runQuery n re = do
-    liftST $ resolve n re
+  getOutEdges (STNRef _ r) = do
+    STNData es _ ← liftST (readSTRef r)
+    return es
 
 freeNamedVar :: String → SolverM s (STU s)
 freeNamedVar x = do

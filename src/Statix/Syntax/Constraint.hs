@@ -11,6 +11,7 @@ import Control.Unification
 import Control.Unification.STVar
 
 import Statix.Regex
+import Statix.Graph.Types
 import Statix.Graph.Paths
 
 ------------------------------------------------------------------
