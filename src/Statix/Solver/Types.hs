@@ -8,7 +8,7 @@ import Data.Sequence as Seq
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Monad.Trans
 import Control.Unification hiding (STVar)
 
@@ -69,9 +69,6 @@ instance Show StatixError where
   show TypeError = "Constraint unsatisfiable: type error"
   show (Panic x) = "Panic" ++ x
  
-instance Error StatixError where
-  strMsg = Panic
-
 instance Fallible t v StatixError where
   occursFailure v t     = UnsatisfiableError "Recursive term"
   mismatchFailure t1 t2 = UnsatisfiableError "Term mismatch"
@@ -93,7 +90,7 @@ emptySolver = Solver
   }
 
 -- | The monad that we use to solve Statix constraints
-type SolverM s = ReaderT (Env s) (StateT (Solver s) (ErrorT StatixError (ST s)))
+type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s)))
 
 -- | Constraint closure
 type Goal s   = (Env s, C s)

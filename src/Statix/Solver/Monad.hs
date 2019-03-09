@@ -13,7 +13,7 @@ import Data.Coerce
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Unification
 
 import Statix.Syntax.Constraint
@@ -70,14 +70,14 @@ newNamedVar x t = do
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a
-runSolver c = runST (runErrorT (evalStateT (runReaderT c emptyEnv) emptySolver))
+runSolver c = runST (runExceptT (evalStateT (runReaderT c emptyEnv) emptySolver))
 
 -- | Lift ST computations into Solver
 liftST :: ST s a → SolverM s a
 liftST = lift . lift . lift
 
 -- | Lift State computations into Solver
-liftState :: StateT (Solver s) (ErrorT StatixError (ST s)) a → SolverM s a
+liftState :: StateT (Solver s) (ExceptT StatixError (ST s)) a → SolverM s a
 liftState = lift
 
 -- | Get a fresh variable identifier

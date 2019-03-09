@@ -18,7 +18,7 @@ import Data.List as List
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Error
+import Control.Monad.Except
 import Control.Monad.Trans
 import Control.Unification
 
@@ -84,8 +84,8 @@ lookupVarName x = do
 -- This is a two stage conversion;
 --   (1) convert raw variables to unification variables
 --   (2) convert unification variables to T's using the unifier
-subst :: T s → SolverM s (T s)
-subst (PackT t) = do
+applyLocalBindings :: T s → SolverM s (T s)
+applyLocalBindings (PackT t) = do
   e  ← locals <$> ask
   let t' = cook (coerce . flip Map.lookup e) t
   return $ coerce t'
@@ -109,8 +109,8 @@ solveFocus CTrue  = return ()
 solveFocus CFalse = throwError (UnsatisfiableError "Derived ⊥")
 
 solveFocus (CEq t1 t2) = do
-  t1' ← subst t1
-  t2' ← subst t2
+  t1' ← applyLocalBindings t1
+  t2' ← applyLocalBindings t2
   _ ← unifyOccurs (coerce t1') (coerce t2') {- TODO unify -}
   next
 
@@ -122,7 +122,7 @@ solveFocus (CEx ns c) = do
   openExist ns (solveFocus c)
 
 solveFocus (CNew t) = do
-  t' ← subst t
+  t' ← applyLocalBindings t
   u  ← newNode Nothing
   catchError
     (unify (coerce t') (Node u))
@@ -130,8 +130,8 @@ solveFocus (CNew t) = do
   next
 
 solveFocus (CEdge t₁ l t₂) = do
-  t₁' ← subst t₁ >>= applyBindings . coerce
-  t₂' ← subst t₂ >>= applyBindings . coerce
+  t₁' ← applyLocalBindings t₁ >>= applyBindings . coerce
+  t₂' ← applyLocalBindings t₂ >>= applyBindings . coerce
   case (coerce t₁' , coerce t₂') of
     (Node n, Node m) → newEdge (n, l, m)
     (UVar x, _)      → pushGoal (CEdge (coerce t₁') l (coerce t₂'))
@@ -140,7 +140,7 @@ solveFocus (CEdge t₁ l t₂) = do
 
 solveFocus (CQuery t r x) = do
   -- instantiate
-  t' ← subst t >>= applyBindings . coerce
+  t' ← applyLocalBindings t >>= applyBindings . coerce
   b  ← lookupVarName x
 
   -- check if t' is sufficiently instantiated
@@ -154,7 +154,7 @@ solveFocus (CQuery t r x) = do
 
 solveFocus c@(COne x t) = do
   -- instantiate
-  t       ← subst t >>= applyBindings . coerce
+  t       ← applyLocalBindings t >>= applyBindings . coerce
   v       ← lookupVarName x
   ans     ← applyBindings (coerce v)
   case ans of
@@ -169,7 +169,7 @@ solveFocus (CApply p ts) = do
    case mp of
      Just (Pred _ ns c) → do
        -- normalize the parameters
-       ts' ← mapM subst ts
+       ts' ← mapM applyLocalBindings ts
 
        -- bind the parameters
        local (\(Env ps _) → Env ps (Map.fromList $ List.zip ns ts')) $
