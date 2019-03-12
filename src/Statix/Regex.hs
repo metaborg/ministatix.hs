@@ -7,7 +7,7 @@ data Regex l
   | RAlt (Regex l) (Regex l)
   | Rε
   | REmp
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 (⍮) = RSeq
 (∥) = RAlt
@@ -15,7 +15,9 @@ rplus r = RSeq r (RStar r)
 
 empty :: Regex l → Bool
 empty REmp = True
-empty _    = False
+empty (RAlt r₁ r₂) = empty r₁ && empty r₂
+empty (RSeq r₁ r₂) = empty r₁ || empty r₂
+empty _ = False
 
 matchε :: Regex l → Bool
 matchε Rε           = True

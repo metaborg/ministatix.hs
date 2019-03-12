@@ -14,6 +14,7 @@ import Data.Sequence as Seq
 import Data.Functor.Fixedpoint
 import Data.Coerce
 import Data.List as List
+import Data.Set as Set
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -24,7 +25,9 @@ import Control.Unification
 
 import Debug.Trace
 import Unsafe.Coerce
+import System.IO.Unsafe
 
+import Statix.Regex as Re
 import Statix.Syntax.Constraint
 import Statix.Syntax.Terms.Reify
 import Statix.Graph
@@ -90,6 +93,27 @@ openExist (n:ns) c = do
   v ← freeNamedVar n
   local (insertLocal n (PackT $ UVar v)) (openExist ns c)
 
+checkCritical :: Map (STN s) (Regex Label) → C s → SolverM s (Set (STN s, Label))
+checkCritical ces c = cataM check c
+  where
+    check (CAndF l r) = return (l `Set.union` r)
+    check (CExF xs c) = return c
+    check (CEdgeF t₁ l t₂) = do
+      t₁ ← applyLocalBindings t₁ >>= applyBindings . coerce
+      case t₁ of
+        (Node n) → 
+          case ces Map.!? n of
+            Nothing  → return Set.empty
+            Just re  → if not $ Re.empty $ match l re then return $ Set.singleton (n, l) else return Set.empty
+        _ → return Set.empty
+    check (CApplyF p ts) = return Set.empty -- TODO!
+    check _ = return Set.empty
+
+queryGuard :: Map (STN s) (Regex Label) → SolverM s (Set (STN s, Label))
+queryGuard ce = do
+  cs ← liftState $ gets queue
+  Set.unions <$> mapM (\(e, c) → local (const e) $ checkCritical ce c) cs
+
 -- | Try to solve a focused constraint
 solveFocus :: C s → SolverM s ()
 
@@ -133,10 +157,22 @@ solveFocus (CQuery t r x) = do
 
   -- check if t' is sufficiently instantiated
   case t' of
+    -- If the source node is ground
+    -- then we can attempt to solve the query
     (Node n)  → do
-      ans ← runQuery n r
-      unify (coerce b) (Answer ans)
-      next
+      -- first we check the guard
+      es ← findReachable n r
+      stuckOn ← queryGuard es
+
+      if List.null stuckOn then do
+        -- if it passes we solve the query
+        ans ← runQuery n r
+        unify (coerce b) (Answer ans)
+        next
+      else do
+        pushGoal (trace "Delaying query" $ CQuery (PackT t') r x)
+        next
+
     (UVar _)  → pushGoal (CQuery (PackT t') r x)
     otherwise → throwError TypeError
 

@@ -38,7 +38,7 @@ instance BindingMonad (TermF (STNodeRef s Label (T s))) (STU s) (SolverM s) wher
     liftST $ writeSTRef xr (Just t)
 
 -- | The SolverM type implement the graph manipulation operations
-instance MonadGraph (STNodeRef s Label (T s)) Label (T s) (SolverM s) where
+instance MonadGraph (STN s) Label (T s) (SolverM s) where
 
   newNode d = do
     ni ← freshNodeName

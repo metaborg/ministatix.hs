@@ -12,6 +12,7 @@ import Control.Monad.Except
 import Control.Monad.Trans
 import Control.Unification hiding (STVar)
 
+import Statix.Regex
 import Statix.Graph
 import Statix.Syntax.Constraint
 
@@ -40,6 +41,7 @@ instance Show (T s) where
 
 type C s    = Constraint (T s)
 type STU s  = STVar s (TermF (STNodeRef s Label (T s)))
+type STN s  = STNodeRef s Label (T s)
 
 {- READER -}
 data Env s = Env

@@ -19,7 +19,7 @@ import Statix.Graph.Paths
 
 type Node     = String
 
-newtype Label = Lab String deriving (Eq)
+newtype Label = Lab String deriving (Eq, Ord)
 instance Show Label where
   show (Lab l) = l
 
@@ -72,6 +72,9 @@ cook f (UTerm t) = _cook t
     _cook (TVarF x) = case f x of
       Just t  → t
       Nothing → Var x
+    _cook (TAnswerF a) = Answer a
+    _cook (TNodeF n) = Node n
+    _cook (TLabelF l) = Label l
 
 -- Statix internal terms
 type Term n v = UTerm (TermF n) v
@@ -100,7 +103,7 @@ data ConstraintF t r
   | CQueryF t (Regex Label) VarName
   | COneF VarName t
   | CApplyF PredName [t]
-  deriving (Functor)
+  deriving (Functor, Foldable, Traversable)
 
 instance (Show t, Show r) ⇒ Show (ConstraintF t r) where
 
