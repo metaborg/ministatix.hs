@@ -59,19 +59,19 @@ insertLocal x u env = env { locals = insert x u (locals env) }
 {- ERROR -}
 data StatixError =
     UnboundVariable VarName
-  | UnsatisfiableError String
+  | Unsatisfiable String
   | TypeError
   | Panic String
 
 instance Show StatixError where
   show (UnboundVariable x) = "Found unbound variable " ++ x
-  show (UnsatisfiableError x) = "Constraint unsatisfiable: " ++ x
+  show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
   show TypeError = "Constraint unsatisfiable: type error"
   show (Panic x) = "Panic" ++ x
  
 instance Fallible t v StatixError where
-  occursFailure v t     = UnsatisfiableError "Recursive term"
-  mismatchFailure t1 t2 = UnsatisfiableError "Term mismatch"
+  occursFailure v t     = Unsatisfiable "Recursive term"
+  mismatchFailure t1 t2 = Unsatisfiable "Term mismatch"
 
 {- STATE -}
 data Solver s = Solver

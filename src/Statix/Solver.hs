@@ -50,26 +50,14 @@ popGoal = do
       liftState $ put (st { queue = cs })
       return (Just c)
 
--- | Convert a raw constraint to the internal constraint representation in ST
+-- | Convert a raw (closed) constraint to the internal constraint representation in ST
 internalize :: RawConstraint → C s
-internalize c = cata _intern c
+internalize = tmapc tintern
   where
     -- We use unsafeCoerce to lift the resulting term without nodes
     -- into the larger language with (potentially) nodes.
     tintern :: RawTerm → T s
     tintern t = unsafeCoerce $ unfreeze t
-
-    _intern :: ConstraintF RawTerm (C s) → C s
-    _intern (CEqF t₁ t₂) = CEq (tintern t₁) (tintern t₂)
-    _intern (CNewF t) = CNew (tintern t)
-    _intern (CEdgeF t₁ l t₂) = CEdge (tintern t₁) l (tintern t₂)
-    _intern CTrueF = CTrue
-    _intern CFalseF = CFalse
-    _intern (CAndF c d) = CAnd c d
-    _intern (CExF ns c) = CEx ns c
-    _intern (CQueryF t r x) = CQuery (tintern t) r x
-    _intern (COneF x t) = COne x (tintern t)
-    _intern (CApplyF p ts) = CApply p (fmap tintern ts)
 
 -- | Convert a raw variable (surface language name) into a unification variable.
 -- If the variable is not bound, this with error.
@@ -106,7 +94,7 @@ openExist (n:ns) c = do
 solveFocus :: C s → SolverM s ()
 
 solveFocus CTrue  = return ()
-solveFocus CFalse = throwError (UnsatisfiableError "Derived ⊥")
+solveFocus CFalse = throwError (Unsatisfiable "Derived ⊥")
 
 solveFocus (CEq t1 t2) = do
   t1' ← applyLocalBindings t1
@@ -126,7 +114,7 @@ solveFocus (CNew t) = do
   u  ← newNode Nothing
   catchError
     (unify (coerce t') (Node u))
-    (\ err → throwError (UnsatisfiableError "Not fresh!"))
+    (\ err → throwError (Unsatisfiable "Not fresh!"))
   next
 
 solveFocus (CEdge t₁ l t₂) = do
@@ -160,9 +148,9 @@ solveFocus c@(COne x t) = do
   case ans of
     (UVar x)          → pushGoal c
     (Answer (p : [])) → do unify t (reify p); return ()
-    (Answer [])       → throwError (UnsatisfiableError $ show c ++ " (No paths)")
-    (Answer ps)       → throwError (UnsatisfiableError $ show c ++ " (More than one path: " ++ show ps ++ ")")
-    _                 → throwError (UnsatisfiableError $ show c ++ " (" ++ show ans ++ " is not an answer set)")
+    (Answer [])       → throwError (Unsatisfiable $ show c ++ " (No paths)")
+    (Answer ps)       → throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
+    _                 → throwError (Unsatisfiable $ show c ++ " (" ++ show ans ++ " is not an answer set)")
 
 solveFocus (CApply p ts) = do
    mp ← getPredicate p <$> ask

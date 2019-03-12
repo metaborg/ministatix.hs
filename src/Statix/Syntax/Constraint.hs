@@ -116,6 +116,19 @@ instance (Show t, Show r) ⇒ Show (ConstraintF t r) where
 
 type Constraint t = Fix (ConstraintF t)
 
+tmapc_ :: (t → s) → ConstraintF t (Constraint s) → Constraint s
+tmapc_ f (CEqF t₁ t₂) = CEq (f t₁) (f t₂)
+tmapc_ f (CNewF t) = CNew (f t)
+tmapc_ f (CEdgeF t₁ l t₂) = CEdge (f t₁) l (f t₂)
+tmapc_ f (CAndF c d) = CAnd c d
+tmapc_ f (CExF ns c) = CEx ns c
+tmapc_ f (CQueryF t r x) = CQuery (f t) r x
+tmapc_ f (COneF x t) = COne x (f t)
+tmapc_ f (CApplyF p ts) = CApply p (fmap f ts)
+
+tmapc :: (t → s) → Constraint t → Constraint s
+tmapc f = cata (tmapc_ f)
+
 pattern CTrue    = Fix CTrueF
 pattern CFalse   = Fix CFalseF
 pattern CAnd l r = Fix (CAndF l r)
