@@ -14,12 +14,14 @@ import Control.Monad.Except hiding (liftIO)
 import Control.Monad.State  hiding (liftIO)
 import Control.Monad.Reader hiding (liftIO)
 
+import Statix.Syntax.Parser
 import Statix.Syntax.Constraint
+
 import Statix.Solver
 import Statix.Solver.Types
-import Statix.Syntax.Parser
+
 import Statix.Analysis.Types hiding (liftNC)
-import Statix.Analysis.Checker
+import Statix.Analysis.Namer
 
 {- A means to handling various errors in the REPL -}
 class ReplError e where
