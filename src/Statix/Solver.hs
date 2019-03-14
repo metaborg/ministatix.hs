@@ -33,6 +33,7 @@ import Statix.Syntax.Terms.Reify
 import Statix.Graph
 import Statix.Graph.Paths
 import Statix.Graph.Types
+import Statix.Analysis.Symboltable
 import Statix.Solver.Types
 import Statix.Solver.Monad
 

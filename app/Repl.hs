@@ -7,6 +7,7 @@ import System.FilePath
 
 import Data.HashMap.Strict as HM
 import Data.Char
+import Data.Functor.Identity
 import Text.Read hiding (lift, get)
 import qualified Data.Text as Text
 
@@ -21,7 +22,8 @@ import Statix.Solver
 import Statix.Solver.Types
 
 import Statix.Analysis.Types hiding (liftNC)
-import Statix.Analysis.Namer
+import Statix.Analysis.Symboltable
+import Statix.Analysis
 
 {- A means to handling various errors in the REPL -}
 class ReplError e where
@@ -55,8 +57,8 @@ liftNC c = do
   
 liftTC :: TCM a → REPL a
 liftTC c = do
-  sym ← get
-  handleErrors $ runTC sym c
+  e ← lift (mapStateT (return . runIdentity) $ runExceptT c)
+  handleErrors e
 
 liftParser :: String → ParserM a → REPL a
 liftParser mod c = handleErrors $ runParser mod c
@@ -137,7 +139,8 @@ loop = do
 
     (Main rawc)   → do
       c   ← liftParser "repl" $ (parseConstraint (lexer rawc))
-      cok ← liftNC $ checkConstraint c
+      ctx ← ask
+      cok ← liftTC $ analyze ctx c
       solution ← gets (\sym → solve sym cok)
       liftIO $ putStrLn ""
       liftIO $ printSolution solution
@@ -145,9 +148,9 @@ loop = do
 
     (Define p) → do
       pr   ← liftParser "repl" (parsePredicate (lexer p))
-      prty ← liftNC $ checkPredicate pr
+      ctx ← ask
+      prty ← liftTC $ analyzeP ctx pr
       let σ = sig prty
-      lift $ modify (HM.insert (qname σ) prty)
       local (HM.insert (predname σ) (qname σ)) loop
 
     (Import file) → do
@@ -155,14 +158,15 @@ loop = do
       let path = here </> file
       content  ← liftIO $ readFile path
       let modname = takeBaseName file
+
+      -- parse the module
       rawmod   ← liftParser modname $ parseModule $ lexer content
-      mod      ← liftTC $ checkMod modname rawmod
 
-      -- insert into the symboltable
-      modify (importMod mod)
-      liftIO $ reportImports mod
+      -- analyze it
+      ctx      ← ask
+      mod      ← liftTC $ analyzeM ctx modname rawmod
 
-      -- update the context
+      -- update the local context
       local (\ctx → HM.union (fmap (qname . sig) (defs mod)) ctx) loop
 
 -- | Run the repl in IO

@@ -1,12 +1,15 @@
 module Statix.Analysis.Types where
 
 import Data.HashMap.Strict as HM
+import Data.Coerce
+import Data.Functor.Identity
 
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
 
 import Statix.Syntax.Constraint
+import Statix.Analysis.Symboltable
 
 data TCError
   = DuplicatePredicate String
@@ -18,7 +21,7 @@ data TCError
 type NCM = ReaderT Context (Except TCError)
 
 -- | Type checking monad
-type TCM = StateT SymbolTable (Except TCError)
+type TCM = ExceptT TCError (State SymbolTable)
 
 type Context = HashMap String QName
 
@@ -41,8 +44,8 @@ getSig q = sig <$> getPred q
 getArity :: QName → TCM Int
 getArity q = length <$> params <$> sig <$> getPred q
 
-runTC :: SymbolTable → TCM a → Either TCError a
-runTC sym c = runExcept $ evalStateT c sym 
+runTC :: SymbolTable → TCM a → (Either TCError a, SymbolTable)
+runTC sym c = runIdentity $ runStateT (runExceptT c) sym
 
 runNC :: Context → NCM a → Either TCError a
 runNC ctx c = runExcept $ runReaderT c ctx

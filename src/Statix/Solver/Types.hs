@@ -16,6 +16,7 @@ import Control.Unification hiding (STVar)
 import Statix.Regex
 import Statix.Graph
 import Statix.Syntax.Constraint
+import Statix.Analysis.Symboltable
 
 -- | Unification variables in ST
 data STVar s t =

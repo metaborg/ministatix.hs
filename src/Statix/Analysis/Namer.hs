@@ -11,6 +11,7 @@ import Data.Coerce
 
 import Statix.Syntax.Constraint
 import Statix.Analysis.Types
+import Statix.Analysis.Symboltable
 
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names

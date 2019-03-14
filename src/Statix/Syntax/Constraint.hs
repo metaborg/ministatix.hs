@@ -167,18 +167,3 @@ data Predicate p = Pred
   { sig      :: Signature
   , body     :: Constraint p RawTerm
   } deriving (Show)
-
-data Module = Mod 
-  { modname  :: ModName
-  , defs     :: HashMap RawName (Predicate QName) }
-
-type SymbolTable      = HashMap QName (Predicate QName)
-
-importMod :: Module → SymbolTable → SymbolTable
-importMod (Mod name defs) sym = foldl (\sym p → HM.insert (qname $ sig p) p sym) sym defs
-
-emptyMod :: ModName → Module
-emptyMod m = Mod m HM.empty
-
-showModuleContent :: Module → String
-showModuleContent mod = concatMap (\p → "  (defined " ++ (show $ sig p) ++ ")\n") (HM.elems $ defs mod)
