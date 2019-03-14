@@ -21,11 +21,7 @@ import Statix.Syntax.Parser
 import Statix.Analysis.Types
 import Statix.Analysis.Checker
 
-data Cmd
-  = Define String
-  | Main String
-  | Load String
-
+{- A means to handling various errors in the REPL -}
 class ReplError e where
   report :: e → IO ()
 
@@ -41,6 +37,7 @@ handleErrors (Left err) = do
   liftIO $ putStrLn $ show err
   loop
 
+{- The REPL Monad -}
 type REPL a  = ReaderT Context (StateT SymbolTable IO) a
 
 runRepl :: Context → SymbolTable → REPL a → IO a
@@ -49,6 +46,16 @@ runRepl ctx sym c = evalStateT (runReaderT c ctx) sym
 liftIO :: IO a → REPL a
 liftIO c = lift $ lift c
 
+-- | Repl Commands
+-- :def <pred>  - define a new predicate <pred>
+-- :load <path> - load a statix module <path>
+-- <constraint> - try to solve <constraint>
+data Cmd
+  = Define String
+  | Main String
+  | Load String
+
+-- | Cmd parser
 instance Read Cmd where
 
   readsPrec _ s
@@ -92,12 +99,8 @@ printSolution solution =
       print g
       setSGR [Reset]
 
-replParse :: String → ParserM a → REPL a
-replParse mod a = handleErrors (runParser mod a)
-
-replType :: TCM b → REPL b
-replType c = handleErrors (runTC c)
-
+-- | We trick the type checker by typing loop as `REPL a`.
+-- This allows us to handle errors by outputting some string and resuming the loop.
 loop :: REPL a
 loop = do
   liftIO prompt
@@ -109,18 +112,18 @@ loop = do
   case cmd of
 
     (Main rawc)   → do
-      c   ← replParse "repl" (parseConstraint (lexer rawc))
+      c   ← handleErrors $ runParser "repl" $ (parseConstraint (lexer rawc))
       ctx ← ask
-      cok ← replType (checkConstraint ctx c)
+      cok ← handleErrors $ runTC $ checkConstraint ctx c
       solution ← gets (\sym → solve sym cok)
       liftIO $ putStrLn ""
       liftIO $ printSolution solution
       loop
 
     (Define p) → do
-      pr   ← replParse "repl" (parsePredicate (lexer p))
+      pr   ← handleErrors $ runParser "repl" (parsePredicate (lexer p))
       ctx  ← ask
-      prty ← replType (checkPredicate ctx pr)
+      prty ← asks handleErrors $ runTC $ checkPredicate ctx pr
       let σ = sig prty
       lift $ modify (HM.insert (qname σ) prty)
       local (HM.insert (predname σ) (qname σ)) loop
@@ -129,8 +132,8 @@ loop = do
       here     ← liftIO getCurrentDirectory
       let path = here </> file
       content  ← liftIO $ readFile path
-      rawmod   ← replParse file (parseModule $ lexer content)
-      mod      ← replType (checkMod file rawmod)
+      rawmod   ← handleErrors $ runParser file $ parseModule $ lexer content
+      mod      ← handleErrors $ runTC $ checkMod file rawmod
       liftIO $ do setSGR [SetColor Foreground Dull Green]
                   putStrLn ""
                   putStrLn "  ⟨✓⟩ Loaded module"
@@ -140,5 +143,6 @@ loop = do
 
       local (\ctx → HM.union (fmap (qname . sig) (defs mod)) ctx) loop
 
+-- | Run the repl in IO
 repl :: IO ()
 repl = runRepl HM.empty HM.empty loop
