@@ -54,7 +54,7 @@ popGoal = do
       return (Just c)
 
 -- | Convert a raw (closed) constraint to the internal constraint representation in ST
-internalize :: RawConstraint → C s
+internalize :: Constraint QName RawTerm → C s
 internalize = tmapc tintern
   where
     -- We use unsafeCoerce to lift the resulting term without nodes
@@ -64,7 +64,7 @@ internalize = tmapc tintern
 
 -- | Convert a raw variable (surface language name) into a unification variable.
 -- If the variable is not bound, this with error.
-lookupVarName :: VarName → SolverM s (T s)
+lookupVarName :: RawName → SolverM s (T s)
 lookupVarName x = do
   w ← asks (Map.lookup x . locals)
   case w of
@@ -87,7 +87,7 @@ next = return ()
 
 -- | Open existential quantifier and run the continuation in the
 -- resulting context
-openExist :: [VarName] → SolverM s a → SolverM s a
+openExist :: [RawName] → SolverM s a → SolverM s a
 openExist [] c = c
 openExist (n:ns) c = do
   v ← freeNamedVar n
@@ -191,19 +191,19 @@ solveFocus c@(COne x t) = do
 solveFocus (CApply p ts) = do
    mp ← getPredicate p <$> ask
    case mp of
-     Just (Pred _ ns c) → do
+     Just (Pred σ c) → do
        -- normalize the parameters
        ts' ← mapM applyLocalBindings ts
 
        -- bind the parameters
-       local (\(Env ps _) → Env ps (Map.fromList $ List.zip ns ts')) $
+       local (\(Env ps _) → Env ps (Map.fromList $ List.zip (params σ) ts')) $
          -- convert the body to the internal representation
          let c' = internalize c in
 
          -- solve the body
          solveFocus c'
 
-     Nothing → throwError $ UnboundVariable p
+     Nothing → error "Panic! Encountered unbound predicate"
 
 -- | A simple means to getting a unifier out of State, convert everything to a string
 showUnifier :: SolverM s String
@@ -217,7 +217,7 @@ showUnifier = do
       return $ "  " ++ k ++ " ↦ " ++ (show b)
 
 -- | Construct a solver for a raw constraint
-kick :: Program → Constraint RawTerm → (forall s. SolverM s (String, IntGraph Label String))
+kick :: SymbolTable → Constraint QName RawTerm → (forall s. SolverM s (String, IntGraph Label String))
 kick p c =
   -- convert the raw constraint to the internal representatio
   local (\_ → Env p Map.empty) $ do
@@ -250,9 +250,9 @@ kick p c =
         return (φ, fmap show g)
 
 -- | Construct and run a solver for a constraint
-solve :: Program → Constraint RawTerm → Solution
+solve :: SymbolTable → Constraint QName RawTerm → Solution
 solve p c = runSolver (kick p c)
 
 -- | Check satisfiability of a program
-check :: Program → Constraint RawTerm → Bool
+check :: SymbolTable → Constraint QName RawTerm → Bool
 check p c = isRight $ solve p c

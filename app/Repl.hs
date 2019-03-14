@@ -1,23 +1,52 @@
 module Repl where
 
-import System.IO
+import System.IO hiding (liftIO)
 import System.Console.ANSI
 import System.Directory
 import System.FilePath
 
-import Data.Map.Strict as Map
+import Data.HashMap.Strict as HM
 import Data.Char
 import qualified Data.Text as Text
+
+import Control.Monad.Except hiding (liftIO)
+import Control.Monad.State  hiding (liftIO)
+import Control.Monad.Reader hiding (liftIO)
 
 import Statix.Syntax.Constraint
 import Statix.Solver
 import Statix.Solver.Types
 import Statix.Syntax.Parser
+import Statix.Analysis.Types
+import Statix.Analysis.Checker
 
 data Cmd
-  = Define (Predicate RawTerm)
-  | Main RawConstraint
+  = Define String
+  | Main String
   | Load String
+
+class ReplError e where
+  report :: e → IO ()
+
+instance ReplError TCError where
+  report e = putStrLn $ show e
+
+instance ReplError String where
+  report e = putStrLn e
+
+handleErrors :: (Show e, ReplError e) ⇒ Either e a → REPL a
+handleErrors (Right a)  = return a
+handleErrors (Left err) = do
+  liftIO $ putStrLn $ show err
+  loop
+
+type REPL a  = ReaderT Context (StateT SymbolTable IO) a
+
+runRepl :: Context → SymbolTable → REPL a → IO a
+runRepl ctx sym c = evalStateT (runReaderT c ctx) sym
+
+liftIO :: IO a → REPL a
+liftIO c = lift $ lift c
 
 instance Read Cmd where
 
@@ -27,16 +56,13 @@ instance Read Cmd where
     | (':':xs) ← s =
         case (span isAlpha xs) of
           ("def", ys) →
-            let p = parsePredicate (lexer ys) in
-            [(Define p, [])]
+            [(Define ys, [])]
           ("load", ys) →
             let path = Text.unpack $ Text.strip $ Text.pack ys in
             [(Load path, [])]
 
     -- otherwise it is just a constraint
-    | otherwise   =
-      let c = parseConstraint (lexer s)
-      in [(Main c, [])]
+    | otherwise   = [(Main s, [])]
 
 prompt :: IO ()
 prompt = do
@@ -64,34 +90,46 @@ printSolution solution =
       print g
       setSGR [Reset]
 
+replParse :: String → ParserM a → REPL a
+replParse mod a = handleErrors (runParser mod a)
+
+replType :: TCM b → REPL b
+replType c = handleErrors (runTC c)
+
+loop :: REPL a
+loop = do
+  liftIO prompt
+
+  -- read a command
+  cmd ← liftIO $ read <$> getLine
+
+  -- dispatch
+  case cmd of
+    (Main rawc)   → do
+      c   ← replParse "repl" (parseConstraint (lexer rawc))
+      ctx ← ask
+      cok ← replType (checkConstraint ctx c)
+      solution ← gets (\sym → solve sym cok)
+      liftIO $ putStrLn ""
+      liftIO $ printSolution solution
+      loop
+    (Define p) → do
+      pr ← replParse "repl" (parsePredicate (lexer p))
+      local (HM.insert (predname (sig pr)) (qname (sig pr))) loop
+    (Load file) → do
+      here     ← liftIO getCurrentDirectory
+      let path = here </> file
+      content  ← liftIO $ readFile path
+      rawmod   ← replParse file (parseModule $ lexer content)
+      mod      ← replType (checkMod file rawmod)
+      liftIO $ do setSGR [SetColor Foreground Dull Green]
+                  putStrLn ""
+                  putStrLn "  ⟨✓⟩ Loaded module"
+                  setSGR [Reset]
+                  putStrLn $ showModuleContent mod
+                  putStrLn ""
+
+      local (\ctx → HM.union (fmap (qname . sig) (defs mod)) ctx) loop
+
 repl :: IO ()
-repl = loop Map.empty
-  where
-  loop :: Program → IO ()
-  loop preds = do
-    prompt
-
-    cmd ← read <$> getLine
-
-    case cmd of
-      (Main c)   → do
-        let solution = solve preds c
-        putStrLn ""
-        printSolution solution
-        loop preds
-      (Define p) → do
-        loop (Map.insert (predname p) p preds)
-      (Load file) → do
-        here ← getCurrentDirectory
-        let path = here </> file
-        content ← readFile path
-        let mod = parseModule (lexer content)
-
-        setSGR [SetColor Foreground Dull Green]
-        putStrLn ""
-        putStrLn "  ⟨✓⟩ Loaded module"
-        setSGR [Reset]
-        putStrLn $ showModuleContent mod
-        putStrLn ""
-
-        loop (Map.union (Map.fromList $ fmap (\p → (predname p, p)) mod) preds)
+repl = runRepl HM.empty HM.empty loop

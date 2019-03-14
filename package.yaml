@@ -24,6 +24,7 @@ dependencies:
 - array
 - mtl
 - containers
+- unordered-containers
 - unification-fd
 - list-extras >= 0.4.1.4
 - Stream

@@ -4,6 +4,9 @@ module Statix.Syntax.Parser where
 import Data.List
 import Data.Char
 
+import Control.Monad.Reader
+import Control.Monad.Except
+
 import Statix.Regex
 import Statix.Syntax.Constraint
 
@@ -12,6 +15,7 @@ import Statix.Syntax.Constraint
 %name parseConstraint Constraint
 %name parsePredicate  Predicate
 %name parseModule     Predicates
+%monad {ParserM}
 
 %tokentype { Token }
 %error { parseError }
@@ -42,7 +46,7 @@ import Statix.Syntax.Constraint
   one       { TokOne }
   leftarrow { TokLeftArrow }
   colon     { TokColon }
-  period       { TokPeriod }
+  period    { TokPeriod }
 
 %%
 
@@ -57,7 +61,7 @@ Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
            | one  '(' name ',' Term ')' { COne $3 $5 }
            | name '(' Terms ')'		{ CApply $1 $3 }
 
-RegexLit : '`' name          { RMatch (Lab $2)  }
+RegexLit : '`' name          { RMatch (Lab $2) }
          | RegexLit RegexLit { RSeq $1 $2 }
          | RegexLit '*'      { RStar $1 }
          | RegexLit '+'      { rplus $1 }
@@ -75,13 +79,24 @@ Terms :                         { []  }
        | Term                   { [$1] }
        | Terms ',' Term         { $3 : $1 }
 
-Predicate : name '(' Names ')' leftarrow Constraint period { Pred $1 $3 $6 }
+Predicate :
+  name '(' Names ')' leftarrow Constraint period
+  {%
+    do
+      mod ← ask
+      return (Pred (Sig mod $1 $3) $6)
+  }
 
 Predicates :                           { []      }
            | Predicate                 { [$1]    }
            | Predicates Predicate      { $2 : $1 }
 
 {
+
+type ParserM a = ReaderT String (Except String) a
+
+runParser :: String → ParserM a → Either String a
+runParser mod c = runExcept $ runReaderT c mod
 
 data Token
   = TokVar String
@@ -112,8 +127,8 @@ data Token
   | TokPeriod
   deriving Show
 
-parseError :: [Token] -> error
-parseError toks = error $ "Parse error while parsing: " ++ show (take 1 toks)
+parseError :: [Token] -> ParserM a
+parseError toks = throwError $ "Parse error while parsing: " ++ show (take 1 toks)
 
 varName :: Token -> String
 varName (TokVar s) = s

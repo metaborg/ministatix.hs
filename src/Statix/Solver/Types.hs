@@ -4,6 +4,7 @@ import Prelude hiding (lookup, null)
 import Data.Map.Strict as Map hiding (map, null)
 import Data.STRef
 import Data.Sequence as Seq
+import Data.HashMap.Strict as HM
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -39,28 +40,30 @@ newtype T s = PackT (UTerm (TermF (STNodeRef s Label (T s))) (STU s))
 instance Show (T s) where
   show (PackT u) = show u
 
-type C s    = Constraint (T s)
+type C s    = Constraint QName (T s)
 type STU s  = STVar s (TermF (STNodeRef s Label (T s)))
 type STN s  = STNodeRef s Label (T s)
 
 {- READER -}
 data Env s = Env
- { program :: Program
- , locals  :: Map VarName (T s)
+ { symbols :: SymbolTable
+ , locals  :: Map RawName (T s)
  }
 
 emptyEnv :: Env s
-emptyEnv = Env Map.empty Map.empty
+emptyEnv = Env HM.empty Map.empty
 
-getPredicate :: String → Env s → Maybe (Predicate RawTerm)
-getPredicate p env = (program env) Map.!? p
+getPredicate :: QName → Env s → Maybe (Predicate QName)
+getPredicate (mod, pred) env = do
+  Mod _ defs ← HM.lookup mod (symbols env)
+  HM.lookup pred defs
 
-insertLocal :: VarName → T s → Env s → Env s
-insertLocal x u env = env { locals = insert x u (locals env) }
+insertLocal :: RawName → T s → Env s → Env s
+insertLocal x u env = env { locals = Map.insert x u (locals env) }
 
 {- ERROR -}
 data StatixError =
-    UnboundVariable VarName
+    UnboundVariable RawName
   | Unsatisfiable String
   | TypeError
   | Panic String
@@ -99,5 +102,3 @@ type Goal s   = (Env s, C s)
 
 -- | (ST-less) solution to a constraint program
 type Solution = Either StatixError (String, IntGraph Label String)
-
-type Program  = Map String (Predicate RawTerm)
