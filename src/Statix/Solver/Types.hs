@@ -54,9 +54,7 @@ emptyEnv :: Env s
 emptyEnv = Env HM.empty Map.empty
 
 getPredicate :: QName → Env s → Maybe (Predicate QName)
-getPredicate (mod, pred) env = do
-  Mod _ defs ← HM.lookup mod (symbols env)
-  HM.lookup pred defs
+getPredicate qn env = HM.lookup qn (symbols env)
 
 insertLocal :: RawName → T s → Env s → Env s
 insertLocal x u env = env { locals = Map.insert x u (locals env) }

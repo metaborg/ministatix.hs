@@ -173,7 +173,7 @@ data Module = Mod
   , defs     :: PredicateTable QName }
 
 type PredicateTable p = HashMap RawName (Predicate p)
-type SymbolTable = HashMap ModName Module
+type SymbolTable      = HashMap QName (Predicate QName)
 
 emptyMod :: ModName → Module
 emptyMod m = Mod m HM.empty

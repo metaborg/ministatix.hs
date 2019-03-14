@@ -118,8 +118,12 @@ loop = do
       loop
 
     (Define p) → do
-      pr ← replParse "repl" (parsePredicate (lexer p))
-      local (HM.insert (predname (sig pr)) (qname (sig pr))) loop
+      pr   ← replParse "repl" (parsePredicate (lexer p))
+      ctx  ← ask
+      prty ← replType (checkPredicate ctx pr)
+      let σ = sig prty
+      lift $ modify (HM.insert (qname σ) prty)
+      local (HM.insert (predname σ) (qname σ)) loop
 
     (Load file) → do
       here     ← liftIO getCurrentDirectory
