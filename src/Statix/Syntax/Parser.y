@@ -3,6 +3,7 @@ module Statix.Syntax.Parser where
 
 import Data.List
 import Data.Char
+import Data.Default
 
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -84,7 +85,7 @@ Predicate :
   {%
     do
       mod ← ask
-      return (Pred (Sig mod $1 $3) $6)
+      return (Pred (Sig mod $1 (fmap (\n → def { pname = n }) $3)) $6)
   }
 
 Predicates :                           { []      }

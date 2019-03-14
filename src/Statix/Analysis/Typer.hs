@@ -2,7 +2,7 @@ module Statix.Analysis.Typer where
 
 import Data.Functor.Fixedpoint
 
-import Control.Monad.Error
+import Control.Monad.Except
 
 import Statix.Syntax.Constraint
 import Statix.Analysis.Types

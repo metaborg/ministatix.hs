@@ -7,6 +7,7 @@ module Statix.Solver where
 
 import Prelude hiding (lookup, null)
 import Data.Map.Strict as Map hiding (map, null)
+import Data.HashMap.Strict as HM
 import Data.Either
 import Data.Maybe
 import Data.STRef
@@ -67,7 +68,7 @@ internalize = tmapc tintern
 -- If the variable is not bound, this with error.
 lookupVarName :: RawName → SolverM s (T s)
 lookupVarName x = do
-  w ← asks (Map.lookup x . locals)
+  w ← asks (HM.lookup x . locals)
   case w of
     Just t  → return t
     Nothing → throwError (UnboundVariable x)
@@ -78,8 +79,8 @@ lookupVarName x = do
 --   (2) convert unification variables to T's using the unifier
 applyLocalBindings :: T s → SolverM s (T s)
 applyLocalBindings (PackT t) = do
-  e  ← locals <$> ask
-  let t' = cook (coerce . flip Map.lookup e) t
+  env ← ask
+  let t' = cook (coerce . flip lookupLocal env) t
   return $ coerce t'
 
 -- | Continue with the next goal
@@ -197,7 +198,7 @@ solveFocus (CApply p ts) = do
        ts' ← mapM applyLocalBindings ts
 
        -- bind the parameters
-       local (\(Env ps _) → Env ps (Map.fromList $ List.zip (params σ) ts')) $
+       local (\(Env ps _) → Env ps (mkEnv (params σ) ts')) $
          -- convert the body to the internal representation
          let c' = internalize c in
 
@@ -210,7 +211,7 @@ solveFocus (CApply p ts) = do
 showUnifier :: SolverM s String
 showUnifier = do
   e  ← locals <$> ask
-  ts ← mapM formatBinding (Map.toList e)
+  ts ← mapM formatBinding (HM.toList e)
   return (intercalate "\n" ts)
   where
     formatBinding (k, b) = do
@@ -219,9 +220,9 @@ showUnifier = do
 
 -- | Construct a solver for a raw constraint
 kick :: SymbolTable → Constraint QName RawTerm → (forall s. SolverM s (String, IntGraph Label String))
-kick p c =
+kick sym c =
   -- convert the raw constraint to the internal representatio
-  local (\_ → Env p Map.empty) $ do
+  local (\_ → emptyEnv { symbols = sym }) $ do
     case internalize c of
       -- open the top level exists if it exists
       (CEx ns b) → openExist ns $ do

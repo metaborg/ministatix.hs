@@ -48,17 +48,20 @@ type STN s  = STNodeRef s Label (T s)
 {- READER -}
 data Env s = Env
  { symbols :: SymbolTable
- , locals  :: Map RawName (T s)
+ , locals  :: HashMap RawName (T s)
  }
 
 emptyEnv :: Env s
-emptyEnv = Env HM.empty Map.empty
+emptyEnv = Env HM.empty HM.empty
 
 getPredicate :: QName → Env s → Maybe (Predicate QName)
 getPredicate qn env = HM.lookup qn (symbols env)
 
 insertLocal :: RawName → T s → Env s → Env s
-insertLocal x u env = env { locals = Map.insert x u (locals env) }
+insertLocal x u env = env { locals = HM.insert x u (locals env) }
+
+lookupLocal :: RawName → Env s → Maybe (T s)
+lookupLocal x = HM.lookup x . locals 
 
 {- ERROR -}
 data StatixError =

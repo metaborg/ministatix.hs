@@ -40,7 +40,7 @@ checkPredicate (Pred σ b) = do
   return (Pred σ b')
 
 -- | Compute the signature of a module if it is consistent.
--- Or throw and error otherwise.
+-- Or throw an error otherwise.
 checkMod :: ModName → [Predicate RawName] → TCM Module
 checkMod mname m = do
   ps  ← execStateT (mapM_ collect m) HM.empty

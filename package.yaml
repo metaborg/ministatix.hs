@@ -25,6 +25,7 @@ dependencies:
 - mtl
 - containers
 - unordered-containers
+- data-default
 - unification-fd
 - list-extras >= 0.4.1.4
 - Stream
@@ -40,6 +41,7 @@ default-extensions:
 - LambdaCase
 - FunctionalDependencies
 - FlexibleInstances
+- DuplicateRecordFields
 
 library:
   source-dirs: src

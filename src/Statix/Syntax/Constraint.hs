@@ -3,6 +3,7 @@
 module Statix.Syntax.Constraint where
 
 import Data.Void
+import Data.Default
 import Data.List as List
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
@@ -152,16 +153,48 @@ type Constraints p t = [Constraint p t]
 ------------------------------------------------------------------
 -- | Predicates and modules
 
+data Type
+  = TNode
+  | TTerm
+  | TPath
+  | TAns
+  | TBot
+
+data Param = Param
+  { pname     :: String
+  , requires  :: [Label] -- requires ℓ-permission for l ∈ requires
+  , sort      :: Type
+  }
+
+instance Default Param where
+  def = Param "" [] TBot
+
+instance Show Type where
+  show TNode = "Node"
+  show TTerm = "Term"
+  show TPath = "Path"
+  show TAns  = "{Path}"
+  show TBot  = "⊥"
+
+instance Show Param where
+  show (Param n reqs τ) = n ++ ": " ++ show τ
+
 data Signature = Sig
   { enclMod  :: ModName
   , predname :: RawName
-  , params   :: [RawName]}
+  , params   :: [Param] }
+
+mkEnv :: [Param] → [t] → HashMap RawName t
+mkEnv ps = HM.fromList . List.zip (fmap pname ps)
 
 qname :: Signature → QName
 qname sig = (enclMod sig, predname sig)
 
 instance Show Signature where
-  show (Sig m p ns) = m ++ "." ++ p ++ "(" ++ intercalate "," (reverse ns) ++ ")"
+  show (Sig m p ns) =
+    m
+    ++ "." ++ p
+    ++ "(" ++ intercalate "," (fmap show $ reverse ns) ++ ")"
 
 data Predicate p = Pred
   { sig      :: Signature
