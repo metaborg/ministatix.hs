@@ -7,6 +7,7 @@ import System.FilePath
 
 import Data.HashMap.Strict as HM
 import Data.Char
+import Text.Read hiding (lift)
 import qualified Data.Text as Text
 
 import Control.Monad.Except hiding (liftIO)
@@ -60,6 +61,7 @@ instance Read Cmd where
           ("load", ys) →
             let path = Text.unpack $ Text.strip $ Text.pack ys in
             [(Load path, [])]
+          otherwise → []
 
     -- otherwise it is just a constraint
     | otherwise   = [(Main s, [])]
@@ -101,10 +103,11 @@ loop = do
   liftIO prompt
 
   -- read a command
-  cmd ← liftIO $ read <$> getLine
+  cmd ← (liftIO $ readEither <$> getLine) >>= handleErrors
 
-  -- dispatch
+  -- dispatch between different REPL operations
   case cmd of
+
     (Main rawc)   → do
       c   ← replParse "repl" (parseConstraint (lexer rawc))
       ctx ← ask
@@ -113,9 +116,11 @@ loop = do
       liftIO $ putStrLn ""
       liftIO $ printSolution solution
       loop
+
     (Define p) → do
       pr ← replParse "repl" (parsePredicate (lexer p))
       local (HM.insert (predname (sig pr)) (qname (sig pr))) loop
+
     (Load file) → do
       here     ← liftIO getCurrentDirectory
       let path = here </> file
