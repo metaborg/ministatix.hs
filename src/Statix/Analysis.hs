@@ -10,11 +10,14 @@ import Statix.Analysis.Types
 import Statix.Analysis.Namer
 import Statix.Analysis.Typer
 
+-- | Analyze a constraint
 analyze :: Context → Constraint RawName n → TCM (Constraint QName n)
 analyze ctx c = do
   qc ← liftNC ctx $ checkConstraint c
   typecheck qc
 
+-- | Analyze a predicate
+-- (This updates the typechecker symboltable)
 analyzeP :: Context → Predicate RawName → TCM (Predicate QName)
 analyzeP ctx p = do
   pred ← liftNC ctx $ checkPredicate p
@@ -27,6 +30,8 @@ analyzeP ctx p = do
 
   return $ pred { body = b' }
 
+-- | Analyze a module
+-- (This updates the typechecker symboltable)
 analyzeM :: Context → ModName → [Predicate RawName] → TCM Module
 analyzeM ctx mn m = do
   -- name analysis on the module
