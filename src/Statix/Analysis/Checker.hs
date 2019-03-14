@@ -1,6 +1,7 @@
 module Statix.Analysis.Checker where
 
 import Control.Monad.State
+import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.Trans
 
@@ -13,26 +14,25 @@ import Statix.Analysis.Types
 
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
-checkConstraint :: Context → Constraint RawName t → TCM (Constraint QName t)
-checkConstraint ptable = cataM (checkC ptable) 
+checkConstraint :: Constraint RawName t → NCM (Constraint QName t)
+checkConstraint = hmapM checkC 
   where
-    checkC :: Context → ConstraintF RawName t (Constraint QName t) → TCM (Constraint QName t)
-    checkC ps (CApplyF name c) = do
-      case (HM.lookup name ps) of
-        Nothing   → throwError (UnboundPredicate name)
-        Just pred → return $ CApply pred c
-    checkC ps CTrueF  = return CTrue
-    checkC ps CFalseF = return CFalse
-    checkC ps (CAndF c d) = return (CAnd c d)
-    checkC ps (CExF ns c) = return (CEx ns c)
-    checkC ps (CNewF x) = return (CNew x)
-    checkC ps (CEdgeF t l s) = return (CEdge t l s)
-    checkC ps (CQueryF t re x) = return (CQuery t re x)
-    checkC ps (COneF x t) = return (COne x t)
+    checkC :: ConstraintF RawName t r → NCM (ConstraintF QName t r)
+    checkC (CApplyF n ts) = do
+      qn ← qualify n
+      return $ CApplyF qn ts
+    checkC CTrueF  = return CTrueF
+    checkC CFalseF = return CFalseF
+    checkC (CAndF c d) = return (CAndF c d)
+    checkC (CExF ns c) = return (CExF ns c)
+    checkC (CNewF x) = return (CNewF x)
+    checkC (CEdgeF t l s) = return (CEdgeF t l s)
+    checkC (CQueryF t re x) = return (CQueryF t re x)
+    checkC (COneF x t) = return (COneF x t)
 
-checkPredicate :: Context → Predicate RawName → TCM (Predicate QName)
-checkPredicate ps (Pred σ b) = do
-  b' ← checkConstraint ps b
+checkPredicate :: Predicate RawName → NCM (Predicate QName)
+checkPredicate (Pred σ b) = do
+  b' ← checkConstraint b
   return (Pred σ b')
 
 -- | Compute the signature of a module if it is consistent.
@@ -41,12 +41,12 @@ checkMod :: ModName → [Predicate RawName] → TCM Module
 checkMod mname m = do
   ps  ← execStateT (mapM_ collect m) HM.empty
   let ctx = (HM.mapWithKey (\k _ → (mname, k)) ps)
-  qps ← mapM (checkPredicate ctx) ps
+  qps ← mapM (liftNC ctx . checkPredicate) ps
   return $ Mod mname qps
 
   where
     -- collect a signature from a raw Predicate
-    collect :: Predicate RawName → StateT (PredicateTable RawName) TCM ()
+    collect :: Predicate RawName → StateT (HashMap RawName (Predicate RawName)) TCM ()
     collect p = do
       let name = predname $ sig p
       bound ← gets (member name)

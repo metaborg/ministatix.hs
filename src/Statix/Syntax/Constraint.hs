@@ -170,10 +170,12 @@ data Predicate p = Pred
 
 data Module = Mod 
   { modname  :: ModName
-  , defs     :: PredicateTable QName }
+  , defs     :: HashMap RawName (Predicate QName) }
 
-type PredicateTable p = HashMap RawName (Predicate p)
 type SymbolTable      = HashMap QName (Predicate QName)
+
+importMod :: Module → SymbolTable → SymbolTable
+importMod (Mod name defs) sym = foldl (\sym p → HM.insert (qname $ sig p) p sym) sym defs
 
 emptyMod :: ModName → Module
 emptyMod m = Mod m HM.empty
