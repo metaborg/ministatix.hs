@@ -34,6 +34,7 @@ dependencies:
 - directory
 - filepath
 - text
+- Stream
 
 default-extensions:
 - UnicodeSyntax

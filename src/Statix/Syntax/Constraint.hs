@@ -3,113 +3,62 @@
 module Statix.Syntax.Constraint where
 
 import Data.Void
+import Data.Text as Text hiding (intercalate, reverse)
 import Data.Default
 import Data.List as List
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 import Data.HashMap.Strict as HM
 
-import Control.Unification
-import Control.Unification.STVar
-
 import Statix.Regex
 import Statix.Graph.Types
 import Statix.Graph.Paths
+import Statix.Analysis.Lexical as Lexical
 
 ------------------------------------------------------------------
 -- | Some primitives
 
 type Node     = String
 
-newtype Label = Lab String deriving (Eq, Ord)
+newtype Label = Lab Text deriving (Eq, Ord)
 instance Show Label where
-  show (Lab l) = l
+  show (Lab l) = unpack l
 
-type RawName  = String           -- raw references to existential vars and predicates
-type Symbol   = String           -- constructor names
+type QName = (Ident, Ident)   -- qualified predicate names (module, raw)
 
-type ModName  = String           -- module names
-type QName    = (String, String) -- qualified predicate names (module, raw)
+type Ident = Text
+type IPath = Lexical.Path Ident
 
 ------------------------------------------------------------------
 -- | The term language
 
-data TermF n r
-  = TConF Symbol [r]
-  | TNodeF n
+data TermF ℓ r
+  = TConF Ident [r]
   | TLabelF Label
-  | TVarF RawName
-  | TAnswerF [Path n Label]
+  | TVarF ℓ 
   deriving (Eq, Functor, Foldable, Traversable)
 
-instance (Show n, Show r) ⇒ Show (TermF n r) where
-  show (TConF c ts) = c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
-  show (TNodeF n)   = "Node(" ++ show n ++ ")"
-
-  show (TLabelF l)  = "`" ++ show l
-  show (TVarF x)    = x
-  show (TAnswerF ps) = "{" ++ intercalate ", " (fmap show ps) ++ "}"
-
-instance Eq n => Unifiable (TermF n) where
-  -- One step of the unfication algorithm.
-  -- Answers are not unifiable.
-  zipMatch (TConF c ts) (TConF c' ts')
-    | c /= c'   = Nothing
-    | otherwise = TConF c <$> pairWith (\l r -> Right(l , r)) ts ts'
-  zipMatch (TNodeF n) (TNodeF m)
-    | n == m    = Just (TNodeF n)
-    | otherwise = Nothing
-  zipMatch (TLabelF l) (TLabelF k)
-    | l == k    = Just (TLabelF l)
-    | otherwise = Nothing
-  zipMatch (TVarF x) (TVarF y)
-    | x == y    = Just (TVarF x)
-    | otherwise = Nothing
-  zipMatch _ _ = Nothing
-
--- convert some raw, syntactic variables monadically to semantic variables
-cook :: (RawName → Maybe (UTerm (TermF n) v)) → UTerm (TermF n) v → UTerm (TermF n) v
-cook f (UVar x)  = UVar x
-cook f (UTerm t) = _cook t
-  where
-    _cook (TConF c ts) = let ts' = fmap (cook f) ts in Con c ts'
-    _cook (TVarF x) = case f x of
-      Just t  → t
-      Nothing → Var x
-    _cook (TAnswerF a) = Answer a
-    _cook (TNodeF n) = Node n
-    _cook (TLabelF l) = Label l
-
--- Statix internal terms
-type Term n v = UTerm (TermF n) v
-pattern Con c ts = UTerm (TConF c ts)
-pattern Node n   = UTerm (TNodeF n)
-pattern Label l  = UTerm (TLabelF l)
-pattern Var x    = UTerm (TVarF x)
-pattern Answer ps = UTerm (TAnswerF ps)
-
--- Statix surface terms
-type RawTerm = Fix (TermF Void)
-pattern RCon c ts = Fix (TConF c ts)
-pattern RLabel l  = Fix (TLabelF l)
-pattern RVar x    = Fix (TVarF x)
+instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
+  show (TConF c ts)  = show c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
+  show (TLabelF l)   = "`" ++ show l
+  show (TVarF x)     = show x
 
 ------------------------------------------------------------------
 -- | The constraint language
 
-data ConstraintF p t r
+data ConstraintF p ℓ t r
   = CTrueF | CFalseF
   | CAndF r r
   | CEqF t t
-  | CExF [RawName] r
-  | CNewF t
-  | CEdgeF t Label t
-  | CQueryF t (Regex Label) RawName
-  | COneF RawName t
+  | CExF [Param] r
+  | CNewF ℓ
+  | CEdgeF ℓ Label ℓ
+  | CQueryF ℓ (Regex Label) ℓ
+  | COneF ℓ t
   | CApplyF p [t]
   deriving (Functor, Foldable, Traversable)
 
-instance (Show p, Show t, Show r) ⇒ Show (ConstraintF p t r) where
+instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) where
 
   show CTrueF  = "⊤"
   show CFalseF = "⊥"
@@ -117,38 +66,24 @@ instance (Show p, Show t, Show r) ⇒ Show (ConstraintF p t r) where
   show (CExF ns c) = "∃ " ++ intercalate ", " (fmap show ns) ++ ". " ++ show c
   show (CNewF t)  = "∇ (" ++ show t ++ ")"
   show (CEdgeF t l t') = show t ++ "─⟨ " ++ show l ++ " ⟩⟶" ++ show t'
-  show (CQueryF t r s) = show t ++ "(" ++ show r ++ ")" ++ s
-  show (COneF x t) = "one(" ++ x ++ "," ++ show t ++ ")"
+  show (CQueryF t r s) = show t ++ "(" ++ show r ++ ")" ++ show s
+  show (COneF x t) = "one(" ++ show x ++ "," ++ show t ++ ")"
   show (CApplyF p ts) = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
 
-type Constraint p t = Fix (ConstraintF p t)
+type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
 
-tmapc_ :: (t → s) → ConstraintF p t (Constraint p s) → Constraint p s
-tmapc_ f (CEqF t₁ t₂) = CEq (f t₁) (f t₂)
-tmapc_ f (CNewF t) = CNew (f t)
-tmapc_ f (CEdgeF t₁ l t₂) = CEdge (f t₁) l (f t₂)
-tmapc_ f (CAndF c d) = CAnd c d
-tmapc_ f (CExF ns c) = CEx ns c
-tmapc_ f (CQueryF t r x) = CQuery (f t) r x
-tmapc_ f (COneF x t) = COne x (f t)
-tmapc_ f (CApplyF p ts) = CApply p (fmap f ts)
+tmapc_ :: (t → s) → ConstraintF p ℓ t (Constraint p ℓ s) → Constraint p ℓ s
+tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
+tmapc_ f (CNewF n)        = CNew n
+tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ l n₂
+tmapc_ f (CAndF c d)      = CAnd c d
+tmapc_ f (CExF ns c)      = CEx ns c
+tmapc_ f (CQueryF x r y)  = CQuery x r y
+tmapc_ f (COneF x t)      = COne x (f t)
+tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
 
-tmapc :: (t → s) → Constraint p t → Constraint p s
+tmapc :: (t → s) → Constraint p ℓ t → Constraint p ℓ s
 tmapc f = cata (tmapc_ f)
-
-pattern CTrue    = Fix CTrueF
-pattern CFalse   = Fix CFalseF
-pattern CAnd l r = Fix (CAndF l r)
-pattern CEq l r  = Fix (CEqF l r)
-pattern CEx ns c = Fix (CExF ns c)
-pattern CNew t   = Fix (CNewF t)
-pattern CEdge n l m = Fix (CEdgeF n l m)
-pattern CQuery t re x = Fix (CQueryF t re x)
-pattern COne x t = Fix (COneF x t)
-pattern CApply p ts = Fix (CApplyF p ts)
-
-type RawConstraint = Constraint RawName RawTerm
-type Constraints p t = [Constraint p t]
 
 ------------------------------------------------------------------
 -- | Predicates and modules
@@ -161,42 +96,71 @@ data Type
   | TBot
 
 data Param = Param
-  { pname     :: String
+  { pname     :: Ident
   , requires  :: [Label] -- requires ℓ-permission for l ∈ requires
   , sort      :: Type
   }
 
+instance Eq Param where
+  (==) l r = pname l == pname r
+
 instance Default Param where
-  def = Param "" [] TBot
+  def = Param Text.empty [] TBot
 
 instance Show Type where
-  show TNode = "Node"
   show TTerm = "Term"
   show TPath = "Path"
   show TAns  = "{Path}"
   show TBot  = "⊥"
 
 instance Show Param where
-  show (Param n reqs τ) = n ++ ": " ++ show τ
+  show (Param n reqs τ) = show n ++ ": " ++ show τ
 
 data Signature = Sig
-  { enclMod  :: ModName
-  , predname :: RawName
+  { enclMod  :: Ident
+  , predname :: Ident
   , params   :: [Param] }
-
-mkEnv :: [Param] → [t] → HashMap RawName t
-mkEnv ps = HM.fromList . List.zip (fmap pname ps)
 
 qname :: Signature → QName
 qname sig = (enclMod sig, predname sig)
 
 instance Show Signature where
   show (Sig m p ns) =
-    m
-    ++ "." ++ p
+    show m
+    ++ "." ++ show p
     ++ "(" ++ intercalate "," (fmap show $ reverse ns) ++ ")"
 
-data Predicate p = Pred
+data Predicate p ℓ t = Pred
   { sig      :: Signature
-  , body     :: Constraint p RawTerm
+  , body     :: Constraint p ℓ t
   } deriving (Show)
+
+type TermF₀ r         = TermF Ident r
+type TermF₁ r         = TermF IPath r
+
+type Term₀            = Fix (TermF Ident)
+type Term₁            = Fix (TermF IPath)
+
+pattern Con c ts      = Fix (TConF c ts)
+pattern Label l       = Fix (TLabelF l)
+pattern Var x         = Fix (TVarF x)
+
+type ConstraintF₀ r   = ConstraintF Ident Ident Term₀ r -- parsed
+type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named & optionally typed
+
+type Constraint₀      = Constraint Ident  Ident Term₀ -- parsed
+type Constraint₁      = Constraint QName  IPath Term₁ -- named & optionally typed
+
+pattern CTrue         = Fix CTrueF
+pattern CFalse        = Fix CFalseF
+pattern CAnd l r      = Fix (CAndF l r)
+pattern CEq l r       = Fix (CEqF l r)
+pattern CEx ns c      = Fix (CExF ns c)
+pattern CNew t        = Fix (CNewF t)
+pattern CEdge n l m   = Fix (CEdgeF n l m)
+pattern CQuery t re x = Fix (CQueryF t re x)
+pattern COne x t      = Fix (COneF x t)
+pattern CApply p ts   = Fix (CApplyF p ts)
+
+type Predicate₀       = Predicate Ident   Ident   Term₀ -- parsed
+type Predicate₁       = Predicate QName   IPath   Term₁ -- named & optionally typed

@@ -1,44 +1,30 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Statix.Solver.Monad where
 
 import Prelude hiding (lookup, null)
-import Data.Map.Strict hiding (map, null)
-import qualified Data.Map.Strict as Map
+import Data.HashMap.Strict as HM
 import Data.Either
 import Data.STRef
 import Data.Coerce
+import Data.Text
 
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
-import Control.Unification
 
+import Statix.Analysis.Lexical as Lex
 import Statix.Syntax.Constraint
 import Statix.Solver.Types
 import Statix.Graph
 import Statix.Graph.Types
 import Statix.Graph.Paths
 
--- | The SolverM type implements the Binding interface from unification-fd
-instance BindingMonad (TermF (STNodeRef s Label (T s))) (STU s) (SolverM s) where
-
-  lookupVar (STVar _ r _) = do
-    liftST $ readSTRef r
-  
-  freeVar = do
-    sv     ← get
-    xi     ← freshVarName
-    xr     ← liftST $ newSTRef Nothing
-    return (STVar xi xr ("_" ++ show xi))
-
-  bindVar (STVar _ xr _) t = do
-    liftST $ writeSTRef xr (Just t)
-
 -- | The SolverM type implement the graph manipulation operations
-instance MonadGraph (STN s) Label (T s) (SolverM s) where
+instance MonadGraph (SNode s) Label (STerm s) (SolverM s) where
 
   newNode d = do
     ni ← freshNodeName
@@ -58,27 +44,32 @@ instance MonadGraph (STN s) Label (T s) (SolverM s) where
     STNData es _ ← liftST (readSTRef r)
     return es
 
-freeNamedVar :: String → SolverM s (STU s)
-freeNamedVar x = do
-  (STVar id r _) ← freeVar
-  return (STVar id r x)
+instance ScopedM (SolverM s) where
+  type Binder (SolverM s) = (Ident, STerm s)
+  type Ref    (SolverM s) = IPath
+  type Datum  (SolverM s) = STerm s
+  
+  enter     = local (\env → env { locals = HM.empty : locals env })
 
-newNamedVar :: String → UTerm (TermF (STNodeRef s Label (T s))) (STU s) → SolverM s (STU s)
-newNamedVar x t = do
-  (STVar id r _) ← newVar t
-  return (STVar id r x)
+  intros is m = do
+    frs ← asks locals
+    case frs of
+      (fr : frs) → local (\env → env { locals = (HM.union (HM.fromList is) fr) : frs }) m
+      _          → throwError $ Panic "No frame for current scope"
 
--- | Run Solver computations
-runSolver :: (forall s. SolverM s a) → Either StatixError a
-runSolver c = runST (runExceptT (evalStateT (runReaderT c emptyEnv) emptySolver))
-
--- | Lift ST computations into Solver
-liftST :: ST s a → SolverM s a
-liftST = lift . lift . lift
-
--- | Lift State computations into Solver
-liftState :: StateT (Solver s) (ExceptT StatixError (ST s)) a → SolverM s a
-liftState = lift
+  resolve p = do
+    env ← asks (locals)
+    derefLocal p env
+    
+    where
+      derefLocal :: IPath → [Frame s] → SolverM s (STerm s)
+      derefLocal (Skip p) (fr : frs)    = derefLocal p frs
+      derefLocal (Lex.End id) (fr : []) =
+        case HM.lookup id fr of
+          Nothing → throwError $ Panic "Variable unbound at runtime"
+          Just t  → return t
+      derefLocal _ _                    =
+        throwError $ Panic "Variable unbound at runtime"
 
 -- | Get a fresh variable identifier
 freshVarName :: SolverM s Int
@@ -95,3 +86,22 @@ freshNodeName = do
   let n = nextN s
   put (s { nextN = n + 1})
   return n
+
+-- | Get a fresh unification variable, possibly bound to a term t
+freshUvar :: Text → Maybe (STerm s) → SolverM s (MVar s)
+freshUvar name t = do
+  id ← freshVarName
+  r  ← liftST $ newSTRef t
+  return (MVar id r name)
+
+-- | Run Solver computations
+runSolver :: (forall s. SolverM s a) → Either StatixError a
+runSolver c = runST (runExceptT (evalStateT (runReaderT c emptyEnv) emptySolver))
+
+-- | Lift ST computations into Solver
+liftST :: ST s a → SolverM s a
+liftST = lift . lift . lift
+
+-- | Lift State computations into Solver
+liftState :: StateT (Solver s) (ExceptT StatixError (ST s)) a → SolverM s a
+liftState = lift

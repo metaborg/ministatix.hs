@@ -5,7 +5,8 @@ import System.Console.ANSI
 import System.Directory
 import System.FilePath
 
-import Data.HashMap.Strict as HM
+import Data.Default
+import Data.HashMap.Lazy as HM
 import Data.Char
 import Data.Functor.Identity
 import Text.Read hiding (lift, get)
@@ -42,9 +43,9 @@ handleErrors (Left err) = do
   loop
 
 {- The REPL Monad -}
-type REPL a  = ReaderT Context (StateT SymbolTable IO) a
+type REPL a  = ReaderT NameContext (StateT SymTab IO) a
 
-runRepl :: Context → SymbolTable → REPL a → IO a
+runRepl :: NameContext → SymTab → REPL a → IO a
 runRepl ctx sym c = evalStateT (runReaderT c ctx) sym
 
 liftIO :: IO a → REPL a
@@ -55,12 +56,12 @@ liftNC c = do
   ctx ← ask
   handleErrors $ runNC ctx c
   
-liftTC :: TCM a → REPL a
-liftTC c = do
+liftTC₁ :: TCM a → REPL a
+liftTC₁ c = do
   e ← lift (mapStateT (return . runIdentity) $ runExceptT c)
   handleErrors e
 
-liftParser :: String → ParserM a → REPL a
+liftParser :: Text.Text → ParserM a → REPL a
 liftParser mod c = handleErrors $ runParser mod c
 
 -- | Repl Commands
@@ -116,11 +117,11 @@ printSolution solution =
       print g
       setSGR [Reset]
 
-reportImports :: Module → IO ()
+reportImports :: Module IPath Term₁ → IO ()
 reportImports mod = do
   setSGR [SetColor Foreground Dull Green]
   putStrLn ""
-  putStrLn $ "  ⟨✓⟩ Imported module " ++ modname mod
+  putStrLn $ "  ⟨✓⟩ Imported module " ++ Text.unpack (modname mod)
   setSGR [Reset]
   putStrLn $ showModuleContent mod
   putStrLn ""
@@ -138,37 +139,40 @@ loop = do
   case cmd of
 
     (Main rawc)   → do
-      c   ← liftParser "repl" $ (parseConstraint (lexer rawc))
+      c   ← liftParser (Text.pack "repl") $ (parseConstraint (lexer rawc))
       ctx ← ask
-      cok ← liftTC $ analyze ctx c
+      cok ← liftTC₁ $ analyze ctx c
       solution ← gets (\sym → solve sym cok)
       liftIO $ putStrLn ""
       liftIO $ printSolution solution
       loop
 
     (Define p) → do
-      pr   ← liftParser "repl" (parsePredicate (lexer p))
-      ctx ← ask
-      prty ← liftTC $ analyzeP ctx pr
+      pr    ← liftParser (Text.pack "repl") (parsePredicate (lexer p))
+      ctx   ← ask
+      prty  ← liftTC₁ $ analyzeP ctx pr
       let σ = sig prty
-      local (HM.insert (predname σ) (qname σ)) loop
+      local (\nc →
+               nc { qualifier = HM.insert (predname σ) (qname σ) (qualifier nc) }) loop
 
     (Import file) → do
       here     ← liftIO getCurrentDirectory
       let path = here </> file
       content  ← liftIO $ readFile path
-      let modname = takeBaseName file
+      let modname = Text.pack $ takeBaseName file
 
       -- parse the module
       rawmod   ← liftParser modname $ parseModule $ lexer content
 
       -- analyze it
       ctx      ← ask
-      mod      ← liftTC $ analyzeM ctx modname rawmod
+      mod      ← liftTC₁ $ analyzeM ctx modname rawmod
 
       -- update the local context
-      local (\ctx → HM.union (fmap (qname . sig) (defs mod)) ctx) loop
+      local
+        (\nc → nc { qualifier = HM.union (fmap (qname . sig) (defs mod)) (qualifier nc) })
+        loop
 
 -- | Run the repl in IO
 repl :: IO ()
-repl = runRepl HM.empty HM.empty loop
+repl = runRepl def HM.empty loop

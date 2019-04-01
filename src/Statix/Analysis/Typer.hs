@@ -1,13 +1,15 @@
 module Statix.Analysis.Typer where
 
 import Data.Functor.Fixedpoint
+import Data.Default
 
 import Control.Monad.Except
 
 import Statix.Syntax.Constraint
 import Statix.Analysis.Types
 
-checkArity :: ConstraintF QName n r → TCM (ConstraintF QName n r)
+-- | Check the arity of applications against the symboltable
+checkArity :: ConstraintF₁ r → TCM (ConstraintF₁ r)
 checkArity c@(CApplyF qn ts) = do
   arity ← getArity qn
   if length ts /= arity
@@ -15,10 +17,16 @@ checkArity c@(CApplyF qn ts) = do
     else return c
 checkArity c = return c
 
-typecheck :: Constraint QName n → TCM (Constraint QName n)
-typecheck = hmapM checkArity
 
-typecheckP :: Predicate QName → TCM (Predicate QName)
-typecheckP (Pred σ b) = do
-  b' ← typecheck b
-  return (Pred σ b')
+
+-- | Perform type checking on a constraint against the symboltable
+-- typecheck :: Constraint₁ → TCM Constraint₂
+-- typecheck = hmapM (return . typerInit)
+
+
+
+  
+-- typecheckP :: Predicate QName → TCM (Predicate QName)
+-- typecheckP (Pred σ b) = do
+--   b' ← typecheck b
+--   return (Pred σ b')

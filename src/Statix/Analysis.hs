@@ -11,14 +11,14 @@ import Statix.Analysis.Namer
 import Statix.Analysis.Typer
 
 -- | Analyze a constraint
-analyze :: Context → Constraint RawName n → TCM (Constraint QName n)
+analyze :: NameContext → Constraint₀ → TCM Constraint₁
 analyze ctx c = do
-  qc ← liftNC ctx $ checkConstraint c
-  typecheck qc
+  liftNC ctx $ checkConstraint c
+  -- typecheck qc
 
--- | Analyze a predicate
--- (This updates the typechecker symboltable)
-analyzeP :: Context → Predicate RawName → TCM (Predicate QName)
+-- | Analyze a predicate.
+-- This updates the symboltable
+analyzeP :: NameContext → Predicate₀ → TCM Predicate₁
 analyzeP ctx p = do
   pred ← liftNC ctx $ checkPredicate p
 
@@ -26,20 +26,20 @@ analyzeP ctx p = do
   modify (importP pred)
 
   -- typecheck it
-  b' ← typecheck (body pred)
+  -- b' ← typecheck (body pred)
 
-  return $ pred { body = b' }
+  return pred
 
 -- | Analyze a module
 -- (This updates the typechecker symboltable)
-analyzeM :: Context → ModName → [Predicate RawName] → TCM Module
+analyzeM :: NameContext → Ident → [Predicate₀] → TCM (Module IPath Term₁)
 analyzeM ctx mn m = do
   -- name analysis on the module
-  mod  ← checkMod mn m
+  mod  ← liftNC ctx $ checkMod mn m
 
   -- add the module to the symboltable
   modify (importMod mod)
 
   -- typecheck the module
-  defs' ← mapM typecheckP (defs mod)
-  return $ mod { defs = defs' }
+  -- defs' ← mapM typecheckP (defs mod)
+  return $ mod

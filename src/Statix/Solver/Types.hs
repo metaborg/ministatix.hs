@@ -1,10 +1,15 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TypeFamilies #-}
 module Statix.Solver.Types where
 
 import Prelude hiding (lookup, null)
+import Data.Text
 import Data.Map.Strict as Map hiding (map, null)
 import Data.STRef
 import Data.Sequence as Seq
 import Data.HashMap.Strict as HM
+import Data.Coerce
+import Data.Functor.Fixedpoint
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -15,63 +20,65 @@ import Control.Unification hiding (STVar)
 
 import Statix.Regex
 import Statix.Graph
+import Statix.Graph.Types as Graph
 import Statix.Syntax.Constraint
 import Statix.Analysis.Symboltable
+import Statix.Analysis.Lexical
 
 -- | Unification variables in ST
-data STVar s t =
-    STVar
-      { ident :: {-# UNPACK #-} !Int
-      , ref   :: {-# UNPACK #-} !(STRef s (Maybe (UTerm t (STVar s t))))
-      , name  :: String
-      }
-    
-instance Show (STVar s t) where
-  show (STVar _ _ n) = n
+data MVar s = MVar
+  { ident :: !Int
+  , ref   :: !(STRef s (Maybe (STerm s)))
+  , name  :: Text
+  }
 
-instance Eq (STVar s t) where
-  (STVar i _ _) == (STVar j _ _) = (i == j)
+instance Show (MVar s) where
+  show (MVar _ _ n) = unpack n
 
-instance Variable (STVar s t) where
-  getVarID u = ident u
+instance Eq (MVar s) where
+  (MVar i _ _) == (MVar j _ _) = (i == j)
 
-{- Specialize stuff for our term language -}
-newtype T s = PackT (UTerm (TermF (STNodeRef s Label (T s))) (STU s))
+-- | Graph node references in ST 
+type SNode s   = STNodeRef s Label (STerm s)
 
-instance Show (T s) where
-  show (PackT u) = show u
+-- | Graph paths in ST
+type SPath s = Graph.Path (SNode s) Label
 
-type C s    = Constraint QName (T s)
-type STU s  = STVar s (TermF (STNodeRef s Label (T s)))
-type STN s  = STNodeRef s Label (T s)
+-- | Solver terms in ST
+type STerm s    = Fix (STermF s)
+data STermF s r =
+    SVarF (MVar s)
+  | SNodeF (SNode s)
+  | SLabelF Label
+  | SConF Ident [r]
+  | SAnsF [SPath s] deriving (Functor, Show)
+
+pattern SVar x     = Fix (SVarF x)
+pattern SNode n    = Fix (SNodeF n)
+pattern SLabel l   = Fix (SLabelF l)
+pattern SCon id ts = Fix (SConF id ts)
+pattern SAns ps    = Fix (SAnsF ps)
 
 {- READER -}
-data Env s = Env
- { symbols :: SymbolTable
- , locals  :: HashMap RawName (T s)
+type Frame s = HashMap Ident (STerm s)
+data Env s   = Env
+ { symbols :: SymTab
+ , locals  :: [Frame s]
  }
 
 emptyEnv :: Env s
-emptyEnv = Env HM.empty HM.empty
+emptyEnv = Env HM.empty [HM.empty]
 
-getPredicate :: QName → Env s → Maybe (Predicate QName)
+getPredicate :: QName → Env s → Maybe Predicate₁
 getPredicate qn env = HM.lookup qn (symbols env)
-
-insertLocal :: RawName → T s → Env s → Env s
-insertLocal x u env = env { locals = HM.insert x u (locals env) }
-
-lookupLocal :: RawName → Env s → Maybe (T s)
-lookupLocal x = HM.lookup x . locals 
 
 {- ERROR -}
 data StatixError =
-    UnboundVariable RawName
-  | Unsatisfiable String
+  Unsatisfiable String
   | TypeError
   | Panic String
 
 instance Show StatixError where
-  show (UnboundVariable x) = "Found unbound variable " ++ x
   show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
   show TypeError = "Constraint unsatisfiable: type error"
   show (Panic x) = "Panic" ++ x
@@ -82,10 +89,10 @@ instance Fallible t v StatixError where
 
 {- STATE -}
 data Solver s = Solver
-  { queue :: Seq (Env s, C s)
+  { queue :: Seq (Goal s)
   , nextU :: Int
   , nextN :: Int
-  , graph :: STGraph s Label (T s)
+  , graph :: STGraph s Label (STerm s)
   }
 
 emptySolver :: Solver s
@@ -100,7 +107,7 @@ emptySolver = Solver
 type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s)))
 
 -- | Constraint closure
-type Goal s   = (Env s, C s)
+type Goal s   = (Env s, Constraint₁)
 
 -- | (ST-less) solution to a constraint program
 type Solution = Either StatixError (String, IntGraph Label String)
