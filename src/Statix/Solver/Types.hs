@@ -10,6 +10,7 @@ import Data.Sequence as Seq
 import Data.HashMap.Strict as HM
 import Data.Coerce
 import Data.Functor.Fixedpoint
+import Data.Default
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -66,8 +67,11 @@ data Env s   = Env
  , locals  :: [Frame s]
  }
 
-emptyEnv :: Env s
-emptyEnv = Env HM.empty [HM.empty]
+instance Default (Frame s) where
+  def = HM.empty
+
+instance Default (Env s) where
+  def = Env HM.empty [def]
 
 getPredicate :: QName → Env s → Maybe Predicate₁
 getPredicate qn env = HM.lookup qn (symbols env)

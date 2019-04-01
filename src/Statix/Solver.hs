@@ -15,6 +15,7 @@ import Data.Sequence as Seq
 import Data.Functor.Fixedpoint
 import Data.List as List
 import Data.Set as Set
+import Data.Default
 import qualified Data.Text as Text
 
 import Control.Monad.ST
@@ -62,7 +63,7 @@ next = return ()
 openExist :: [Param] → SolverM s a → SolverM s a
 openExist ns c = do
   let ids = fmap pname ns
-  bs ← mapM (\i → do v ← freshUvar i Nothing; return (i, SVar v)) ids
+  bs ← mapM (\i → do v ← freshUvar i Nothing; return $ (i, SVar v)) ids
   enters bs c
 
 checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → SolverM s (Set (SNode s, Label))
@@ -101,19 +102,37 @@ occursCheck u (SVar v)    = u == v
 occursCheck u (SCon c ts) = all (occursCheck u) ts
 occursCheck u _           = False
 
+-- | Ground a term as much as possible, applying the unifier
+ground :: STerm s → SolverM s (STerm s)
+ground (SVar u) = do
+  b ← liftST $ readSTRef (ref u)
+  case b of
+    Just t  → ground t
+    Nothing → return $ SVar u
+ground (SCon c ts) = do
+  ts' ← mapM ground ts
+  return $ SCon c ts'
+ground t = return t
+
 unifyVar :: MVar s → STerm s → SolverM s (STerm s)
 unifyVar u t = do
   b ← liftST $ readSTRef (ref u)
   case b of
     Just t' → unify t' t
     Nothing → do
-      if occursCheck u t
-      then do
+      if (occursCheck u t)
+      then throwError (Unsatisfiable "Occurs check failed")
+      else do
         liftST $ writeSTRef (ref u) (Just t)
         return t
-      else throwError (Unsatisfiable "Occurs check failed")
 
+-- | Unify two terms, taking into account the unifier in the monad.
 unify :: STerm s → STerm s → SolverM s (STerm s)
+unify t@(SVar u) (SVar v)
+  | u == v    = return t
+  | otherwise = do
+    liftST $ writeSTRef (ref v) (Just t)
+    return t
 unify (SVar u) r = unifyVar u r
 unify l (SVar u) = unifyVar u l
 unify (SNode n) (SNode m)
@@ -215,17 +234,22 @@ solveFocus (CApply p ts) = do
 showUnifier :: SolverM s String
 showUnifier = do
   e  ← locals <$> ask
-  return $ formatFrame (head e)
+  formatFrame (head e)
   where
-    formatFrame :: Frame s → String
+    formatFrame :: Frame s → SolverM s String
     formatFrame fr = do
-      List.foldl (\s (k, t) → "  " ++ Text.unpack k ++ " ↦ " ++ (show t)) "" (HM.toList fr)
+      bs ← mapM formatBinding (HM.toList fr)
+      return $ intercalate "\n" bs
+
+    formatBinding (k , t) = do
+      t' ← ground t
+      return $ "  " ++ Text.unpack k ++ " ↦ " ++ (show t')
 
 -- | Construct a solver for a raw constraint
 kick :: SymTab → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))
 kick sym c =
   -- convert the raw constraint to the internal representatio
-  local (\_ → emptyEnv { symbols = sym }) $ do
+  local (\_ → def { symbols = sym }) $ do
     case c of
       -- open the top level exists if it exists
       (CEx ns b) → openExist ns $ do

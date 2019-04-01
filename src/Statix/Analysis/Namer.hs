@@ -31,6 +31,10 @@ checkTerm = hmapM checkT
 checkConstraint :: Constraint₀ → NCM Constraint₁
 checkConstraint CTrue           = return CTrue
 checkConstraint CFalse          = return CFalse
+checkConstraint (CEq t₁ t₂)     = do
+  t₃ ← checkTerm t₁ 
+  t₄ ← checkTerm t₂
+  return (CEq t₃ t₄)
 checkConstraint (CAnd c d)      = do
   cc ← checkConstraint c
   cd ← checkConstraint d

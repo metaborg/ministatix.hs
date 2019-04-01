@@ -10,6 +10,8 @@ import Data.Either
 import Data.STRef
 import Data.Coerce
 import Data.Text
+import Data.Default
+import Debug.Trace
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -63,13 +65,13 @@ instance ScopedM (SolverM s) where
     
     where
       derefLocal :: IPath → [Frame s] → SolverM s (STerm s)
-      derefLocal (Skip p) (fr : frs)    = derefLocal p frs
-      derefLocal (Lex.End id) (fr : []) =
+      derefLocal (Skip p)     (fr : frs) = derefLocal p frs
+      derefLocal (Lex.End id) (fr : frs) =
         case HM.lookup id fr of
           Nothing → throwError $ Panic "Variable unbound at runtime"
           Just t  → return t
       derefLocal _ _                    =
-        throwError $ Panic "Variable unbound at runtime"
+        throwError $ Panic ":( Variable unbound at runtime"
 
 -- | Get a fresh variable identifier
 freshVarName :: SolverM s Int
@@ -96,7 +98,7 @@ freshUvar name t = do
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a
-runSolver c = runST (runExceptT (evalStateT (runReaderT c emptyEnv) emptySolver))
+runSolver c = runST (runExceptT (evalStateT (runReaderT c def) emptySolver))
 
 -- | Lift ST computations into Solver
 liftST :: ST s a → SolverM s a
