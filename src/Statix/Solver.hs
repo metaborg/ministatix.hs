@@ -72,7 +72,7 @@ checkCritical ces c = cataM check c
     check (CAndF l r) = return (l `Set.union` r)
     check (CExF xs c) = return c
     check (CEdgeF x l y) = do
-      t₁ ← resolve x
+      t₁ ← resolve x >>= ground
       case t₁ of
         (SNode n) → 
           case ces Map.!? n of
@@ -176,8 +176,8 @@ solveFocus (CNew x) = do
   next
 
 solveFocus c@(CEdge x l y) = do
-  t₁ ← resolve x
-  t₂ ← resolve y
+  t₁ ← resolve x >>= ground
+  t₂ ← resolve y >>= ground
   case (t₁ , t₂) of
     (SNode n, SNode m) → newEdge (n, l, m)
     (SVar _, _)        → pushGoal c
@@ -185,7 +185,7 @@ solveFocus c@(CEdge x l y) = do
     otherwise          → throwError TypeError
 
 solveFocus c@(CQuery x r y) = do
-  t ← resolve x
+  t ← resolve x >>= ground
   case t of
     -- If the source node is ground
     -- then we can attempt to solve the query
@@ -208,13 +208,14 @@ solveFocus c@(CQuery x r y) = do
     otherwise → throwError TypeError
 
 solveFocus c@(COne x t) = do
-  t ← resolve x
-  case t of
+  t   ← instantiate t
+  ans ← resolve x >>= ground
+  case ans of
     (SVar x)        → pushGoal c
     (SAns (p : [])) → do unify (reify p) t ; return ()
     (SAns [])       → throwError (Unsatisfiable $ show c ++ " (No paths)")
     (SAns ps)       → throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
-    _               → throwError TypeError
+    t               → throwError TypeError
 
 solveFocus (CApply p ts) = do
    mp ← getPredicate p <$> ask
