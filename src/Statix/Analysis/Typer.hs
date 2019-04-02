@@ -17,16 +17,6 @@ checkArity c@(CApplyF qn ts) = do
     else return c
 checkArity c = return c
 
-
-
 -- | Perform type checking on a constraint against the symboltable
--- typecheck :: Constraint₁ → TCM Constraint₂
--- typecheck = hmapM (return . typerInit)
-
-
-
-  
--- typecheckP :: Predicate QName → TCM (Predicate QName)
--- typecheckP (Pred σ b) = do
---   b' ← typecheck b
---   return (Pred σ b')
+typecheck :: Constraint₁ → TCM Constraint₁
+typecheck = hmapM checkArity

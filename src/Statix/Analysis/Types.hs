@@ -29,7 +29,7 @@ data TCError
 type NCM = ReaderT NameContext (Except TCError)
 
 -- | Type checking monad
-type TCM = ExceptT TCError (State SymTab)
+type TCM = StateT SymTab (Except TCError)
 
 data NameContext = NC
   { qualifier :: HashMap Ident QName   -- predicate names → qualified
@@ -60,8 +60,8 @@ getSig q = sig <$> getPred q
 getArity :: QName → TCM Int
 getArity q = length <$> params <$> sig <$> getPred q
 
-runTC :: SymTab → TCM a → (Either TCError a, SymTab)
-runTC sym c = runIdentity $ runStateT (runExceptT c) sym
+runTC :: SymTab → TCM a → (Either TCError (a , SymTab))
+runTC sym c = runIdentity $ runExceptT (runStateT c sym)
 
 runNC :: NameContext → NCM a → Either TCError a
 runNC ctx c = runExcept $ runReaderT c ctx

@@ -17,16 +17,16 @@ analyze ctx c = do
   -- typecheck qc
 
 -- | Analyze a predicate.
--- This updates the symboltable
 analyzeP :: NameContext → Predicate₀ → TCM Predicate₁
 analyzeP ctx p = do
   pred ← liftNC ctx $ checkPredicate p
 
-  -- add the predicate to the symbol table
+  -- Add the predicate to the symbol table.
+  -- This is fine, because we won't return the updated table if checking fails
   modify (importP pred)
 
   -- typecheck it
-  -- b' ← typecheck (body pred)
+  typecheck (body pred)
 
   return pred
 

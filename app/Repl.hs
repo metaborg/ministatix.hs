@@ -56,10 +56,13 @@ liftNC c = do
   ctx ← ask
   handleErrors $ runNC ctx c
   
-liftTC₁ :: TCM a → REPL a
-liftTC₁ c = do
-  e ← lift (mapStateT (return . runIdentity) $ runExceptT c)
-  handleErrors e
+liftTC :: TCM a → REPL a
+liftTC c = do
+  symtab ← get
+  let e = runStateT c symtab
+  (a, symtab') ← handleErrors $ runIdentity $ runExceptT e
+  put symtab'
+  return a
 
 liftParser :: Text.Text → ParserM a → REPL a
 liftParser mod c = handleErrors $ runParser mod c
@@ -141,7 +144,7 @@ loop = do
     (Main rawc)   → do
       c   ← liftParser (Text.pack "repl") $ (parseConstraint (lexer rawc))
       ctx ← ask
-      cok ← liftTC₁ $ analyze ctx c
+      cok ← liftTC $ analyze ctx c
       solution ← gets (\sym → solve sym cok)
       liftIO $ putStrLn ""
       liftIO $ printSolution solution
@@ -150,7 +153,7 @@ loop = do
     (Define p) → do
       pr    ← liftParser (Text.pack "repl") (parsePredicate (lexer p))
       ctx   ← ask
-      prty  ← liftTC₁ $ analyzeP ctx pr
+      prty  ← liftTC $ analyzeP ctx pr
       let σ = sig prty
       local (\nc →
                nc { qualifier = HM.insert (predname σ) (qname σ) (qualifier nc) }) loop
@@ -166,7 +169,7 @@ loop = do
 
       -- analyze it
       ctx      ← ask
-      mod      ← liftTC₁ $ analyzeM ctx modname rawmod
+      mod      ← liftTC $ analyzeM ctx modname rawmod
 
       -- update the local context
       local
