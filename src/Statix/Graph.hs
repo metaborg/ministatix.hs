@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
@@ -40,9 +42,9 @@ newtype IntGraph l d = IntGraph (IntMap (IntGraphNode l d))
 instance Show l ⇒ Show (IntGraphEdge l) where
   show (IntEdge l i) = "─⟨ " ++ show l ++ " ⟩⟶ " ++ show i
 
-instance (Show l, Show d) ⇒ Show (IntGraphNode l d) where
+instance (Show l) ⇒ Show (IntGraphNode l d) where
   show (IntNode i es d) =
-    "∇ (" ++ (show i) ++ ") ↦ " ++ show d
+    "∇ (" ++ (show i) ++ ")"
     ++ concatMap (\e → "\n    " ++ show e) es
 
 instance (Show l, Show d) ⇒ Show (IntGraph l d) where

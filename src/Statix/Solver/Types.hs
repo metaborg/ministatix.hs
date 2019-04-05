@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Statix.Solver.Types where
 
 import Prelude hiding (lookup, null)
@@ -40,12 +42,21 @@ type VarInfo = Text
 type SDag s   = TGraph (STmRef s) (STermF s) VarInfo
 type STmRef s = Class s (STermF s) VarInfo
 
+-- | Solver terms
+type STree s  = Tree (STermF s) VarInfo
+
 -- | The constructors of the term language
 data STermF s c =
     SNodeF (SNode s)
   | SLabelF Label
   | SConF Ident [c]
-  | SAnsF [SPath s]
+  | SAnsF [SPath s] deriving (Functor, Foldable, Traversable)
+
+instance Show c ⇒ Show (STermF s c) where
+  show (SNodeF n)   = "∇(" ++ show n ++ ")"
+  show (SLabelF l)  = "Label(" ++ show l ++ ")"
+  show (SConF k ts) = show k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
+  show (SAnsF _)    = "{...}"
  
 pattern SNode n    = GTm (SNodeF n)
 pattern SLabel l   = GTm (SLabelF l)
@@ -130,4 +141,4 @@ type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s))
 type Goal s    = (Env s, Constraint₁)
 
 -- | (ST-less) solution to a constraint program
-type Solution = Either StatixError (String, IntGraph Label String)
+type Solution = Either StatixError (String, IntGraph Label ())

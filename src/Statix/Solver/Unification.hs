@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 -- | Implementation of variation of Baader & Snyder description of Huet's unification algorithm.
 -- (Implementation informed by wrengr/unification-fd)
 module Statix.Solver.Unification where
@@ -21,8 +22,13 @@ data TGraph n f v =
 -- | Term trees over a functor and variable representation.
 -- Recursive positions are filled with other trees.
 data Tree f v =
-    TTm (f (Tree f))
+    TTm (f (Tree f v))
   | TVar v
+
+instance (Show (f (Tree f v)), Show v) ⇒ Show (Tree f v) where
+
+  show (TTm  f) = show f
+  show (TVar v) = "Var " ++ show v
 
 class Unifiable f where
   zipMatch :: f r → f r → Maybe [(r , r)]
@@ -112,6 +118,16 @@ isAcyclic node = evalStateT (find node) def
                 unvisit nid
 
             flagAcyclic nid
+
+toTree :: (Traversable f, MonadEquiv n m (Rep n f v)) ⇒
+  n → m (Tree f v)
+toTree n = do
+  t ← getSchema n
+  case t of 
+    GVar v → return (TVar v)
+    GTm tm  → do
+      subtree ← mapM toTree tm
+      return (TTm subtree)
 
 unify :: (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒
          n → n → m ()

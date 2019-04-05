@@ -174,7 +174,7 @@ solveFocus c@(COne x t) = do
   ans ← resolve x >>= getSchema
   case ans of
     (GVar x)        → pushGoal c
-    (SAns (p : [])) → do unify (reify p) t ; return ()
+    (SAns (p : [])) → throwError $ Panic "Not implemented" -- do unify (reify p) t ; return ()
     (SAns [])       → throwError (Unsatisfiable $ show c ++ " (No paths)")
     (SAns ps)       → throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
     t               → throwError TypeError
@@ -193,22 +193,23 @@ solveFocus (CApply p ts) = do
 
      Nothing → panic "Unbound predicate"
 
--- | A simple means to getting a unifier out of ST, convert everything to a string
-showUnifier :: SolverM s String
-showUnifier = do
-  e  ← locals <$> ask
-  formatFrame (head e)
-  where
-    formatFrame :: Frame s → SolverM s String
-    formatFrame fr = do
-      bs ← mapM formatBinding (HM.toList fr)
-      return $ intercalate "\n" bs
+type Unifier s = HashMap Ident (STree s)
 
-    formatBinding (k , t) = do
-      return $ "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
+-- | A simple means to getting a unifier out of ST, convert everything to a string
+unifier :: SolverM s (Unifier s)
+unifier = do
+  e  ← locals <$> ask
+  mapM toTree (head e)
+
+formatUnifier :: Unifier s → String
+formatUnifier fr =
+  let bs = fmap formatBinding (HM.toList fr)
+  in intercalate "\n" bs
+  where
+    formatBinding (k , t) = "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
 
 -- | Construct a solver for a raw constraint
-kick :: SymTab → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))
+kick :: SymTab → Constraint₁ → (forall s. SolverM s (String, IntGraph Label ()))
 kick sym c =
   -- convert the raw constraint to the internal representatio
   local (\_ → def { symbols = sym }) $ do
@@ -225,7 +226,7 @@ kick sym c =
   -- | The solver loop just continuously checks the work queue,
   -- steals an item and focuses it down, until nothing remains.
   -- When the work is done it grounds the solution and returns it.
-  loop :: SolverM s (String, IntGraph Label String)
+  loop :: SolverM s (String, IntGraph Label ())
   loop = do
     st ← get
     c  ← popGoal
@@ -236,9 +237,9 @@ kick sym c =
       Nothing → do
         -- done, gather up the solution (graph and top-level unifier)
         s ← get
-        g ← liftST $ toIntGraph (graph s)
-        φ ← showUnifier
-        return (φ, fmap show g)
+        g ← liftST $ (toIntGraph (graph s))
+        φ ← unifier
+        return (show φ, fmap (const ()) g)
 
 -- | Construct and run a solver for a constraint
 solve :: SymTab → Constraint₁ → Solution
