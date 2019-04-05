@@ -1,28 +1,25 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-
 module Statix.Solver where
 
 import Prelude hiding (lookup, null)
 import Data.Map.Strict as Map hiding (map, null)
 import Data.HashMap.Strict as HM
+import Data.HashSet as HS
+import Data.Set as Set
 import Data.Either
 import Data.Maybe
 import Data.STRef
-import Data.Sequence as Seq
 import Data.Functor.Fixedpoint
 import Data.List as List
-import Data.Set as Set
 import Data.Default
 import qualified Data.Text as Text
+import qualified Data.Sequence as Seq
 
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.Trans
+import Control.Monad.Equiv
 
 import Debug.Trace
 
@@ -36,21 +33,25 @@ import Statix.Analysis.Lexical
 import Statix.Solver.Types
 import Statix.Solver.Reify
 import Statix.Solver.Monad
+import Statix.Solver.Unification
+
+panic :: String → SolverM s a
+panic s = throwError (Panic s)
 
 -- | Push a constraint to the work queue
 pushGoal :: Constraint₁ → SolverM s ()
 pushGoal c = do
   st  ← get
   env ← ask
-  put (st { queue = queue st |> (env , c)})
+  put (st { queue = queue st Seq.|> (env , c)})
 
 -- | Pop a constraint to the work queue if it is non-empty
 popGoal :: SolverM s (Maybe (Goal s))
 popGoal = do
   st ← get
-  case viewl (queue st) of
-    EmptyL    → return Nothing
-    (c :< cs) → do
+  case Seq.viewl (queue st) of
+    Seq.EmptyL    → return Nothing
+    (c Seq.:< cs) → do
       liftState $ put (st { queue = cs })
       return (Just c)
 
@@ -63,8 +64,13 @@ next = return ()
 openExist :: [Param] → SolverM s a → SolverM s a
 openExist ns c = do
   let ids = fmap pname ns
-  bs ← mapM (\i → do v ← freshUvar i Nothing; return $ (i, SVar v)) ids
+  bs ← mapM mkBinder ids
   enters bs c
+
+  where
+    mkBinder name = do
+      v ← freshExistential name
+      return (name, v)
 
 checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → SolverM s (Set (SNode s, Label))
 checkCritical ces c = cataM check c
@@ -72,7 +78,7 @@ checkCritical ces c = cataM check c
     check (CAndF l r) = return (l `Set.union` r)
     check (CExF xs c) = return c
     check (CEdgeF x l y) = do
-      t₁ ← resolve x >>= ground
+      t₁ ← resolve x >>= getSchema
       case t₁ of
         (SNode n) → 
           case ces Map.!? n of
@@ -90,64 +96,18 @@ queryGuard ce = do
   cs ← liftState $ gets queue
   Set.unions <$> mapM (\(e, c) → local (const e) $ checkCritical ce c) cs
 
-instantiate :: Term₁ → SolverM s (STerm s)
-instantiate (Var p)    = resolve p
-instantiate (Con c ts) = do
-  ts' ← mapM instantiate ts
-  return (SCon c ts')
-instantiate (Label l)  = return (SLabel l)
+-- | Embedding of syntactical terms into the DAG representation of terms
+toDag :: Term₁ → SolverM s (STmRef s)
+toDag (Var p)    =
+  resolve p
+toDag (Con c ts) = do
+  id  ← freshVarName
+  ts' ← mapM toDag ts
+  newClass (Rep (SCon c ts') id)
+toDag (Label l) = do
+  id ← freshVarName
+  newClass (Rep (SLabel l) id)
 
-occursCheck :: MVar s → STerm s → Bool
-occursCheck u (SVar v)    = u == v
-occursCheck u (SCon c ts) = all (occursCheck u) ts
-occursCheck u _           = False
-
--- | Ground a term as much as possible, applying the unifier
-ground :: STerm s → SolverM s (STerm s)
-ground (SVar u) = do
-  b ← liftST $ readSTRef (ref u)
-  case b of
-    Just t  → ground t
-    Nothing → return $ SVar u
-ground (SCon c ts) = do
-  ts' ← mapM ground ts
-  return $ SCon c ts'
-ground t = return t
-
-unifyVar :: MVar s → STerm s → SolverM s (STerm s)
-unifyVar u t = do
-  b ← liftST $ readSTRef (ref u)
-  case b of
-    Just t' → unify t' t
-    Nothing → do
-      if (occursCheck u t)
-      then throwError (Unsatisfiable "Occurs check failed")
-      else do
-        liftST $ writeSTRef (ref u) (Just t)
-        return t
-
--- | Unify two terms, taking into account the unifier in the monad.
-unify :: STerm s → STerm s → SolverM s (STerm s)
-unify t@(SVar u) (SVar v)
-  | u == v    = return t
-  | otherwise = do
-    liftST $ writeSTRef (ref v) (Just t)
-    return t
-unify (SVar u) r = unifyVar u r
-unify l (SVar u) = unifyVar u l
-unify (SNode n) (SNode m)
-  | n == m    = return $ SNode n
-  | otherwise = throwError (Unsatisfiable "Unification failed")
-unify (SCon c xs) (SCon d ys)
-  | c == d = do
-    ts ← zipWithM unify xs ys
-    return (SCon c ts)
-  | otherwise = throwError (Unsatisfiable "Unification failed")
-
--- unification on answer sets is prohibited
-unify (SAns _) _ = throwError TypeError
-unify _ (SAns _) = throwError TypeError
-  
 -- | Try to solve a focused constraint
 solveFocus :: Constraint₁ → SolverM s ()
 
@@ -155,8 +115,8 @@ solveFocus CTrue  = return ()
 solveFocus CFalse = throwError (Unsatisfiable "Derived ⊥")
 
 solveFocus (CEq t1 t2) = do
-  t1' ← instantiate t1
-  t2' ← instantiate t2
+  t1' ← toDag t1
+  t2' ← toDag t2
   unify t1' t2'
   next
 
@@ -170,22 +130,23 @@ solveFocus (CEx ns c) = do
 solveFocus (CNew x) = do
   t  ← resolve x
   u  ← newNode Nothing
+  t' ← freshTmClass (SNode u)
   catchError
-    (unify t (SNode u))
+    (unify t t')
     (\ err → throwError (Unsatisfiable "Not fresh!"))
   next
 
 solveFocus c@(CEdge x l y) = do
-  t₁ ← resolve x >>= ground
-  t₂ ← resolve y >>= ground
+  t₁ ← resolve x >>= getSchema
+  t₂ ← resolve y >>= getSchema
   case (t₁ , t₂) of
     (SNode n, SNode m) → newEdge (n, l, m)
-    (SVar _, _)        → pushGoal c
-    (_ , SVar _)       → pushGoal c
+    (GVar _, _)        → pushGoal c
+    (_ , GVar _)       → pushGoal c
     otherwise          → throwError TypeError
 
 solveFocus c@(CQuery x r y) = do
-  t ← resolve x >>= ground
+  t ← resolve x >>= getSchema
   case t of
     -- If the source node is ground
     -- then we can attempt to solve the query
@@ -196,22 +157,23 @@ solveFocus c@(CQuery x r y) = do
 
       if List.null stuckOn then do
         -- if it passes we solve the query
-        ans ← runQuery n r
-        b   ← resolve y
-        unify b (SAns ans)
+        ans    ← runQuery n r
+        ansRef ← freshTmClass (SAns ans)
+        b      ← resolve y
+        unify b ansRef
         next
       else do
         pushGoal (trace "Delaying query" c)
         next
 
-    (SVar _)  → pushGoal c
+    (GVar _)  → pushGoal c
     otherwise → throwError TypeError
 
 solveFocus c@(COne x t) = do
-  t   ← instantiate t
-  ans ← resolve x >>= ground
+  t   ← toDag t
+  ans ← resolve x >>= getSchema
   case ans of
-    (SVar x)        → pushGoal c
+    (GVar x)        → pushGoal c
     (SAns (p : [])) → do unify (reify p) t ; return ()
     (SAns [])       → throwError (Unsatisfiable $ show c ++ " (No paths)")
     (SAns ps)       → throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
@@ -222,14 +184,14 @@ solveFocus (CApply p ts) = do
    case mp of
      Just (Pred σ c) → do
        -- normalize the parameters
-       ts' ← mapM instantiate ts
+       ts' ← mapM toDag ts
 
        -- bind the parameters
        enters (List.zip (fmap pname $ params σ) ts') $ do
          -- solve the body
          solveFocus c
 
-     Nothing → error "Panic! Encountered unbound predicate"
+     Nothing → panic "Unbound predicate"
 
 -- | A simple means to getting a unifier out of ST, convert everything to a string
 showUnifier :: SolverM s String
@@ -243,8 +205,7 @@ showUnifier = do
       return $ intercalate "\n" bs
 
     formatBinding (k , t) = do
-      t' ← ground t
-      return $ "  " ++ Text.unpack k ++ " ↦ " ++ (show t')
+      return $ "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
 
 -- | Construct a solver for a raw constraint
 kick :: SymTab → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))

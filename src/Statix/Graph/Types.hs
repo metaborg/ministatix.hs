@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
 module Statix.Graph.Types where
 
 import Control.Monad.Reader

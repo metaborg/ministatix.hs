@@ -45,9 +45,11 @@ default-extensions:
 - FlexibleInstances
 - DuplicateRecordFields
 - LambdaCase
-- ScopedTypeVariables
 - TypeFamilies
 - FlexibleContexts
+- TypeApplications
+- MultiParamTypeClasses
+- RankNTypes
 
 library:
   source-dirs: src

@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
@@ -17,16 +16,19 @@ import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
+import Control.Monad.Equiv as Equiv
 
 import Statix.Analysis.Lexical as Lex
 import Statix.Syntax.Constraint
 import Statix.Solver.Types
+import Statix.Solver.Unification
+import Statix.Solver.Unification.ST
 import Statix.Graph
 import Statix.Graph.Types
 import Statix.Graph.Paths
 
 -- | The SolverM type implement the graph manipulation operations
-instance MonadGraph (SNode s) Label (STerm s) (SolverM s) where
+instance MonadGraph (SNode s) Label (SDag s) (SolverM s) where
 
   newNode d = do
     ni ← freshNodeName
@@ -47,9 +49,9 @@ instance MonadGraph (SNode s) Label (STerm s) (SolverM s) where
     return es
 
 instance ScopedM (SolverM s) where
-  type Binder (SolverM s) = (Ident, STerm s)
+  type Binder (SolverM s) = (Ident, STmRef s)
   type Ref    (SolverM s) = IPath
-  type Datum  (SolverM s) = STerm s
+  type Datum  (SolverM s) = STmRef s
   
   enter     = local (\env → env { locals = HM.empty : locals env })
 
@@ -60,11 +62,11 @@ instance ScopedM (SolverM s) where
       _          → throwError $ Panic "No frame for current scope"
 
   resolve p = do
-    env ← asks (locals)
+    env ← asks locals
     derefLocal p env
     
     where
-      derefLocal :: IPath → [Frame s] → SolverM s (STerm s)
+      derefLocal :: IPath → [Frame s] → SolverM s (STmRef s)
       derefLocal (Skip p)     (fr : frs) = derefLocal p frs
       derefLocal (Lex.End id) (fr : frs) =
         case HM.lookup id fr of
@@ -72,6 +74,15 @@ instance ScopedM (SolverM s) where
           Just t  → return t
       derefLocal _ _                    =
         throwError $ Panic ":( Variable unbound at runtime"
+
+-- | Lift the equivalence monad instance for ST to SolverM
+instance MonadEquiv (STmRef s) (SolverM s) (Rep (STmRef s) (STermF s) VarInfo) where
+
+  newClass d     = liftST $ newClass d
+  description c  = liftST $ description c
+  modifyDesc c d = liftST $ modifyDesc c d
+  union c c'     = liftST $ Equiv.union c c'
+  repr c         = liftST $ repr c
 
 -- | Get a fresh variable identifier
 freshVarName :: SolverM s Int
@@ -90,11 +101,15 @@ freshNodeName = do
   return n
 
 -- | Get a fresh unification variable, possibly bound to a term t
-freshUvar :: Text → Maybe (STerm s) → SolverM s (MVar s)
-freshUvar name t = do
+freshExistential :: Text → SolverM s (STmRef s)
+freshExistential name = do
   id ← freshVarName
-  r  ← liftST $ newSTRef t
-  return (MVar id r name)
+  newClass (Rep (GVar name) id)
+
+freshTmClass :: SDag s → SolverM s (STmRef s)
+freshTmClass t = do
+  id ← freshVarName
+  undefined -- newClass (Rep (GTm t) id)
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a
