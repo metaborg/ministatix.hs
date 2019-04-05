@@ -29,12 +29,13 @@ dependencies:
 - unification-fd
 - list-extras >= 0.4.1.4
 - Stream
-- STMonadTrans
 - ansi-terminal
 - directory
 - filepath
 - text
-- Stream
+- union-find
+- hashable
+- equivalence
 
 default-extensions:
 - UnicodeSyntax
@@ -43,6 +44,10 @@ default-extensions:
 - FunctionalDependencies
 - FlexibleInstances
 - DuplicateRecordFields
+- LambdaCase
+- ScopedTypeVariables
+- TypeFamilies
+- FlexibleContexts
 
 library:
   source-dirs: src
