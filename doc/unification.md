@@ -27,12 +27,12 @@ given two terms `t₁ = f(x, g())` and `t₂ = f(y, y)` that we want to unify we
 2. Call `unify n₃ n₄`, which builds the so called unification closure.
 
    Since the schema of the tow nodes are both functional, we check that the constructors match.
-   We take the union of the classes of `n₃` and `n₄`:
+   We take the union of the classes of `n₃` and `n₄` by linking one to the other.
 
-		n₀ ↠ n₁         -- link
-		n₁ ↠ n₂         -- link
+		n₀ ↦ x
+		n₁ ↦ y
 		n₂ ↦ g()
-		n₃ ↦ n₄
+		n₃ ↠ n₄
 		n₄ ↦ f(n₁, n₁)
 
    And recursively proceed on the pairs (`n₀, n₁`, `n₂, n₁`).
@@ -43,7 +43,7 @@ given two terms `t₁ = f(x, g())` and `t₂ = f(y, y)` that we want to unify we
 		n₀ ↠ n₁         -- link
 		n₁ ↠ n₂         -- link
 		n₂ ↦ g()
-		n₃ ↦ n₄
+		n₃ ↠ n₄
 		n₄ ↦ f(n₁, n₁)
 
 3. Now that we've built the closure we can check that the resulting graph is acyclic and if 
@@ -54,6 +54,13 @@ given two terms `t₁ = f(x, g())` and `t₂ = f(y, y)` that we want to unify we
    and its schema `g()`, and build `f(g(), g())` from that.
    This is indeed the term we'd expect from unification of the input terms.
    
+## Implementation details
+
+The graph is actually a union-find datastructure with the usual optimizations to make things fast.
+That means for example that as we derefence links to representatives, we compress the paths
+that we walk.
+The data structure also takes care to create links between classes in the 'most balanced' way.
+
 ## Solver
 
 In order to preserve the sharing that you get from unification, the whole solver
