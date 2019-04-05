@@ -15,8 +15,8 @@ import Statix.Solver
 main :: IO ()
 main = hspec $ do
   corespec
-  -- newspec
-  -- queryspec
+  newspec
+  queryspec
 
 run :: Bool → String → Spec
 run o c = do
@@ -57,6 +57,7 @@ corespec =
     describe "n-ary" $ do
       run False "{x, y} f(x) = f(x, y)"
       run True  "{x, y} f(x, y) = f(y, x)"
+      run False "{x, y} f(x, y) = f(y, x), x = f(y)"
       run False "{x, y} f(x, y) = g(y, x)"
   
     describe "transitive" $ do
