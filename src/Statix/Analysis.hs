@@ -11,13 +11,13 @@ import Statix.Analysis.Namer
 import Statix.Analysis.Typer
 
 -- | Analyze a constraint
-analyze :: NameContext → Constraint₀ → TCM Constraint₁
+analyze :: NameContext → Constraint₀ → TCM s Constraint₁
 analyze ctx c = do
   c ← liftNC ctx $ checkConstraint c
   typecheck c
 
 -- | Analyze a predicate.
-analyzeP :: NameContext → Predicate₀ → TCM Predicate₁
+analyzeP :: NameContext → Predicate₀ → TCM s Predicate₁
 analyzeP ctx p = do
   pred ← liftNC ctx $ checkPredicate p
 
@@ -32,7 +32,7 @@ analyzeP ctx p = do
 
 -- | Analyze a module
 -- (This updates the typechecker symboltable)
-analyzeM :: NameContext → Ident → [Predicate₀] → TCM (Module IPath Term₁)
+analyzeM :: NameContext → Ident → [Predicate₀] → TCM s (Module IPath Term₁)
 analyzeM ctx mn m = do
   -- name analysis on the module
   mod  ← liftNC ctx $ checkMod mn m

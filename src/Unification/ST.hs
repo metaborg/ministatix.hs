@@ -1,4 +1,4 @@
-module Statix.Solver.Unification.ST where
+module Unification.ST where
 
 import Data.UnionFind.ST as UF
 import Data.STRef
@@ -8,7 +8,7 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.Equiv
 
-import Statix.Solver.Unification
+import Unification
 
 newtype Class s f v = Class (Point s (Rep (Class s f v) f v)) deriving (Eq)
 
@@ -29,5 +29,5 @@ instance (Unifiable f) ⇒ MonadEquiv (Class s f v) (ST s) (Rep (Class s f v) f 
   modifyDesc (Class n) f = do
     UF.modifyDescriptor n f
 
-  union (Class n) (Class m) = do
-    UF.union n m
+  unionWith (Class n) (Class m) f = do
+    UF.union' n m (\d d' → return $ f d d')

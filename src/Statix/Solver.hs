@@ -33,7 +33,8 @@ import Statix.Analysis.Lexical
 import Statix.Solver.Types
 import Statix.Solver.Reify
 import Statix.Solver.Monad
-import Statix.Solver.Unification as U
+
+import Unification as U
 
 -- TODO make Reifiable a typeclass again
 reifyPath :: SPath s → SolverM s (STmRef s)
@@ -116,6 +117,11 @@ toDag (Con c ts) = do
 toDag (Label l) = do
   id ← freshVarName
   newClass (Rep (SLabel l) id)
+toDag (Path t₁ l t₂) = do
+  id ← freshVarName
+  t₁ ← toDag t₁
+  t₂ ← toDag t₂
+  newClass (Rep (SPath t₁ l t₂) id)
 
 -- | Try to solve a focused constraint
 solveFocus :: Constraint₁ → SolverM s ()

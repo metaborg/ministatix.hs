@@ -12,7 +12,6 @@ import Data.HashMap.Strict as HM
 import Data.Coerce
 import Data.Functor.Fixedpoint
 import Data.Default
-import Data.UnionFind.ST
 
 import Control.Monad.ST
 import Control.Monad.State
@@ -26,8 +25,9 @@ import Statix.Graph.Types as Graph
 import Statix.Syntax.Constraint
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
-import Statix.Solver.Unification
-import Statix.Solver.Unification.ST
+
+import Unification
+import Unification.ST
 
 -- | Graph node references in ST 
 type SNode s = STNodeRef s Label (SDag s)
@@ -64,20 +64,21 @@ pattern SNode n    = Tm (SNodeF n)
 pattern SLabel l   = Tm (SLabelF l)
 pattern SCon id ts = Tm (SConF id ts)
 pattern SAns ps    = Tm (SAnsF ps)
+pattern SPath n l p = Tm (SPathF n l p)
 
 instance Unifiable (STermF s) where
 
   zipMatch (SNodeF n) (SNodeF m)
-    | n == m    = Just []
+    | n == m    = Just (SNodeF n)
     | otherwise = Nothing
   zipMatch (SConF k₁ ts₁) (SConF k₂ ts₂)
     | k₁ == k₂ =
       if List.length ts₁ == List.length ts₂
-        then Just (List.zip ts₁ ts₂)
+        then Just (SConF k₁ (List.zip ts₁ ts₂))
         else Nothing
     | otherwise = Nothing
   zipMatch (SLabelF l₁) (SLabelF l₂)
-    | l₁ == l₂  = Just []
+    | l₁ == l₂  = Just (SLabelF l₁)
     | otherwise = Nothing
 
   -- unifying answer sets is prohibited
@@ -85,9 +86,6 @@ instance Unifiable (STermF s) where
 
   -- other combinations are constructor clashes
   zipMatch _ _ = Nothing
-
-  children (SConF id ts) = ts
-  children _ = []
 
 {- READER -}
 type Frame s = HashMap Ident (STmRef s)

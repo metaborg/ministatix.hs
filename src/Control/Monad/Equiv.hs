@@ -21,7 +21,8 @@ class (Eq n, Monad m) ⇒ MonadEquiv n m d | n m → d
   modifyDesc  :: n → (d → d) → m ()
 
   -- | Take the union of two equivalence classes;
-  -- the schema term of the RHS is used for the resulting class
-  union :: n → n → m ()
+  -- the callback is used to select the descriptor for the resulting class
+  unionWith :: n → n → (d → d → d) → m ()
 
--- instance (MonadEquiv n m d) ⇒ MonadEquiv (ExceptT e )
+union :: MonadEquiv n m d ⇒ n → n → m ()
+union n n' = unionWith n n' (\_ d → d)

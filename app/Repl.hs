@@ -57,11 +57,10 @@ liftNC c = do
   ctx ← ask
   handleErrors $ runNC ctx c
   
-liftTC :: TCM a → REPL a
+liftTC :: (forall s . TCM s a) → REPL a
 liftTC c = do
   symtab ← get
-  let e = runStateT c symtab
-  (a, symtab') ← handleErrors $ runIdentity $ runExceptT e
+  (a, symtab') ← handleErrors (runTC symtab c)
   put symtab'
   return a
 

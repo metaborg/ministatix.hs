@@ -78,6 +78,8 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
 type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
 
 tmapc_ :: (t → s) → ConstraintF p ℓ t (Constraint p ℓ s) → Constraint p ℓ s
+tmapc_ f (CTrueF)         = CTrue
+tmapc_ f (CFalseF)        = CFalse
 tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
 tmapc_ f (CNewF n)        = CNew n
 tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ l n₂
@@ -94,12 +96,22 @@ tmapc f = cata (tmapc_ f)
 ------------------------------------------------------------------
 -- | Predicates and modules
 
+data Mode
+  = Out
+  | In
+  | InOut deriving (Eq, Show)
+
+modeJoin :: Mode → Mode → Mode
+modeJoin In In   = In
+modeJoin Out Out = Out
+modeJoin _ _     = InOut
+
 data Type
-  = TNode
+  = TNode Mode
   | TTerm
   | TPath
   | TAns
-  | TBot
+  | TBot deriving (Eq)
 
 data Param = Param
   { pname     :: Ident
@@ -114,6 +126,7 @@ instance Default Param where
   def = Param Text.empty [] TBot
 
 instance Show Type where
+  show (TNode m) = "Node " ++ show m
   show TTerm = "Term"
   show TPath = "Path"
   show TAns  = "{Path}"
@@ -150,6 +163,7 @@ type Term₁            = Fix (TermF IPath)
 pattern Con c ts      = Fix (TConF c ts)
 pattern Label l       = Fix (TLabelF l)
 pattern Var x         = Fix (TVarF x)
+pattern Path t l t'   = Fix (TPathF t l t')
 
 type ConstraintF₀ r   = ConstraintF Ident Ident Term₀ r -- parsed
 type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named & optionally typed

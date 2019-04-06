@@ -18,11 +18,12 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.Equiv as Equiv
 
+import Unification as U
+import Unification.ST
+
 import Statix.Analysis.Lexical as Lex
 import Statix.Syntax.Constraint
 import Statix.Solver.Types
-import Statix.Solver.Unification as U
-import Statix.Solver.Unification.ST
 import Statix.Graph
 import Statix.Graph.Types
 import Statix.Graph.Paths
@@ -81,7 +82,7 @@ instance MonadEquiv (STmRef s) (SolverM s) (Rep (STmRef s) (STermF s) VarInfo) w
   newClass d     = liftST $ newClass d
   description c  = liftST $ description c
   modifyDesc c d = liftST $ modifyDesc c d
-  union c c'     = liftST $ Equiv.union c c'
+  unionWith c c' f = liftST $ Equiv.unionWith c c' f
   repr c         = liftST $ repr c
 
 -- | Get a fresh variable identifier

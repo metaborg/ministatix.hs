@@ -4,7 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 -- | Implementation of variation of Baader & Snyder description of Huet's unification algorithm.
 -- (Implementation informed by wrengr/unification-fd)
-module Statix.Solver.Unification where
+module Unification where
 
 import Data.Hashable
 import Data.Either
@@ -35,9 +35,8 @@ instance (Show (f r), Show v) ⇒ Show (STmF f v r) where
   show (Tm  f) = show f
   show (Var v) = "Var " ++ show v
 
-class Unifiable f where
-  zipMatch :: f r → f r → Maybe [(r , r)]
-  children :: f r → [r]
+class (Traversable f) ⇒ Unifiable f where
+  zipMatch :: f r → f r → Maybe (f (r , r))
 
 class UnificationError e where
   symbolClash :: e
@@ -50,34 +49,41 @@ getSchema n = do
 
 -- | Computes the unification closure of two nodes in a term dag
 closure :: (UnificationError e, MonadError e m, Unifiable f, MonadEquiv n m (Rep n f v)) ⇒
-           n → n → m ()
+           n → n → m n
 closure s t = do
   -- find the representatives
   (Rep st _, s) ← repr s
-  (Rep tt _, t) ← repr t
+  (Rep tt i, t) ← repr t
 
   -- check if the two terms are already in the same equivalence class
   if (s == t)
-    then return ()
+    then return s
     else do
       -- When part of a different class,
       -- attempt to unify the class schemas.
       case (st, tt) of
         -- flex-flex: surely this unifies
-        (Var _, Var _) → union s t
+        (Var _, Var _) → do
+          union s t
+          return s
         -- flex-rigid: this unifies, we update the schema to the RHS
-        (Var _, Tm tm) → union s t
+        (Var _, Tm tm) → do
+          union s t
+          return t
         -- rigid-flex: this unifies, we update the schema to the LHS
-        (Tm tm, Var _) → union t s
+        (Tm tm, Var _) → do
+          union t s
+          return s
         -- rigid-rigid
         (Tm tm₁, Tm tm₂) →
           case zipMatch tm₁ tm₂ of
             Nothing → throwError symbolClash
             -- in case the constructors match,
             -- we get a list of pairings for recursive equivalence checking
-            Just ts → do
-              union s t
-              mapM_ (uncurry closure) ts
+            Just tm₃ → do
+              σ ← mapM (uncurry closure) tm₃
+              unionWith s t (\_ _ → Rep (Tm σ) i)
+              return s
 
 data VisitState = Visitor
   { visited :: HashSet Int
@@ -119,7 +125,7 @@ isAcyclic node = evalStateT (find node) def
               -- if it is a term, visit the children
               Tm tm → do
                 visit nid
-                mapM_ find (children tm)
+                mapM_ find tm
                 unvisit nid
 
             flagAcyclic nid
@@ -134,11 +140,10 @@ toTree n = do
       subtree ← mapM toTree tm
       return (Fix (Tm subtree))
 
-unify :: (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒
+unify :: (Traversable f, Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒
          n → n → m ()
 unify l r = do
   -- compute the closure
-  closure l r
+  r ← closure l r
   -- check if the resulting term isn't cyclic
-  isAcyclic l
- 
+  isAcyclic r

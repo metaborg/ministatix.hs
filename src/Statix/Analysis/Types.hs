@@ -10,9 +10,15 @@ import Data.Functor.Identity
 import Data.Maybe
 import Data.List
 
+import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.ST
+import Control.Monad.Equiv as Equiv
+
+import Unification as Unif
+import Unification.ST
 
 import Statix.Syntax.Constraint
 import Statix.Analysis.Symboltable
@@ -29,7 +35,7 @@ data TCError
 type NCM = ReaderT NameContext (Except TCError)
 
 -- | Type checking monad
-type TCM = StateT SymTab (Except TCError)
+type TCM s = StateT SymTab (ExceptT TCError (ST s))
 
 data NameContext = NC
   { qualifier :: HashMap Ident QName   -- predicate names → qualified
@@ -48,29 +54,42 @@ qualify n = do
     Nothing → throwError (UnboundPredicate n)
     Just q  → return q
 
-getPred :: QName → TCM Predicate₁
+getPred :: QName → TCM s Predicate₁
 getPred q = gets (\sym → sym HM.! q)
 
-unfold :: QName → TCM Constraint₁
+unfold :: QName → TCM s Constraint₁
 unfold q = body <$> getPred q
 
-getSig :: QName → TCM Signature
-getSig q = sig <$> getPred q
-
-getArity :: QName → TCM Int
-getArity q = length <$> params <$> sig <$> getPred q
-
-runTC :: SymTab → TCM a → (Either TCError (a , SymTab))
-runTC sym c = runIdentity $ runExceptT (runStateT c sym)
+runTC :: SymTab → (forall s . TCM s a) → (Either TCError (a , SymTab))
+runTC sym c = runST $ runExceptT (runStateT c sym)
 
 runNC :: NameContext → NCM a → Either TCError a
 runNC ctx c = runExcept $ runReaderT c ctx
 
-liftNC :: NameContext → NCM a → TCM a
+liftST :: ST s a → TCM s a
+liftST = lift . lift
+
+liftNC :: NameContext → NCM a → TCM s a
 liftNC ctx c = do
   case runNC ctx c of
     Left e  → throwError e
     Right v → return v
+
+instance Unifiable (Const Type) where
+
+  zipMatch (Const (TNode m)) (Const (TNode n)) =
+    Just (Const (TNode (modeJoin m n)))
+  zipMatch ty ty'
+    | ty == ty' = Just ((\r → (r,r)) <$> ty)
+    | otherwise = Nothing
+
+instance MonadEquiv (Class s (Const Type) ()) (TCM s) (Rep (Class s (Const Type) ()) (Const Type) ()) where
+
+  newClass t     = liftST $ newClass t
+  repr c         = liftST $ repr c
+  description c  = liftST $ description c
+  modifyDesc c f = liftST $ modifyDesc c f
+  unionWith c d f = liftST $ Equiv.unionWith c d f
 
 instance ScopedM NCM where
   type Binder NCM = Ident
