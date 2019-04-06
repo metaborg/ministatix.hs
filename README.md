@@ -17,13 +17,13 @@ Currently we have:
 To build this project, you need to have the [Haskell Toolstack][1]
 (`brew install haskell-stack` on MacOS).  Build the project using:
 
-    stack build
+    make
 
 Execute the project's REPL using:
 
-    stack run statix-exe
+    make exe
 
-
+Other makefile targets are currently `test` to run the test spec in `test/`. 
 
 ## Troubleshooting
 
