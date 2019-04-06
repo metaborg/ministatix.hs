@@ -36,12 +36,14 @@ data TermF ℓ r
   = TConF Ident [r]
   | TLabelF Label
   | TVarF ℓ 
+  | TPathF r Label r
   deriving (Eq, Functor, Foldable, Traversable)
 
 instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
   show (TConF c ts)  = show c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
   show (TLabelF l)   = "`" ++ show l
   show (TVarF x)     = show x
+  show (TPathF n l p)     = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
 
 ------------------------------------------------------------------
 -- | The constraint language

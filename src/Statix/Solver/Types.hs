@@ -39,7 +39,7 @@ type SPath s = Graph.Path (SNode s) Label
 type VarInfo = Text
 
 -- | Solver DAG in ST
-type SDag s   = TGraph (STmRef s) (STermF s) VarInfo
+type SDag s   = Dag (STmRef s) (STermF s) VarInfo
 type STmRef s = Class s (STermF s) VarInfo
 
 -- | Solver terms
@@ -50,18 +50,20 @@ data STermF s c =
     SNodeF (SNode s)
   | SLabelF Label
   | SConF Ident [c]
-  | SAnsF [SPath s] deriving (Functor, Foldable, Traversable)
+  | SAnsF [SPath s]
+  | SPathF c Label c deriving (Functor, Foldable, Traversable)
 
-instance Show c ⇒ Show (STermF s c) where
+instance (Show c) ⇒ Show (STermF s c) where
   show (SNodeF n)   = "∇(" ++ show n ++ ")"
   show (SLabelF l)  = "Label(" ++ show l ++ ")"
   show (SConF k ts) = show k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
   show (SAnsF _)    = "{...}"
+  show (SPathF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
  
-pattern SNode n    = GTm (SNodeF n)
-pattern SLabel l   = GTm (SLabelF l)
-pattern SCon id ts = GTm (SConF id ts)
-pattern SAns ps    = GTm (SAnsF ps)
+pattern SNode n    = Tm (SNodeF n)
+pattern SLabel l   = Tm (SLabelF l)
+pattern SCon id ts = Tm (SConF id ts)
+pattern SAns ps    = Tm (SAnsF ps)
 
 instance Unifiable (STermF s) where
 

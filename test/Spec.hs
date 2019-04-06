@@ -58,7 +58,7 @@ corespec =
       run False "{x, y} f(x) = f(x, y)"
       run True  "{x, y} f(x, y) = f(y, x)"
       run False "{x, y} f(x, y) = f(y, x), x = f(y)"
-      run False "{x, y} f(x, y) = g(y, x)"
+      run False "{x, y} f(x, y) = g(x, y)"
   
     describe "transitive" $ do
       run True "{x, y} f() = x, x = y, y = f()"

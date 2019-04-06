@@ -21,7 +21,7 @@ import Control.Monad.Equiv as Equiv
 import Statix.Analysis.Lexical as Lex
 import Statix.Syntax.Constraint
 import Statix.Solver.Types
-import Statix.Solver.Unification
+import Statix.Solver.Unification as U
 import Statix.Solver.Unification.ST
 import Statix.Graph
 import Statix.Graph.Types
@@ -104,12 +104,16 @@ freshNodeName = do
 freshExistential :: Text → SolverM s (STmRef s)
 freshExistential name = do
   id ← freshVarName
-  newClass (Rep (GVar name) id)
+  newClass (Rep (U.Var name) id)
 
-freshTmClass :: SDag s → SolverM s (STmRef s)
-freshTmClass t = do
-  id ← freshVarName
-  undefined -- newClass (Rep (GTm t) id)
+-- | Construct a dag from the tree representation where variables are
+-- already node references.
+construct :: STmF (STermF s) (STmRef s) (STmRef s) → SolverM s (STmRef s)
+construct (U.Var n) = return n
+construct (U.Tm tm) = do
+  id  ← freshVarName
+  c   ← newClass (Rep (Tm tm) id)
+  return c
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a

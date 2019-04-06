@@ -24,16 +24,25 @@ import Control.Monad.Equiv
 import Debug.Trace
 
 import Statix.Regex as Re
-import Statix.Syntax.Constraint
+import Statix.Syntax.Constraint as C
 import Statix.Graph
 import Statix.Graph.Paths
-import Statix.Graph.Types
+import Statix.Graph.Types as Graph
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 import Statix.Solver.Types
 import Statix.Solver.Reify
 import Statix.Solver.Monad
-import Statix.Solver.Unification
+import Statix.Solver.Unification as U
+
+-- TODO make Reifiable a typeclass again
+reifyPath :: SPath s → SolverM s (STmRef s)
+reifyPath (Graph.Via (n, l) p) = do
+  n  ← construct (Tm (SNodeF n))
+  pr ← reifyPath p
+  construct (Tm (SPathF n l pr))
+reifyPath (Graph.End n) =
+  construct (Tm (SNodeF n))
 
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
@@ -98,7 +107,7 @@ queryGuard ce = do
 
 -- | Embedding of syntactical terms into the DAG representation of terms
 toDag :: Term₁ → SolverM s (STmRef s)
-toDag (Var p)    =
+toDag (C.Var p)    =
   resolve p
 toDag (Con c ts) = do
   id  ← freshVarName
@@ -130,7 +139,7 @@ solveFocus (CEx ns c) = do
 solveFocus (CNew x) = do
   t  ← resolve x
   u  ← newNode Nothing
-  t' ← freshTmClass (SNode u)
+  t' ← construct (Tm (SNodeF u))
   catchError
     (unify t t')
     (\ err → throwError (Unsatisfiable "Not fresh!"))
@@ -141,8 +150,8 @@ solveFocus c@(CEdge x l y) = do
   t₂ ← resolve y >>= getSchema
   case (t₁ , t₂) of
     (SNode n, SNode m) → newEdge (n, l, m)
-    (GVar _, _)        → pushGoal c
-    (_ , GVar _)       → pushGoal c
+    (U.Var _, _)       → pushGoal c
+    (_ , U.Var _)      → pushGoal c
     otherwise          → throwError TypeError
 
 solveFocus c@(CQuery x r y) = do
@@ -158,7 +167,7 @@ solveFocus c@(CQuery x r y) = do
       if List.null stuckOn then do
         -- if it passes we solve the query
         ans    ← runQuery n r
-        ansRef ← freshTmClass (SAns ans)
+        ansRef ← construct (Tm (SAnsF ans))
         b      ← resolve y
         unify b ansRef
         next
@@ -166,18 +175,25 @@ solveFocus c@(CQuery x r y) = do
         pushGoal (trace "Delaying query" c)
         next
 
-    (GVar _)  → pushGoal c
+    (U.Var _) → pushGoal c
     otherwise → throwError TypeError
 
 solveFocus c@(COne x t) = do
   t   ← toDag t
   ans ← resolve x >>= getSchema
   case ans of
-    (GVar x)        → pushGoal c
-    (SAns (p : [])) → throwError $ Panic "Not implemented" -- do unify (reify p) t ; return ()
-    (SAns [])       → throwError (Unsatisfiable $ show c ++ " (No paths)")
-    (SAns ps)       → throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
-    t               → throwError TypeError
+    (U.Var x) →
+      pushGoal c
+    (SAns (p : [])) → do
+      pref ← reifyPath p
+      unify pref t
+      return ()
+    (SAns []) →
+      throwError (Unsatisfiable $ show c ++ " (No paths)")
+    (SAns ps) →
+      throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
+    t →
+      throwError TypeError
 
 solveFocus (CApply p ts) = do
    mp ← getPredicate p <$> ask
