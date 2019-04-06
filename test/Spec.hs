@@ -75,6 +75,7 @@ newspec = describe "new" $ do
 
 queryspec :: Spec
 queryspec = describe "query" $ do
+  describe "only" $ do
     run False "{x, y, z} new x, query x `l as y, only(y , z)"
     run True  "{x, y, z} new x, query x `l* as y, only(y , z)"
     run False "{x, y, z} new x, query x `l+ as y, only(y , z)"
@@ -85,3 +86,8 @@ queryspec = describe "query" $ do
     run False "{x,y,z,zt} new x, new y, x -[ l ]-> y, query x `l* as z, only(z, zt)"
     run True  "{x,y,z,zt} new x, new y, query x `l+ as z, x -[ l ]-> y, only(z, zt)"
     run False "{x,y,z,zt} new x, new y, query x `l* as z, x -[ l ]-> y, only(z, zt)"
+
+  describe "every" $ do
+    run True  "{x, y, z} new x, query x `l+ as y, every x y false"
+    run True  "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z true"
+    run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z false"

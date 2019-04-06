@@ -57,6 +57,7 @@ data ConstraintF p ℓ t r
   | CEdgeF ℓ Label ℓ
   | CQueryF ℓ (Regex Label) ℓ
   | COneF ℓ t
+  | CEveryF Param ℓ r
   | CApplyF p [t]
   deriving (Functor, Foldable, Traversable)
 
@@ -64,12 +65,14 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
 
   show CTrueF  = "⊤"
   show CFalseF = "⊥"
-  show (CEqF t₁ t₂) = show t₁ ++ "=" ++ show t₂
+  show (CAndF c₁ c₂) = show c₁ ++ " ∧ " ++ show c₂
+  show (CEqF t₁ t₂) = show t₁ ++ " = " ++ show t₂
   show (CExF ns c) = "∃ " ++ intercalate ", " (fmap show ns) ++ ". " ++ show c
   show (CNewF t)  = "∇ (" ++ show t ++ ")"
   show (CEdgeF t l t') = show t ++ "─⟨ " ++ show l ++ " ⟩⟶" ++ show t'
   show (CQueryF t r s) = show t ++ "(" ++ show r ++ ")" ++ show s
   show (COneF x t) = "one(" ++ show x ++ "," ++ show t ++ ")"
+  show (CEveryF x y c) = "every " ++ show x ++ " in " ++ show y ++ "(" ++ show c ++ ")"
   show (CApplyF p ts) = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
 
 type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
@@ -82,6 +85,7 @@ tmapc_ f (CAndF c d)      = CAnd c d
 tmapc_ f (CExF ns c)      = CEx ns c
 tmapc_ f (CQueryF x r y)  = CQuery x r y
 tmapc_ f (COneF x t)      = COne x (f t)
+tmapc_ f (CEveryF x y c)  = CEvery x y c
 tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
 
 tmapc :: (t → s) → Constraint p ℓ t → Constraint p ℓ s
@@ -162,6 +166,7 @@ pattern CNew t        = Fix (CNewF t)
 pattern CEdge n l m   = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t      = Fix (COneF x t)
+pattern CEvery x y c  = Fix (CEveryF x y c)
 pattern CApply p ts   = Fix (CApplyF p ts)
 
 type Predicate₀       = Predicate Ident   Ident   Term₀ -- parsed

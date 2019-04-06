@@ -53,6 +53,11 @@ default-extensions:
 
 library:
   source-dirs: src
+  ghc-options:        
+  - -fwarn-tabs
+  - -fwarn-missing-local-sigs
+  - -fwarn-incomplete-patterns
+  - -fwarn-incomplete-uni-patterns
 
 executables:
   statix-exe:
@@ -62,6 +67,10 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -fwarn-tabs
+    - -fwarn-missing-local-sigs
+    - -fwarn-incomplete-patterns
+    - -fwarn-incomplete-uni-patterns
     dependencies:
     - statix
 

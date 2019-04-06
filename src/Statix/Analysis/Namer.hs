@@ -22,6 +22,7 @@ checkTerm = hmapM checkT
     checkT :: TermF₀ r → NCM (TermF₁ r)
     checkT (TConF s ts)   = return $ TConF s ts
     checkT (TLabelF l)    = return $ TLabelF l
+    checkT (TPathF n l p) = return $ TPathF n l p
     checkT (TVarF x)      = do
       p ← resolve x
       return (TVarF p)
@@ -58,6 +59,11 @@ checkConstraint (COne x t)      = do
   p  ← resolve x
   ct ← checkTerm t
   return (COne p ct)
+checkConstraint (CEvery x y c)    = do
+  p ← resolve y
+  enters [ pname x ] $ do
+    c ← checkConstraint c
+    return (CEvery x p c)
 checkConstraint (CApply n ts)   = do
   qn  ← qualify n
   cts ← mapM checkTerm ts

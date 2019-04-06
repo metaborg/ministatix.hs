@@ -195,6 +195,25 @@ solveFocus c@(COne x t) = do
     t →
       throwError TypeError
 
+solveFocus c@(CEvery x y c') = do
+  ans ← resolve y >>= getSchema
+  case ans of
+    -- not ground enough
+    (U.Var x) →
+      pushGoal c
+    -- expand to big conjunction conjunction
+    (SAns ps) → do
+      mapM_ (\p → do
+                -- bind the path
+                pn ← reifyPath p
+                enters [(pname x , pn)] 
+                  -- push the goal in the extended scope
+                  (pushGoal c')
+            ) ps
+      next
+    t →
+      throwError TypeError
+
 solveFocus (CApply p ts) = do
    mp ← getPredicate p <$> ask
    case mp of
