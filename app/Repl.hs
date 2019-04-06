@@ -4,6 +4,7 @@ import System.IO hiding (liftIO)
 import System.Console.ANSI
 import System.Directory
 import System.FilePath
+import System.Console.Haskeline
 
 import Data.Default
 import Data.HashMap.Lazy as HM
@@ -43,13 +44,13 @@ handleErrors (Left err) = do
   loop
 
 {- The REPL Monad -}
-type REPL a  = ReaderT NameContext (StateT SymTab IO) a
+type REPL a  = ReaderT NameContext (StateT SymTab (InputT IO)) a
 
 runRepl :: NameContext → SymTab → REPL a → IO a
-runRepl ctx sym c = evalStateT (runReaderT c ctx) sym
+runRepl ctx sym c = runInputT defaultSettings $ evalStateT (runReaderT c ctx) sym
 
 liftIO :: IO a → REPL a
-liftIO c = lift $ lift c
+liftIO c = lift $ lift $ lift c
 
 liftNC :: NCM a → REPL a
 liftNC c = do
@@ -94,10 +95,12 @@ instance Read Cmd where
     -- otherwise it is just a constraint
     | otherwise   = [(Main s, [])]
 
-prompt :: IO ()
+prompt :: REPL (Cmd)
 prompt = do
-  putStr "► "
-  hFlush stdout
+  cmd ← lift $ lift $ getInputLine "► "
+  case cmd of
+    Nothing  → prompt
+    Just cmd → handleErrors (readEither cmd)
 
 printSolution :: Solution → IO ()
 printSolution solution =
@@ -133,10 +136,7 @@ reportImports mod = do
 -- This allows us to handle errors by outputting some string and resuming the loop.
 loop :: REPL a
 loop = do
-  liftIO prompt
-
-  -- read a command
-  cmd ← (liftIO $ readEither <$> getLine) >>= handleErrors
+  cmd ← prompt
 
   -- dispatch between different REPL operations
   case cmd of

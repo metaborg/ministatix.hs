@@ -28,14 +28,13 @@ dependencies:
 - data-default
 - unification-fd
 - list-extras >= 0.4.1.4
-- Stream
 - ansi-terminal
 - directory
 - filepath
 - text
 - union-find
 - hashable
-- equivalence
+- haskeline
 
 default-extensions:
 - UnicodeSyntax
