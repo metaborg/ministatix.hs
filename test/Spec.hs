@@ -75,13 +75,13 @@ newspec = describe "new" $ do
 
 queryspec :: Spec
 queryspec = describe "query" $ do
-    run False "{x, y, z} new x, query x `l as y, one(y , z)"
-    run True  "{x, y, z} new x, query x `l* as y, one(y , z)"
-    run False "{x, y, z} new x, query x `l+ as y, one(y , z)"
-    run False "{x, y, z} new x, query x `l`p as y, one(y , z)"
-    run True  "{x,y,z,zt} new x, new y, x -[ l ]-> y, query x `l+ as z, one(z, zt)"
-    run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, one(z, zt)"
-    run True  "{x,y,z,zt} new x, new y, x -[ l ]-> y, y -[ l ]-> x, query x `l+ as z, one(z, zt)"
-    run False "{x,y,z,zt} new x, new y, x -[ l ]-> y, query x `l* as z, one(z, zt)"
-    run True  "{x,y,z,zt} new x, new y, query x `l+ as z, x -[ l ]-> y, one(z, zt)"
-    run False "{x,y,z,zt} new x, new y, query x `l* as z, x -[ l ]-> y, one(z, zt)"
+    run False "{x, y, z} new x, query x `l as y, only(y , z)"
+    run True  "{x, y, z} new x, query x `l* as y, only(y , z)"
+    run False "{x, y, z} new x, query x `l+ as y, only(y , z)"
+    run False "{x, y, z} new x, query x `l`p as y, only(y , z)"
+    run True  "{x,y,z,zt} new x, new y, x -[ l ]-> y, query x `l+ as z, only(z, zt)"
+    run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, only(z, zt)"
+    run True  "{x,y,z,zt} new x, new y, x -[ l ]-> y, y -[ l ]-> x, query x `l+ as z, only(z, zt)"
+    run False "{x,y,z,zt} new x, new y, x -[ l ]-> y, query x `l* as z, only(z, zt)"
+    run True  "{x,y,z,zt} new x, new y, query x `l+ as z, x -[ l ]-> y, only(z, zt)"
+    run False "{x,y,z,zt} new x, new y, query x `l* as z, x -[ l ]-> y, only(z, zt)"

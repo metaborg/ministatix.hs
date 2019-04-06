@@ -173,7 +173,7 @@ lexWord cs =
     ("in", ds)    -> TokIn      : lexer ds
     ("as", ds)    -> TokAs      : lexer ds
     ("query", ds) -> TokQuery   : lexer ds
-    ("one", ds)   -> TokOne     : lexer ds
+    ("only", ds)  -> TokOne     : lexer ds
     (var, ds)     -> TokVar (Text.pack var) : lexer ds
 
 }
