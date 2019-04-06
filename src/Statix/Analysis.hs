@@ -13,8 +13,8 @@ import Statix.Analysis.Typer
 -- | Analyze a constraint
 analyze :: NameContext → Constraint₀ → TCM Constraint₁
 analyze ctx c = do
-  liftNC ctx $ checkConstraint c
-  -- typecheck qc
+  c ← liftNC ctx $ checkConstraint c
+  typecheck c
 
 -- | Analyze a predicate.
 analyzeP :: NameContext → Predicate₀ → TCM Predicate₁

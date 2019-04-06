@@ -1,7 +1,7 @@
 all:
 	stack build
 
-exe:
+exe: all
 	stack exec statix-exe
 
 test:
