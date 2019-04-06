@@ -30,9 +30,11 @@ findReachable n re = _find n re Set.empty
        if Set.member n vis
          then return Map.empty
          else do
+           -- put n in visisted set
+           let vis' = Set.insert n vis
            -- get the edges out of here
            es ← getOutEdges n
-           reachables ← Map.unionsWith RAlt <$> mapM (\(l, m) → _find m (Re.match l re) vis) es 
+           reachables ← Map.unionsWith RAlt <$> mapM (\(l, m) → _find m (Re.match l re) vis') es
            return (Map.insertWith RAlt n re reachables)
 
 -- | Find regular paths in the graph
