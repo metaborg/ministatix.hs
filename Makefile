@@ -1,10 +1,15 @@
 all:
 	stack build
 
+run: exe
 exe: all
 	stack exec statix-exe
 
 test:
 	stack test
 
-.PHONY: test exe
+clean:
+	stack clean
+
+.PHONY: all exe test clean
+.SILENT:
