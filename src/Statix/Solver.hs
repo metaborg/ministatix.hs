@@ -20,6 +20,7 @@ import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.Trans
 import Control.Monad.Equiv
+import Control.Monad.Unique
 
 import Debug.Trace
 
@@ -79,7 +80,7 @@ openExist ns c = do
 
   where
     mkBinder name = do
-      v ← freshExistential name
+      v ← freshVar name
       return (name, v)
 
 checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → SolverM s (Set (SNode s, Label))
@@ -111,14 +112,14 @@ toDag :: Term₁ → SolverM s (STmRef s)
 toDag (C.Var p)    =
   resolve p
 toDag (Con c ts) = do
-  id  ← freshVarName
+  id  ← fresh
   ts' ← mapM toDag ts
   newClass (Rep (SCon c ts') id)
 toDag (Label l) = do
-  id ← freshVarName
+  id ← fresh
   newClass (Rep (SLabel l) id)
 toDag (Path t₁ l t₂) = do
-  id ← freshVarName
+  id ← fresh
   t₁ ← toDag t₁
   t₂ ← toDag t₂
   newClass (Rep (SPath t₁ l t₂) id)

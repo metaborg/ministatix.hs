@@ -1,5 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Statix.Analysis.Types where
 
 import Data.Default
@@ -10,32 +9,47 @@ import Data.Functor.Identity
 import Data.Maybe
 import Data.List
 
+import Control.Lens
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.ST
-import Control.Monad.Equiv as Equiv
-
-import Unification as Unif
-import Unification.ST
+import Control.Monad.Equiv
 
 import Statix.Syntax.Constraint
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
+import Unification
+import Unification.ST
 
 data TCError
-  = DuplicatePredicate Ident
+  =
+  -- namer errors
+    DuplicatePredicate Ident
   | UnboundPredicate Ident
   | UnboundVariable Ident
+
+  -- typer errors
   | ArityMismatch QName Int Int -- pred, expected, got
+  | TypeError String
+
+  -- bug!
+  | Panic String
   deriving (Show)
 
 -- | Name checking monad
 type NCM = ReaderT NameContext (Except TCError)
 
 -- | Type checking monad
-type TCM s = StateT SymTab (ExceptT TCError (ST s))
+type TCM s     = ReaderT (TypeEnv s) (StateT TyState (ExceptT TCError (ST s)))
+data TyState   = TyState
+  { _symtab :: SymTab
+  , _tyid   :: !Int
+  }
+type TypeEnv s = [Scope s]
+type Scope s   = HashMap Ident (TyRef s)
+type TyRef s   = Class s (Const Type) ()
 
 data NameContext = NC
   { qualifier :: HashMap Ident QName   -- predicate names → qualified
@@ -47,6 +61,11 @@ instance Default NameContext where
   -- the LexicalM interface ensures that the list of active scopes is never empty
   def = NC HM.empty [[]]
 
+instance Default TyState where
+  def = TyState HM.empty 0
+
+makeLenses ''TyState
+
 qualify :: Ident → NCM QName
 qualify n = do
   mq ← asks (HM.lookup n . qualifier)
@@ -54,64 +73,18 @@ qualify n = do
     Nothing → throwError (UnboundPredicate n)
     Just q  → return q
 
-getPred :: QName → TCM s Predicate₁
-getPred q = gets (\sym → sym HM.! q)
-
-unfold :: QName → TCM s Constraint₁
-unfold q = body <$> getPred q
-
 runTC :: SymTab → (forall s . TCM s a) → (Either TCError (a , SymTab))
-runTC sym c = runST $ runExceptT (runStateT c sym)
+runTC sym c = let result = (runST $ runExceptT (runStateT (runReaderT c []) (set symtab sym def)))
+                  in (\(a, st) → (a, view symtab st)) <$> result
 
 runNC :: NameContext → NCM a → Either TCError a
 runNC ctx c = runExcept $ runReaderT c ctx
 
 liftST :: ST s a → TCM s a
-liftST = lift . lift
+liftST = lift . lift . lift
 
 liftNC :: NameContext → NCM a → TCM s a
 liftNC ctx c = do
   case runNC ctx c of
     Left e  → throwError e
     Right v → return v
-
-instance Unifiable (Const Type) where
-
-  zipMatch (Const (TNode m)) (Const (TNode n)) =
-    Just (Const (TNode (modeJoin m n)))
-  zipMatch ty ty'
-    | ty == ty' = Just ((\r → (r,r)) <$> ty)
-    | otherwise = Nothing
-
-instance MonadEquiv (Class s (Const Type) ()) (TCM s) (Rep (Class s (Const Type) ()) (Const Type) ()) where
-
-  newClass t     = liftST $ newClass t
-  repr c         = liftST $ repr c
-  description c  = liftST $ description c
-  modifyDesc c f = liftST $ modifyDesc c f
-  unionWith c d f = liftST $ Equiv.unionWith c d f
-
-instance ScopedM NCM where
-  type Binder NCM = Ident
-  type Ref    NCM = Ident
-  type Datum  NCM = IPath
-
-  enter c     = local (\ctx → ctx { locals = [] : locals ctx }) c
-
-  intros xs c = local (\ctx →
-                       let lex = locals ctx
-                       in ctx { locals = (xs ++ head lex) : tail lex }) c
-
-  resolve x   = do
-    lex ← asks locals
-    search x lex
-
-    where
-      search :: Text → [[Ident]] → NCM IPath
-      search x [] = throwError (UnboundVariable x)
-      search x (xs : xss) =
-        if elem x xs
-          then return (End x)
-          else do
-            p ← search x xss
-            return (Skip p)

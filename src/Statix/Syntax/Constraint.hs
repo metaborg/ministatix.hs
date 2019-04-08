@@ -10,10 +10,14 @@ import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 import Data.HashMap.Strict as HM
 
+import Control.Applicative
+
 import Statix.Regex
 import Statix.Graph.Types
 import Statix.Graph.Paths
 import Statix.Analysis.Lexical as Lexical
+
+import Unification
 
 ------------------------------------------------------------------
 -- | Some primitives
@@ -97,13 +101,18 @@ tmapc f = cata (tmapc_ f)
 -- | Predicates and modules
 
 data Mode
-  = Out
+  = None
+  | Out
   | In
   | InOut deriving (Eq, Show)
 
 modeJoin :: Mode → Mode → Mode
+modeJoin m None = m
+modeJoin None m = m
+
 modeJoin In In   = In
 modeJoin Out Out = Out
+
 modeJoin _ _     = InOut
 
 data Type
@@ -118,6 +127,14 @@ data Param = Param
   , requires  :: [Label] -- requires ℓ-permission for l ∈ requires
   , sort      :: Type
   }
+
+instance Unifiable (Const Type) where
+
+  zipMatch (Const (TNode m)) (Const (TNode n)) =
+    Just (Const (TNode (modeJoin m n)))
+  zipMatch ty ty'
+    | ty == ty' = Just ((\r → (r,r)) <$> ty)
+    | otherwise = Nothing
 
 instance Eq Param where
   (==) l r = pname l == pname r

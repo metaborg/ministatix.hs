@@ -16,6 +16,7 @@ import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
+import Control.Monad.Unique
 import Control.Monad.Equiv as Equiv
 
 import Unification as U
@@ -32,7 +33,7 @@ import Statix.Graph.Paths
 instance MonadGraph (SNode s) Label (SDag s) (SolverM s) where
 
   newNode d = do
-    ni ← freshNodeName
+    ni ← fresh
     nr ← liftST $ newSTRef (STNData [] d)
     let node = STNRef ni nr
     modify (\ s → s { graph = node : graph s })
@@ -85,36 +86,11 @@ instance MonadEquiv (STmRef s) (SolverM s) (Rep (STmRef s) (STermF s) VarInfo) w
   unionWith c c' f = liftST $ Equiv.unionWith c c' f
   repr c         = liftST $ repr c
 
--- | Get a fresh variable identifier
-freshVarName :: SolverM s Int
-freshVarName = do
-  s ← get
-  let n = nextU s
-  put (s { nextU = n + 1})
-  return n
-  
--- | Get a fresh node identifier
-freshNodeName :: SolverM s Int
-freshNodeName = do
-  s ← get
-  let n = nextN s
-  put (s { nextN = n + 1})
-  return n
-
--- | Get a fresh unification variable, possibly bound to a term t
-freshExistential :: Text → SolverM s (STmRef s)
-freshExistential name = do
-  id ← freshVarName
-  newClass (Rep (U.Var name) id)
-
--- | Construct a dag from the tree representation where variables are
--- already node references.
-construct :: STmF (STermF s) (STmRef s) (STmRef s) → SolverM s (STmRef s)
-construct (U.Var n) = return n
-construct (U.Tm tm) = do
-  id  ← freshVarName
-  c   ← newClass (Rep (Tm tm) id)
-  return c
+instance MonadUnique Int (SolverM s) where
+  fresh = do
+    n ← gets nextFresh
+    modify (\s → s { nextFresh = n + 1})
+    return n
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a

@@ -31,3 +31,4 @@ instance (Unifiable f) ⇒ MonadEquiv (Class s f v) (ST s) (Rep (Class s f v) f 
 
   unionWith (Class n) (Class m) f = do
     UF.union' n m (\d d' → return $ f d d')
+

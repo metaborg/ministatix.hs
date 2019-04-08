@@ -1,7 +1,9 @@
 module Statix.Analysis where
 
 import Data.HashMap.Strict as HM
+
 import Control.Monad.State
+import Control.Lens
 
 import Statix.Syntax.Constraint
 
@@ -23,7 +25,7 @@ analyzeP ctx p = do
 
   -- Add the predicate to the symbol table.
   -- This is fine, because we won't return the updated table if checking fails
-  modify (importP pred)
+  symtab %= importP pred
 
   -- typecheck it
   typecheck (body pred)
@@ -38,7 +40,7 @@ analyzeM ctx mn m = do
   mod  ← liftNC ctx $ checkMod mn m
 
   -- add the module to the symboltable
-  modify (importMod mod)
+  symtab %= importMod mod
 
   -- typecheck the module
   -- defs' ← mapM typecheckP (defs mod)

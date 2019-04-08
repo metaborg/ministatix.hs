@@ -6,6 +6,7 @@
 -- (Implementation informed by wrengr/unification-fd)
 module Unification where
 
+import Data.Text
 import Data.Hashable
 import Data.Either
 import Data.Default
@@ -16,6 +17,7 @@ import Data.Functor.Fixedpoint
 import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Equiv
+import Control.Monad.Unique
 
 -- | The functor for terms with unification variables.
 data STmF f v r =
@@ -41,6 +43,20 @@ class (Traversable f) ⇒ Unifiable f where
 class UnificationError e where
   symbolClash :: e
   cyclicTerm  :: e
+
+-- | Construct a dag from the tree representation where variables are
+-- already node references; i.e. convert one layer of term structure.
+construct :: (MonadUnique Int m, MonadEquiv n m (Rep n f v)) ⇒ STmF f n n → m n
+construct (Var n) = return n
+construct (Tm tm) = do
+  id  ← fresh
+  c   ← newClass (Rep (Tm tm) id)
+  return c
+
+freshVar :: (MonadUnique Int m, MonadEquiv n m (Rep n f v)) ⇒ v → m n
+freshVar v = do
+  id ← fresh
+  newClass (Rep (Var v) id) 
 
 getSchema :: (MonadEquiv n m (Rep n f v)) ⇒ n → m (Dag n f v)
 getSchema n = do
@@ -96,7 +112,7 @@ instance Default VisitState where
 -- | Equivalence class representatives
 data Rep n f v = Rep
   { schema :: Dag n f v
-  , id     :: Int }
+  , repId  :: Int }
 
 isAcyclic :: forall e f v n m .
   (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒ n → m ()

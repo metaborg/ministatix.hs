@@ -35,6 +35,7 @@ dependencies:
 - union-find
 - hashable
 - haskeline
+- lens
 
 default-extensions:
 - UnicodeSyntax

@@ -9,12 +9,37 @@ import Data.Default
 import Data.HashMap.Strict as HM
 import Data.Functor.Fixedpoint
 import Data.Coerce
-import Data.Text
+import qualified Data.Text as Text
 
 import Statix.Syntax.Constraint
 import Statix.Analysis.Types
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
+
+instance ScopedM NCM where
+  type Binder NCM = Ident
+  type Ref    NCM = Ident
+  type Datum  NCM = IPath
+
+  enter c     = local (\ctx → ctx { locals = [] : locals ctx }) c
+
+  intros xs c = local (\ctx →
+                       let lex = locals ctx
+                       in ctx { locals = (xs ++ head lex) : tail lex }) c
+
+  resolve x   = do
+    lex ← asks locals
+    search x lex
+
+    where
+      search :: Text.Text → [[Ident]] → NCM IPath
+      search x [] = throwError (UnboundVariable x)
+      search x (xs : xss) =
+        if elem x xs
+          then return (End x)
+          else do
+            p ← search x xss
+            return (Skip p)
 
 checkTerm :: Term₀ → NCM Term₁
 checkTerm = hmapM checkT

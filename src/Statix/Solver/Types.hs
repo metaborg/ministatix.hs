@@ -121,17 +121,15 @@ instance UnificationError StatixError where
 {- STATE -}
 data Solver s = Solver
   { queue :: Seq.Seq (Goal s)
-  , nextU :: Int
-  , nextN :: Int
+  , nextFresh :: Int
   , graph :: STGraph s Label (SDag s)
   }
 
 emptySolver :: Solver s
 emptySolver = Solver
-  { queue = Seq.empty
-  , nextU = 0
-  , nextN = 0
-  , graph = []
+  { queue  = Seq.empty
+  , nextFresh = 0
+  , graph  = []
   }
 
 -- | The monad that we use to solve Statix constraints
