@@ -88,7 +88,7 @@ instance Read Cmd where
     -- if starts with a colon, then we parse a command
     | (':':xs) ← s = maybeToList $ (,[]) <$> uncurry readCmd (span isAlpha xs)
     -- otherwise it is just a constraint
-    | otherwise   = [(Main s, [])]
+    | otherwise    = [(Main s, [])]
 
 readCmd :: String -> String -> Maybe Cmd
 readCmd "def"    = Just <$> Define
@@ -99,7 +99,7 @@ readCmd "help"   = Just <$> const Help
 readCmd "h"      = readCmd "help"
 readCmd "quit"   = Just <$> const Quit
 readCmd "q"      = readCmd "quit"
--- readCmd _        = id
+readCmd _        = const Nothing
 
 
 prompt :: REPL Cmd
