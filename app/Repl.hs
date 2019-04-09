@@ -35,15 +35,16 @@ class ReplError e where
   report :: e → IO ()
 
 instance ReplError TCError where
-  report e = putStrLn $ show e
+  report = print
 
 instance ReplError String where
-  report e = putStrLn e
+  report = putStrLn
 
 handleErrors :: (Show e, ReplError e) ⇒ Either e a → REPL a
 handleErrors (Right a)  = return a
 handleErrors (Left err) = do
-  liftIO $ putStrLn $ show err
+  liftIO $ print err
+  liftIO $ putStrLn "(type :help for help)"
   loop
 
 {- The REPL Monad -}
@@ -78,6 +79,7 @@ data Cmd
   = Define String
   | Main String
   | Import String
+  | Nop
   | Help
   | Quit
 
@@ -85,6 +87,8 @@ data Cmd
 instance Read Cmd where
 
   readsPrec _ s
+    -- if it's empty, just continue
+    | all isSpace s = [(Nop, [])]
     -- if starts with a colon, then we parse a command
     | (':':xs) ← s = maybeToList $ (,[]) <$> uncurry readCmd (span isAlpha xs)
     -- otherwise it is just a constraint
@@ -142,7 +146,6 @@ reportImports mod = do
 loop_entry :: REPL a
 loop_entry = do
   liftIO $ putStrLn "Ministatix REPL"
-  liftIO $ putStrLn "  Type :help for help, :quit to quit"
   loop
 
 -- | We trick the type checker by typing loop as `REPL a`.
@@ -213,6 +216,8 @@ loop = do
     Quit -> do
       liftIO $ exitSuccess
       loop
+    
+    Nop -> loop
 
 -- | Run the repl in IO
 repl :: IO ()
