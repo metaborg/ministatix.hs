@@ -86,7 +86,7 @@ openExist ns c = do
       return (name, v)
 
 checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → SolverM s (Set (SNode s, Label))
-checkCritical ces c = cataM check c
+checkCritical ces = cataM check
   where
     check (CAndF l r) = return (l `Set.union` r)
     check (CExF xs c) = return c
@@ -125,6 +125,7 @@ toDag (Path t₁ l t₂) = do
   t₁ ← toDag t₁
   t₂ ← toDag t₂
   newClass (Rep (SPath t₁ l t₂) id)
+toDag _ = throwError (Panic "Not implemented")
 
 -- | Try to solve a focused constraint
 solveFocus :: Constraint₁ → SolverM s ()
@@ -142,7 +143,7 @@ solveFocus (CAnd l r) = do
   pushGoal r
   solveFocus l
 
-solveFocus (CEx ns c) = do
+solveFocus (CEx ns c) =
   openExist ns (solveFocus c)
 
 solveFocus (CNew x) = do
@@ -161,7 +162,7 @@ solveFocus c@(CEdge x l y) = do
     (SNode n, SNode m) → newEdge (n, l, m)
     (U.Var _, _)       → pushGoal c
     (_ , U.Var _)      → pushGoal c
-    otherwise          → throwError TypeError
+    _                  → throwError TypeError
 
 solveFocus c@(CQuery x r y) = do
   t ← resolve x >>= getSchema
@@ -185,7 +186,7 @@ solveFocus c@(CQuery x r y) = do
         next
 
     (U.Var _) → pushGoal c
-    otherwise → throwError TypeError
+    _         → throwError TypeError
 
 solveFocus c@(COne x t) = do
   t   ← toDag t
@@ -233,6 +234,8 @@ solveFocus (CApply p ts) = do
      -- solve the body
      solveFocus c
 
+solveFocus _ = throwError (Panic "Not implemented")
+
 type Unifier s = HashMap Ident (STree s)
 
 -- | A simple means to getting a unifier out of ST, convert everything to a string
@@ -258,6 +261,7 @@ kick sym c =
       (CEx ns b) → openExist ns $ do
         pushGoal b
         loop
+
       c → do
         pushGoal c
         loop
@@ -279,7 +283,7 @@ kick sym c =
         s ← get
         g ← liftST $ (toIntGraph (graph s))
         φ ← unifier
-        return (show φ, fmap (const ()) g)
+        return (show φ, void g)
 
 -- | Construct and run a solver for a constraint
 solve :: SymbolTable → Constraint₁ → Solution
