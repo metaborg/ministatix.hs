@@ -11,6 +11,7 @@ import Data.STRef
 import Data.Functor.Fixedpoint
 import Data.List as List
 import Data.Default
+import Data.Sequence
 import qualified Data.Text as Text
 import qualified Data.Sequence as Seq
 
@@ -55,13 +56,14 @@ pushGoal :: Constraint₁ → SolverM s ()
 pushGoal c = do
   st  ← get
   env ← ask
-  put (st { queue = queue st Seq.|> (env , c)})
+  let gen = generation st - 1
+  put st { queue = queue st Seq.|> (env, c, gen)}
 
--- | Pop a constraint to the work queue if it is non-empty
+-- | Pop a constraint from the work queue if it is non-empty
 popGoal :: SolverM s (Maybe (Goal s))
 popGoal = do
   st ← get
-  case Seq.viewl (queue st) of
+  case Seq.viewl (Seq.filter (\g -> let (_, _, gen) = g in gen < generation st) (queue st)) of
     Seq.EmptyL    → return Nothing
     (c Seq.:< cs) → do
       liftState $ put (st { queue = cs })
@@ -105,7 +107,7 @@ checkCritical ces c = cataM check c
 queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
 queryGuard ce = do
   cs ← liftState $ gets queue
-  Set.unions <$> mapM (\(e, c) → local (const e) $ checkCritical ce c) cs
+  Set.unions <$> mapM (\(e, c, g) → local (const e) $ checkCritical ce c) cs
 
 -- | Embedding of syntactical terms into the DAG representation of terms
 toDag :: Term₁ → SolverM s (STmRef s)
@@ -269,7 +271,7 @@ kick sym c =
     st ← get
     c  ← popGoal
     case c of
-      Just (env , c) → do
+      Just (env, c, gen) → do
         local (const env) (solveFocus c)
         loop
       Nothing → do

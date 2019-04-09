@@ -126,6 +126,7 @@ data Solver s = Solver
   { queue :: Seq.Seq (Goal s)
   , nextFresh :: Int
   , graph :: STGraph s Label (SDag s)
+  , generation :: Int
   }
 
 emptySolver :: Solver s
@@ -133,13 +134,14 @@ emptySolver = Solver
   { queue  = Seq.empty
   , nextFresh = 0
   , graph  = []
+  , generation = 0
   }
 
 -- | The monad that we use to solve Statix constraints
 type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s)))
 
--- | Constraint closure
-type Goal s    = (Env s, Constraint₁)
+-- | Constraint closure (environment, constraint, generation)
+type Goal s    = (Env s, Constraint₁, Int)
 
 -- | (ST-less) solution to a constraint program
 type Solution = Either StatixError (String, IntGraph Label ())
