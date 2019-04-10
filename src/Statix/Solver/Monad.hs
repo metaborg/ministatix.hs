@@ -51,11 +51,8 @@ instance MonadGraph (SNode s) Label (SDag s) (SolverM s) where
     STNData es _ ← liftST (readSTRef r)
     return es
 
-instance ScopedM (SolverM s) where
-  type Binder (SolverM s) = (Ident, STmRef s)
-  type Ref    (SolverM s) = IPath
-  type Datum  (SolverM s) = STmRef s
-  
+instance MonadLex (Ident, STmRef s) IPath (STmRef s) (SolverM s) where
+
   enter     = local (\env → env { _locals = HM.empty : _locals env })
 
   intros is m = do

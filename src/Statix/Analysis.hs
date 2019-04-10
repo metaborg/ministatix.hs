@@ -1,8 +1,10 @@
 module Statix.Analysis where
 
 import Data.HashMap.Strict as HM
+import Data.Default
 
 import Control.Monad.State
+import Control.Monad.Reader
 import Control.Lens
 
 import Statix.Syntax.Constraint
@@ -13,36 +15,29 @@ import Statix.Analysis.Namer
 import Statix.Analysis.Typer
 import Statix.Analysis.Monad
 
+class (Monad m, MonadTyper (Typer m), MonadNamer (Namer m)) ⇒ MonadAnalysis m where
+  type Typer m :: * → *
+  type Namer m :: * → *
+
+  namer   :: Namer m a → m a
+  typer   :: Typer m a → m a
+
+  imports :: Predicate₁ → m ()
+
+importsMod :: MonadAnalysis m ⇒ Module → m ()
+importsMod mod = mapM_ imports mod
+
 -- | Analyze a constraint
-analyze :: NameContext → Constraint₀ → TCM s Constraint₁
-analyze ctx c = do
-  c ← liftNC ctx $ checkConstraint c
-  typecheck c
+analyze :: (MonadAnalysis m) ⇒ Constraint₀ → m Constraint₁
+analyze c = do
+  c ← namer $ checkConstraint c
+  typer $ typecheck c
 
--- | Analyze a predicate.
-analyzeP :: NameContext → Predicate₀ → TCM s Predicate₁
-analyzeP ctx p = do
-  pred ← liftNC ctx $ checkPredicate p
+-- | Analyze a predicate
+analyzePred :: (MonadAnalysis m) ⇒ Predicate₀ → m Predicate₁
+analyzePred p = do
+  pred ← namer $ checkPredicate p
 
-  -- Add the predicate to the symbol table.
-  -- This is fine, because we won't return the updated table if checking fails
-  symtab %= importP pred
-
-  -- typecheck it
-  typecheck (body pred)
+  typer $ typecheck (body pred)
 
   return pred
-
--- | Analyze a module
--- (This updates the typechecker symboltable)
-analyzeM :: NameContext → Ident → [Predicate₀] → TCM s Module
-analyzeM ctx mn m = do
-  -- name analysis on the module
-  mod  ← liftNC ctx $ checkMod mn m
-
-  -- add the module to the symboltable
-  symtab %= importMod mod
-
-  -- typecheck the module
-  -- defs' ← mapM typecheckP (defs mod)
-  return $ mod

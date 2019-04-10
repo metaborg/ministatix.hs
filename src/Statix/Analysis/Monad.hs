@@ -4,6 +4,7 @@ module Statix.Analysis.Monad where
 import Data.Functor.Fixedpoint
 import Data.Default
 import Data.HashMap.Strict as HM
+import qualified Data.Text as Text
 
 import Control.Lens
 import Control.Monad.Except
@@ -16,11 +17,34 @@ import Control.Applicative
 import Statix.Syntax.Constraint as Term
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
+import Statix.Analysis.Namer
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical as Lex
 
 import Unification as Unif
 import Unification.ST
+
+instance MonadLex Ident Ident IPath NCM where
+
+  enter     = local (over locals ([]:))
+
+  intros xs = local (over locals (\lex → (xs ++ head lex) : tail lex))
+
+  resolve x   = do
+    lex ← view locals
+    search x lex
+
+    where
+      search :: Text.Text → [[Ident]] → NCM IPath
+      search x [] = throwError (UnboundVariable x)
+      search x (xs : xss) =
+        if elem x xs
+          then return (End x)
+          else do
+            p ← search x xss
+            return (Skip p)
+
+instance MonadNamer NCM
 
 instance UnificationError TCError where
   symbolClash = TypeError "Type mismatch"
@@ -36,12 +60,12 @@ instance MonadEquiv (TyRef s) (TCM s) (Rep (TyRef s) (Const Type) ()) where
 
 instance MonadLex (Ident, TyRef s) IPath (TyRef s) (TCM s) where
 
-  menter c     = local (over scopes (HM.empty:)) c
+  enter c     = local (over scopes (HM.empty:)) c
 
-  mintros xs c = local (over scopes
+  intros xs c = local (over scopes
                         (\sc → (HM.union (head sc) (HM.fromList xs)) : tail sc)) c
 
-  mresolve p   = do
+  resolve p   = do
     env ← view scopes
     derefLocal p env
     
@@ -57,8 +81,8 @@ instance MonadLex (Ident, TyRef s) IPath (TyRef s) (TCM s) where
 
 instance MonadUnique Int (TCM s) where
   fresh = do
-    id ← gets (view tyid)
-    tyid %= (+1) 
+    id ← get 
+    modify (+1) 
     return id
 
 instance MonadUnify (Const Type) (TyRef s) () TCError (TCM s) where

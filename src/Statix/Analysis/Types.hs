@@ -43,35 +43,30 @@ type NCM = ReaderT NameContext (Except TCError)
 
 -- | Type checking monad
 type TCM s     =
-     ReaderT (TyEnv s)
-  ( StateT TyState
+  ( ReaderT (TyEnv s)
+  ( StateT Int
   ( ExceptT TCError
-  ( ST s )))
-
-data TyState   = TyState
-  { _symtab :: SymbolTable
-  , _tyid   :: !Int
-  }
+  ( ST s ))))
 
 type Scope s   = HashMap Ident (TyRef s)
 type TyRef s   = Class s (Const Type) ()
 
 type PreFormals      s = [ (Ident, TyRef s) ]
 type PreModuleTyping s = HashMap Ident (PreFormals s)
-type PreSymbolTable s  = HashMap Ident (PreModuleTyping s)
 
 data TyEnv s = TyEnv
   { _self     :: Ident
-  , _modTable :: PreModuleTyping s
+  , _modtable :: PreModuleTyping s
   , _symty    :: SymbolTable
   , _scopes   :: [Scope s]
   }
 
 data NameContext = NC
-  { qualifier :: HashMap Ident QName   -- predicate names → qualified
-  , locals    :: [[Ident]]             -- local environment
+  { _qualifier :: Qualifier -- predicate names → qualified
+  , _locals    :: [[Ident]] -- local environment
   }
-
+type Qualifier = HashMap Ident QName
+ 
 instance Default (TyEnv s) where
   def = TyEnv (pack "") HM.empty HM.empty [HM.empty]
 
@@ -79,23 +74,13 @@ instance Default NameContext where
   -- Any namecontext should have at least one scope,
   -- the LexicalM interface ensures that the list of active scopes is never empty
   def = NC HM.empty [[]]
-
-instance Default TyState where
-  def = TyState HM.empty 0
  
 makeLenses ''TyEnv
-makeLenses ''TyState
+makeLenses ''NameContext
 
-qualify :: Ident → NCM QName
-qualify n = do
-  mq ← asks (HM.lookup n . qualifier)
-  case mq of
-    Nothing → throwError (UnboundPredicate n)
-    Just q  → return q
-
-runTC :: Ident → SymbolTable → (forall s . TCM s a) → (Either TCError (a , SymbolTable))
-runTC mod sym c = let result = (runST $ runExceptT (runStateT (runReaderT c (set self mod def)) (set symtab sym def)))
-                  in (\(a, st) → (a, view symtab st)) <$> result
+runTC :: TyEnv s → TCM s a → Int → ST s (Either TCError (a, Int))
+runTC env c i = do
+  runExceptT $ runStateT (runReaderT c env) i
 
 runNC :: NameContext → NCM a → Either TCError a
 runNC ctx c = runExcept $ runReaderT c ctx

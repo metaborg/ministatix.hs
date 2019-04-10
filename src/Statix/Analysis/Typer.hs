@@ -40,7 +40,7 @@ getFormals qn@(mod, name) = do
   if (mod == self)
     then do
       -- get the type nodes for the formal parameters from the module pretyping
-      binders ← view (modTable . to (HM.! name))
+      binders ← view (modtable . to (HM.! name))
       return binders
 
     else do
@@ -63,7 +63,7 @@ checkArity c@(CApplyF qn ts) = do
 checkArity c = return ()
 
 termTypeAnalysis :: MonadTyper m ⇒ Term₁ → m (TyRef (World m))
-termTypeAnalysis (Term.Var x) = mresolve x
+termTypeAnalysis (Term.Var x) = resolve x
 termTypeAnalysis (Label _)    = construct (Tm (Const TLabel))
 termTypeAnalysis (Path _ _ _) = construct (Tm (Const TPath))
 termTypeAnalysis _            = construct (Tm (Const TBot))
@@ -74,7 +74,7 @@ typeAnalysis CTrue  = return ()
 typeAnalysis CFalse = return ()
 typeAnalysis (CEx ns c) = do
   bs ← mapM mkBinder ns
-  menters bs (typeAnalysis c)
+  enters bs (typeAnalysis c)
   where
     mkBinder n = do
       v ← freshVar ()
@@ -87,30 +87,30 @@ typeAnalysis (CEq t s) = do
   σ ← termTypeAnalysis s
   unify τ σ
 typeAnalysis (CEdge n l m)  = do
-  n  ← mresolve n
+  n  ← resolve n
   n' ← construct (Tm (Const (TNode In)))
-  m  ← mresolve m
+  m  ← resolve m
   m' ← construct (Tm (Const (TNode In)))
   unify n n'
   void $ unify m m'
 typeAnalysis (CNew n)       = do
-  n  ← mresolve n
+  n  ← resolve n
   m  ← construct (Tm (Const (TNode Out)))
   void $ unify n m
 typeAnalysis (CQuery n r x) = do
-  n  ← mresolve n
+  n  ← resolve n
   n' ← construct (Tm (Const (TNode None)))
   unify n n'
-  x  ← mresolve x
+  x  ← resolve x
   x' ← construct (Tm (Const TAns))
   void $ unify x x'
 typeAnalysis (CEvery x y c) = do
-  y  ← mresolve y
+  y  ← resolve y
   y' ← construct (Tm (Const TAns))
   unify y y'
   typeAnalysis c
 typeAnalysis (COne x t) = do
-  x  ← mresolve x
+  x  ← resolve x
   x' ← construct (Tm (Const TAns))
   unify x x'
 typeAnalysis (CApply qn ts) = do
