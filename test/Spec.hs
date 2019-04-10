@@ -22,14 +22,16 @@ run :: Bool → String → Spec
 run o c = do
   let mark = if o then "[✓]" else "[×]"
   describe (mark ++ " " ++ c) $ do
+    let specmod = pack "spec"
+
     -- parsing
-    let result = runParser (pack "spec") (parseConstraint (lexer c))
+    let result = runParser specmod (parseConstraint (lexer c))
     it "parses" $ do
       isRight result `shouldBe` True
     let parsed = fromRight undefined result
 
     -- static analysis
-    let tcresult = runTC HM.empty $ analyze def parsed
+    let tcresult = runTC specmod HM.empty $ analyze def parsed
     it "type checks" $ do
       isRight tcresult `shouldBe` True
     let typed = fst $ fromRight undefined tcresult

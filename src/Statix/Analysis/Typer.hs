@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Statix.Analysis.Typer where
 
@@ -23,69 +24,37 @@ import Statix.Analysis.Lexical as Lex
 import Unification as Unif
 import Unification.ST
 
-type PreFormals      s = [ (Ident, TyRef s) ]
-type PreModuleTyping s = HashMap Ident (PreFormals s)
-type PreSymbolTyping s = HashMap Ident (PreModuleTyping s)
-
-instance UnificationError TCError where
-  symbolClash = TypeError "Type mismatch"
-  cyclicTerm  = Panic "Bug" -- should not occur, since types are non-recursive
-  
-instance MonadEquiv (TyRef s) (TCM s) (Rep (TyRef s) (Const Type) ()) where
-
-  newClass t      = liftST $ newClass t
-  repr c          = liftST $ repr c
-  description c   = liftST $ description c
-  modifyDesc c f  = liftST $ modifyDesc c f
-  unionWith c d f = liftST $ Equiv.unionWith c d f
-
-type Typing s = (Ident, TyRef s)
-instance MonadLex (Typing s) IPath (TyRef s) (TCM s) where
-  menter c     = local (HM.empty :) c
-
-  mintros xs c = local (\tyenv → (HM.union (head tyenv) (HM.fromList xs)) : tail tyenv) c
-
-  mresolve p   = do
-    env ← ask
-    derefLocal p env
-    
-    where
-      derefLocal :: IPath → [Scope s] → TCM s (TyRef s)
-      derefLocal (Skip p)     (fr : frs) = derefLocal p frs
-      derefLocal (Lex.End id) (fr : frs) =
-        case HM.lookup id fr of
-          Nothing → throwError $ Panic "Unbound variable during typechecking"
-          Just t  → return t
-      derefLocal _ _                    =
-        throwError $ Panic "Unbound variable during typechecking"
-
-instance MonadUnique Int (TCM s) where
-  fresh = do
-    id ← gets (view tyid)
-    tyid %= (+1) 
-    return id
-
-instance MonadUnify (Const Type) (TyRef s) () TCError (TCM s) where
-
 -- | Abstract typer monad class as a composition of various other monads.
-class (
-    MonadLex (Typing (World m)) IPath (TyRef (World m)) m
+class
+  ( MonadLex (Ident, TyRef (World m)) IPath (TyRef (World m)) m
   , MonadUnify (Const Type) (TyRef (World m)) () TCError m
   , MonadUnique Int m
   , MonadError TCError m
-  , MonadState SymbolTyping m
-  , MonadReader (Ident, PreModuleTyping (World m)) m) ⇒ MonadTyper m where
+  , MonadReader (TyEnv (World m)) m
+  ) ⇒ MonadTyper m where
   type World m :: *
 
-getFormals :: (MonadState SymbolTyping m) ⇒ QName → m Formals
-getFormals (mod, name) = gets ((HM.! name) . (HM.! mod))
+getFormals :: MonadTyper m ⇒ QName → m (PreFormals (World m))
+getFormals qn@(mod, name) = do
+  self ← view self
+  if (mod == self)
+    then do
+      -- get the type nodes for the formal parameters from the module pretyping
+      binders ← view (modTable . to (HM.! name))
+      return binders
+
+    else do
+      -- get the type nodes for the formal parameters from the symboltable
+      -- and convert to dag
+      binders ← view (symty . to (HM.! qn) . to sig)
+      mapM (\(name, σ) → do n ← construct (Tm $ Const σ); return (name , n)) binders
 
 -- | Get the arity of a predicate
-getArity :: (MonadState SymbolTyping m) ⇒ QName → m Int
+getArity :: MonadTyper m ⇒ QName → m Int
 getArity q = length <$> getFormals q
 
 -- | Check the arity of applications against the symboltable
-checkArity :: (MonadError TCError m, MonadState SymbolTyping m) ⇒ ConstraintF₁ r → m ()
+checkArity :: MonadTyper m ⇒ ConstraintF₁ r → m ()
 checkArity c@(CApplyF qn ts) = do
   arity ← getArity qn
   if length ts /= arity
@@ -109,10 +78,14 @@ typeAnalysis (CEx ns c) = do
   where
     mkBinder n = do
       v ← freshVar ()
-      return (pname n , v)
+      return (n , v)
 typeAnalysis (CAnd c d) = do
   typeAnalysis c
   typeAnalysis d
+typeAnalysis (CEq t s) = do
+  τ ← termTypeAnalysis t
+  σ ← termTypeAnalysis s
+  unify τ σ
 typeAnalysis (CEdge n l m)  = do
   n  ← mresolve n
   n' ← construct (Tm (Const (TNode In)))
@@ -140,27 +113,13 @@ typeAnalysis (COne x t) = do
   x  ← mresolve x
   x' ← construct (Tm (Const TAns))
   unify x x'
-typeAnalysis (CApply (mod, name) ts) = do
-  self ← asks fst
-
+typeAnalysis (CApply qn ts) = do
   -- compute the type nodes for the formal parameters 
+  formals ← getFormals qn
   actuals ← mapM termTypeAnalysis ts
 
-  -- get the formal parameter types
-  formals ← if (mod == self)
-    then do
-      -- get the type nodes for the formal parameters from the module pretyping
-      binders ← asks ((HM.! name) . snd)
-      return (snd <$> binders)
-
-    else do
-      -- get the type nodes for the formal parameters from the symboltable
-      -- and convert to dag
-      binders ← gets ((HM.! name) . (HM.! mod))
-      mapM (\(_, σ) → construct (Tm $ Const σ)) binders
-
   -- unify formals with actuals
-  void (zipWithM unify formals actuals)
+  void (zipWithM unify (fmap snd formals) actuals)
   
 -- | Perform type checking on a constraint in a given module.
 -- 

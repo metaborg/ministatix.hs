@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveFunctor #-}
 module Statix.Solver.Types where
@@ -13,6 +14,7 @@ import Data.Coerce
 import Data.Functor.Fixedpoint
 import Data.Default
 
+import Control.Lens
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
@@ -90,18 +92,17 @@ instance Unifiable (STermF s) where
 {- READER -}
 type Frame s = HashMap Ident (STmRef s)
 data Env s = Env
- { symbols :: SymTab
- , locals  :: [Frame s]
+ { _symbols :: SymbolTable
+ , _locals  :: [Frame s]
  }
+
+makeLenses ''Env
 
 instance Default (Frame s) where
   def = HM.empty
 
 instance Default (Env s) where
   def = Env HM.empty [def]
-
-getPredicate :: QName → Env s → Maybe Predicate₁
-getPredicate qn env = HM.lookup qn (symbols env)
 
 {- ERROR -}
 data StatixError =

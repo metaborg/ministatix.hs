@@ -113,7 +113,7 @@ data Rep n f v = Rep
   { schema :: Dag n f v
   , repId  :: Int }
 
-class (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒ MonadUnify f n v e m 
+class (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒ MonadUnify f n v e m  | m → f n v e
 
 isAcyclic :: MonadUnify f n v e m ⇒ n → m ()
 isAcyclic node = evalStateT (find node) def

@@ -44,9 +44,9 @@ handleErrors (Left err) = do
   loop
 
 {- The REPL Monad -}
-type REPL a  = ReaderT NameContext (StateT SymTab (InputT IO)) a
+type REPL a  = ReaderT NameContext (StateT SymbolTable (InputT IO)) a
 
-runRepl :: NameContext → SymTab → REPL a → IO a
+runRepl :: NameContext → SymbolTable → REPL a → IO a
 runRepl ctx sym c = runInputT defaultSettings $ evalStateT (runReaderT c ctx) sym
 
 liftIO :: IO a → REPL a
@@ -57,10 +57,10 @@ liftNC c = do
   ctx ← ask
   handleErrors $ runNC ctx c
   
-liftTC :: (forall s . TCM s a) → REPL a
-liftTC c = do
+liftTC :: Ident → (forall s . TCM s a) → REPL a
+liftTC mod c = do
   symtab ← get
-  (a, symtab') ← handleErrors (runTC symtab c)
+  (a, symtab') ← handleErrors (runTC mod symtab c)
   put symtab'
   return a
 
@@ -122,40 +122,42 @@ printSolution solution =
       print g
       setSGR [Reset]
 
-reportImports :: Module IPath Term₁ → IO ()
+reportImports :: Module → IO ()
 reportImports mod = do
   setSGR [SetColor Foreground Dull Green]
   putStrLn ""
-  putStrLn $ "  ⟨✓⟩ Imported module " ++ Text.unpack (modname mod)
+  putStrLn $ "  ⟨✓⟩ Imported module "
   setSGR [Reset]
-  putStrLn $ showModuleContent mod
-  putStrLn ""
+  -- putStrLn $ showModuleContent mod
+  -- putStrLn ""
 
 -- | We trick the type checker by typing loop as `REPL a`.
 -- This allows us to handle errors by outputting some string and resuming the loop.
 loop :: REPL a
 loop = do
+  let modname = (Text.pack "repl")
+
   cmd ← prompt
 
   -- dispatch between different REPL operations
   case cmd of
 
     (Main rawc)   → do
-      c   ← liftParser (Text.pack "repl") $ (parseConstraint (lexer rawc))
+      c   ← liftParser modname $ (parseConstraint (lexer rawc))
       ctx ← ask
-      cok ← liftTC $ analyze ctx c
+      cok ← liftTC modname $ analyze ctx c
       solution ← gets (\sym → solve sym cok)
       liftIO $ putStrLn ""
       liftIO $ printSolution solution
       loop
 
     (Define p) → do
-      pr    ← liftParser (Text.pack "repl") (parsePredicate (lexer p))
+      pr    ← liftParser modname (parsePredicate (lexer p))
       ctx   ← ask
-      prty  ← liftTC $ analyzeP ctx pr
-      let σ = sig prty
+      prty  ← liftTC modname $ analyzeP ctx pr
+      let qn = qname prty
       local (\nc →
-               nc { qualifier = HM.insert (predname σ) (qname σ) (qualifier nc) }) loop
+               nc { qualifier = HM.insert (snd qn) (qn) (qualifier nc) }) loop
 
     (Import file) → do
       here     ← liftIO getCurrentDirectory
@@ -168,11 +170,11 @@ loop = do
 
       -- analyze it
       ctx      ← ask
-      mod      ← liftTC $ analyzeM ctx modname rawmod
+      mod      ← liftTC modname $ analyzeM ctx modname rawmod
 
       -- update the local context
       local
-        (\nc → nc { qualifier = HM.union (fmap (qname . sig) (defs mod)) (qualifier nc) })
+        (\nc → nc { qualifier = HM.union (fmap qname mod) (qualifier nc) })
         loop
 
 -- | Run the repl in IO

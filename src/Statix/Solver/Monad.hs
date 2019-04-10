@@ -12,6 +12,7 @@ import Data.Text
 import Data.Default
 import Debug.Trace
 
+import Control.Lens
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
@@ -55,16 +56,16 @@ instance ScopedM (SolverM s) where
   type Ref    (SolverM s) = IPath
   type Datum  (SolverM s) = STmRef s
   
-  enter     = local (\env → env { locals = HM.empty : locals env })
+  enter     = local (\env → env { _locals = HM.empty : _locals env })
 
   intros is m = do
-    frs ← asks locals
+    frs ← view locals
     case frs of
-      (fr : frs) → local (\env → env { locals = (HM.union (HM.fromList is) fr) : frs }) m
+      (fr : frs) → local (\env → env { _locals = (HM.union (HM.fromList is) fr) : frs }) m
       _          → throwError $ Panic "No frame for current scope"
 
   resolve p = do
-    env ← asks locals
+    env ← view locals
     derefLocal p env
     
     where
@@ -91,6 +92,11 @@ instance MonadUnique Int (SolverM s) where
     n ← gets nextFresh
     modify (\s → s { nextFresh = n + 1})
     return n
+
+instance MonadUnify (STermF s) (STmRef s) VarInfo StatixError (SolverM s)
+
+getPredicate :: (MonadReader (Env s) m) ⇒ QName → m Predicate₁
+getPredicate qn = view (symbols . to (HM.! qn))
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a

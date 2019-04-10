@@ -66,7 +66,7 @@ checkConstraint (CAnd c d)      = do
   cd ← checkConstraint d
   return (CAnd cc cd)
 checkConstraint (CEx ns c)      = do
-  enters (fmap pname ns) $ do
+  enters ns $ do
     cc ← checkConstraint c
     return (CEx ns cc)
 checkConstraint (CNew x)        = do
@@ -86,7 +86,7 @@ checkConstraint (COne x t)      = do
   return (COne p ct)
 checkConstraint (CEvery x y c)    = do
   p ← resolve y
-  enters [ pname x ] $ do
+  enters [ x ] $ do
     c ← checkConstraint c
     return (CEvery x p c)
 checkConstraint (CApply n ts)   = do
@@ -95,13 +95,13 @@ checkConstraint (CApply n ts)   = do
   return $ CApply qn cts
 
 checkPredicate :: Predicate₀ → NCM Predicate₁
-checkPredicate (Pred σ body) = do
-  enters (fmap pname $ params σ) $ do
+checkPredicate (Pred qn σ body) = do
+  enters (fmap fst σ) $ do
     body' ← checkConstraint body
-    return (Pred σ body')
+    return (Pred qn σ body')
 
 -- | Compute the signature of a module if it is consistent.
-checkMod :: Ident → [Predicate₀] → NCM (Module IPath Term₁)
+checkMod :: Ident → [Predicate₀] → NCM Module
 checkMod mname m = do
   -- collect signatures and bind them in the context
   ps      ← execStateT (mapM_ collect m) HM.empty
@@ -110,14 +110,14 @@ checkMod mname m = do
   -- check predicates for wellboundness of applications
   local (\_ → def { qualifier = ctx }) $ do
     qps ← mapM checkPredicate ps
-    return $ Mod mname qps
+    return $ qps
 
   where
     -- | Collect a signature from a raw Predicate.
     -- Checks against duplicate definitions.
     collect :: Predicate₀ → StateT (HashMap Ident Predicate₀) NCM ()
     collect p = do
-      let name = predname $ sig p
+      let name = snd $ qname p
       bound ← gets (member name)
       if bound
         then throwError $ DuplicatePredicate name

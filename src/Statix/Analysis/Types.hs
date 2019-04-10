@@ -43,23 +43,37 @@ type NCM = ReaderT NameContext (Except TCError)
 
 -- | Type checking monad
 type TCM s     =
-     ReaderT (TypeEnv s)
+     ReaderT (TyEnv s)
   ( StateT TyState
   ( ExceptT TCError
   ( ST s )))
 
 data TyState   = TyState
-  { _symtab :: SymbolTyping
+  { _symtab :: SymbolTable
   , _tyid   :: !Int
   }
-type TypeEnv s = [Scope s]
+
 type Scope s   = HashMap Ident (TyRef s)
 type TyRef s   = Class s (Const Type) ()
+
+type PreFormals      s = [ (Ident, TyRef s) ]
+type PreModuleTyping s = HashMap Ident (PreFormals s)
+type PreSymbolTable s  = HashMap Ident (PreModuleTyping s)
+
+data TyEnv s = TyEnv
+  { _self     :: Ident
+  , _modTable :: PreModuleTyping s
+  , _symty    :: SymbolTable
+  , _scopes   :: [Scope s]
+  }
 
 data NameContext = NC
   { qualifier :: HashMap Ident QName   -- predicate names → qualified
   , locals    :: [[Ident]]             -- local environment
   }
+
+instance Default (TyEnv s) where
+  def = TyEnv (pack "") HM.empty HM.empty [HM.empty]
 
 instance Default NameContext where
   -- Any namecontext should have at least one scope,
@@ -68,7 +82,8 @@ instance Default NameContext where
 
 instance Default TyState where
   def = TyState HM.empty 0
-
+ 
+makeLenses ''TyEnv
 makeLenses ''TyState
 
 qualify :: Ident → NCM QName
@@ -78,8 +93,8 @@ qualify n = do
     Nothing → throwError (UnboundPredicate n)
     Just q  → return q
 
-runTC :: SymbolTyping → (forall s . TCM s a) → (Either TCError (a , SymbolTyping))
-runTC sym c = let result = (runST $ runExceptT (runStateT (runReaderT c []) (set symtab sym def)))
+runTC :: Ident → SymbolTable → (forall s . TCM s a) → (Either TCError (a , SymbolTable))
+runTC mod sym c = let result = (runST $ runExceptT (runStateT (runReaderT c (set self mod def)) (set symtab sym def)))
                   in (\(a, st) → (a, view symtab st)) <$> result
 
 runNC :: NameContext → NCM a → Either TCError a

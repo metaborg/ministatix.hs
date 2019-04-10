@@ -11,6 +11,7 @@ import Statix.Analysis.Symboltable
 import Statix.Analysis.Types
 import Statix.Analysis.Namer
 import Statix.Analysis.Typer
+import Statix.Analysis.Monad
 
 -- | Analyze a constraint
 analyze :: NameContext → Constraint₀ → TCM s Constraint₁
@@ -34,7 +35,7 @@ analyzeP ctx p = do
 
 -- | Analyze a module
 -- (This updates the typechecker symboltable)
-analyzeM :: NameContext → Ident → [Predicate₀] → TCM s (Module IPath Term₁)
+analyzeM :: NameContext → Ident → [Predicate₀] → TCM s Module
 analyzeM ctx mn m = do
   -- name analysis on the module
   mod  ← liftNC ctx $ checkMod mn m

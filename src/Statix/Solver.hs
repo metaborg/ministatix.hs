@@ -14,6 +14,7 @@ import Data.Default
 import qualified Data.Text as Text
 import qualified Data.Sequence as Seq
 
+import Control.Lens
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
@@ -72,10 +73,9 @@ next = return ()
 
 -- | Open existential quantifier and run the continuation in the
 -- resulting context
-openExist :: [Param] → SolverM s a → SolverM s a
+openExist :: [Ident] → SolverM s a → SolverM s a
 openExist ns c = do
-  let ids = fmap pname ns
-  bs ← mapM mkBinder ids
+  bs ← mapM mkBinder ns
   enters bs c
 
   where
@@ -213,7 +213,7 @@ solveFocus c@(CEvery x y c') = do
       mapM_ (\p → do
                 -- bind the path
                 pn ← reifyPath p
-                enters [(pname x , pn)] 
+                enters [(x , pn)] 
                   -- push the goal in the extended scope
                   (pushGoal c')
             ) ps
@@ -222,26 +222,22 @@ solveFocus c@(CEvery x y c') = do
       throwError TypeError
 
 solveFocus (CApply p ts) = do
-   mp ← getPredicate p <$> ask
-   case mp of
-     Just (Pred σ c) → do
-       -- normalize the parameters
-       ts' ← mapM toDag ts
+   (Pred _ σ c) ← getPredicate p
+   -- normalize the parameters
+   ts' ← mapM toDag ts
 
-       -- bind the parameters
-       enters (List.zip (fmap pname $ params σ) ts') $ do
-         -- solve the body
-         solveFocus c
-
-     Nothing → panic "Unbound predicate"
+   -- bind the parameters
+   enters (List.zip (fmap fst σ) ts') $ do
+     -- solve the body
+     solveFocus c
 
 type Unifier s = HashMap Ident (STree s)
 
 -- | A simple means to getting a unifier out of ST, convert everything to a string
 unifier :: SolverM s (Unifier s)
 unifier = do
-  e  ← locals <$> ask
-  mapM toTree (head e)
+  env ← view locals
+  mapM toTree (head env)
 
 formatUnifier :: Unifier s → String
 formatUnifier fr =
@@ -251,10 +247,10 @@ formatUnifier fr =
     formatBinding (k , t) = "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
 
 -- | Construct a solver for a raw constraint
-kick :: SymTab → Constraint₁ → (forall s. SolverM s (String, IntGraph Label ()))
+kick :: SymbolTable → Constraint₁ → (forall s. SolverM s (String, IntGraph Label ()))
 kick sym c =
   -- convert the raw constraint to the internal representatio
-  local (\_ → def { symbols = sym }) $ do
+  local (\_ → set symbols sym def) $ do
     case c of
       -- open the top level exists if it exists
       (CEx ns b) → openExist ns $ do
@@ -284,9 +280,9 @@ kick sym c =
         return (show φ, fmap (const ()) g)
 
 -- | Construct and run a solver for a constraint
-solve :: SymTab → Constraint₁ → Solution
+solve :: SymbolTable → Constraint₁ → Solution
 solve p c = runSolver (kick p c)
 
 -- | Check satisfiability of a program
-check :: SymTab → Constraint₁ → Bool
+check :: SymbolTable → Constraint₁ → Bool
 check p c = isRight $ solve p c

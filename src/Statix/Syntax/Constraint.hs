@@ -56,12 +56,12 @@ data ConstraintF p ℓ t r
   = CTrueF | CFalseF
   | CAndF r r
   | CEqF t t
-  | CExF [Param] r
+  | CExF [Ident] r
   | CNewF ℓ
   | CEdgeF ℓ Label ℓ
   | CQueryF ℓ (Regex Label) ℓ
   | COneF ℓ t
-  | CEveryF Param ℓ r
+  | CEveryF Ident ℓ r
   | CApplyF p [t]
   deriving (Functor, Foldable, Traversable)
 
@@ -127,12 +127,6 @@ data Type
   | TAns
   | TBot deriving (Eq)
 
-data Param = Param
-  { pname     :: Ident
-  , requires  :: [Label] -- requires ℓ-permission for l ∈ requires
-  , sort      :: Type
-  }
-
 instance Unifiable (Const Type) where
 
   zipMatch (Const (TNode m)) (Const (TNode n)) =
@@ -141,12 +135,6 @@ instance Unifiable (Const Type) where
     | ty == ty' = Just ((\r → (r,r)) <$> ty)
     | otherwise = Nothing
 
-instance Eq Param where
-  (==) l r = pname l == pname r
-
-instance Default Param where
-  def = Param Text.empty [] TBot
-
 instance Show Type where
   show (TNode m) = "Node " ++ show m
   show TPath = "Path"
@@ -154,25 +142,11 @@ instance Show Type where
   show TBot  = "⊥"
   show TLabel = "Label"
 
-instance Show Param where
-  show (Param n reqs τ) = show n ++ ": " ++ show τ
-
-data Signature = Sig
-  { enclMod  :: Ident
-  , predname :: Ident
-  , params   :: [Param] }
-
-qname :: Signature → QName
-qname sig = (enclMod sig, predname sig)
-
-instance Show Signature where
-  show (Sig m p ns) =
-    show m
-    ++ "." ++ show p
-    ++ "(" ++ intercalate "," (fmap show $ reverse ns) ++ ")"
+type Signature = [(Ident, Type)]
 
 data Predicate p ℓ t = Pred
-  { sig      :: Signature
+  { qname    :: QName
+  , sig      :: Signature
   , body     :: Constraint p ℓ t
   } deriving (Show)
 
