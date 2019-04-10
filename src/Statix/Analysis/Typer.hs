@@ -122,7 +122,7 @@ typeAnalysis (CApply qn ts) = do
   void (zipWithM unify (fmap snd formals) actuals)
   
 -- | Perform type checking on a constraint in a given module.
--- 
+-- TODO Think hard about fusion of passses
 typecheck :: (MonadTyper m) ⇒ Constraint₁ → m Constraint₁
 typecheck c = do
   -- we run some checks on the constranit that do not
