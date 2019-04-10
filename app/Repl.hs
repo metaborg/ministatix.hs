@@ -14,7 +14,7 @@ import Data.Char
 import Data.Functor.Identity
 import Text.Read hiding (lift, get)
 import qualified Data.Text as Text
-import           Data.Maybe
+import Data.Maybe
 
 import Control.Monad.Except hiding (liftIO)
 import Control.Monad.State  hiding (liftIO)
@@ -88,11 +88,14 @@ instance Read Cmd where
 
   readsPrec _ s
     -- if it's empty, just continue
-    | all isSpace s = [(Nop, [])]
+    | all isSpace s = [(Nop, "")]
     -- if starts with a colon, then we parse a command
-    | (':':xs) ← s = maybeToList $ (,[]) <$> uncurry readCmd (span isAlpha xs)
+    | (':':xs) ← s =
+        maybeToList $ (,"")
+        <$> uncurry
+        readCmd (span isAlpha xs)
     -- otherwise it is just a constraint
-    | otherwise    = [(Main s, [])]
+    | otherwise    = [(Main s, "")]
 
 readCmd :: String -> String -> Maybe Cmd
 readCmd "def"    = Just <$> Define
@@ -143,11 +146,6 @@ reportImports mod = do
   putStrLn $ showModuleContent mod
   putStrLn ""
 
-loop_entry :: REPL a
-loop_entry = do
-  liftIO $ putStrLn "Ministatix REPL"
-  loop
-
 -- | We trick the type checker by typing loop as `REPL a`.
 -- This allows us to handle errors by outputting some string and resuming the loop.
 loop :: REPL a
@@ -193,24 +191,25 @@ loop = do
         loop
 
     Help -> do
-      liftIO $ putStrLn "Commands:"
-      liftIO $ putStrLn "  :def p            -- Defines a predicate p"
-      liftIO $ putStrLn "  :import f         -- Imports constraints from a file f"
-      liftIO $ putStrLn "  :help             -- Prints this help"
-      liftIO $ putStrLn "  :quit             -- Quits"
-      liftIO $ putStrLn "Constraint Syntax:"
-      liftIO $ putStrLn "  { x } C           -- Extensionally quantifies variable x in constraint C"
-      liftIO $ putStrLn "  { x, y } C        -- Extensionally quantifies variables x and y in constraint C"
-      liftIO $ putStrLn "  ( C )             -- Group constraints C"
-      liftIO $ putStrLn "  C₁, C₂            -- Asserts a conjunction of constraints C₁ and C₂"
-      liftIO $ putStrLn "  t₁ = t₂           -- Asserts equivalence of terms t₁ and t₂"
-      liftIO $ putStrLn "  true              -- Asserts nothing"
-      liftIO $ putStrLn "  false             -- Asserts false"
-      liftIO $ putStrLn "  new x             -- Extends the graph with a fresh node x"
-      liftIO $ putStrLn "  s₁ -[ℓ]-> s₂      -- Extends the graph with an edge from node s₁ to node s₂ with label ℓ"
-      liftIO $ putStrLn "  query s r as z    -- Query the graph from s with regex r as z"
-      liftIO $ putStrLn "  one(t, t')        -- Asserts that term t' is a set with a single element t"
-      liftIO $ putStrLn "  every x ζ C       -- Asserts constraint C for every x in set ζ"
+      liftIO $ putStrLn $ unlines [
+        "Commands:",
+        "  :def p            -- Defines a predicate p",
+        "  :import f         -- Imports constraints from a file f",
+        "  :help             -- Prints this help",
+        "  :quit             -- Quits",
+        "Constraint Syntax:",
+        "  { x, .. } C       -- Extensionally quantifies variables x, .. in constraint C",
+        "  ( C )             -- Group constraints C",
+        "  C₁, C₂            -- Asserts constraints C₁ and C₂",
+        "  t₁ = t₂           -- Asserts equality of terms t₁ and t₂",
+        "  true              -- Asserts nothing",
+        "  false             -- Asserts false",
+        "  new x             -- Asserts that you own a node x in the graph",
+        "  s₁ -[ℓ]-> s₂      -- Asserts that you own an edge from node s₁ to node s₂ with label ℓ in the graph",
+        "  query s r as z    -- Query the graph from s with regex r as z",
+        "  one(t, t')        -- Asserts that term t' is a set with a single element t",
+        "  every x ζ C       -- Asserts constraint C for every x in set ζ"
+        ]
       loop
 
     Quit -> do
@@ -222,3 +221,9 @@ loop = do
 -- | Run the repl in IO
 repl :: IO ()
 repl = runRepl def HM.empty loop_entry
+
+-- | Loop entry point
+loop_entry :: REPL a
+loop_entry = do
+  liftIO $ putStrLn "Ministatix REPL"
+  loop

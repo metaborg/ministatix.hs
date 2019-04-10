@@ -1,9 +1,8 @@
 all:
-	stack build
+	stack build --verbosity=warn
 
 run: exe
-exe:
-	stack build --verbosity=warn
+exe: all
 	stack exec statix-exe
 
 test:
