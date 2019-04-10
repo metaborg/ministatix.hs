@@ -105,13 +105,15 @@ instance Default (Env s) where
   def = Env HM.empty [def]
 
 {- ERROR -}
-data StatixError =
-  Unsatisfiable String
+data StatixError
+  = Unsatisfiable String
+  | StuckError
   | TypeError
   | Panic String
 
 instance Show StatixError where
   show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
+  show StuckError = "Stuck"
   show TypeError = "Constraint unsatisfiable: type error"
   show (Panic x) = "Panic" ++ x
  

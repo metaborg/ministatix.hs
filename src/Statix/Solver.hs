@@ -51,27 +51,45 @@ reifyPath (Graph.End n) =
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
 
--- | Push a constraint to the work queue
+-- | Push a constraint as a goal on the work queue.
+-- The goal's generation is the solver's generation when it was
+-- pushed on the queue.
 pushGoal :: Constraint₁ → SolverM s ()
 pushGoal c = do
   st  ← get
   env ← ask
-  let gen = generation st - 1
-  put st { queue = queue st Seq.|> (env, c, gen)}
+  put st { queue = queue st Seq.|> (env, c, generation st)}
 
--- | Pop a constraint from the work queue if it is non-empty
+-- | Pop a constraint from the work queue if it is non-empty,
+-- and if the constraint was put in the queue before the current solver
+-- generation.
+-- 
+-- If the queue contains only goals that were created in the current
+-- generation of the solver, the solver has made no progress and
+-- cannot make progress: the solver is stuck.
 popGoal :: SolverM s (Maybe (Goal s))
 popGoal = do
   st ← get
-  case Seq.viewl (Seq.filter (\g -> let (_, _, gen) = g in gen < generation st) (queue st)) of
-    Seq.EmptyL    → return Nothing
+  -- We pop only those goals whose generation is before
+  -- the solver's current generation. If there are none, but the
+  -- queue is not empty, we are apparently stuck.
+  let xs = Seq.filter (\(_, _, gen) -> gen < generation st) (queue st)
+  case Seq.viewl xs of
+    Seq.EmptyL    → if Seq.null $ queue st
+      then return Nothing
+      else throwError StuckError
     (c Seq.:< cs) → do
       liftState $ put (st { queue = cs })
       return (Just c)
 
--- | Continue with the next goal
+-- | Continue with the next goal.
+-- As we are making progress, we increment
+-- the solver's generation counter by one.
 next :: SolverM s ()
-next = return ()
+next = do
+  st <- get
+  put st { generation = generation st + 1 }
+  return ()
 
 -- | Open existential quantifier and run the continuation in the
 -- resulting context
@@ -159,7 +177,9 @@ solveFocus c@(CEdge x l y) = do
   t₁ ← resolve x >>= getSchema
   t₂ ← resolve y >>= getSchema
   case (t₁ , t₂) of
-    (SNode n, SNode m) → newEdge (n, l, m)
+    (SNode n, SNode m) → do
+      newEdge (n, l, m)
+      next
     (U.Var _, _)       → pushGoal c
     (_ , U.Var _)      → pushGoal c
     _                  → throwError TypeError
@@ -260,10 +280,12 @@ kick sym c =
       -- open the top level exists if it exists
       (CEx ns b) → openExist ns $ do
         pushGoal b
+        next
         loop
 
       c → do
         pushGoal c
+        next
         loop
 
   where
