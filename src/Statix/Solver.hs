@@ -70,15 +70,17 @@ pushGoal c = do
 popGoal :: SolverM s (Maybe (Goal s))
 popGoal = do
   st ← get
-  -- We pop only those goals whose generation is before
-  -- the solver's current generation. If there are none, but the
-  -- queue is not empty, we are apparently stuck.
-  let xs = Seq.filter (\(_, _, gen) -> gen < generation st) (queue st)
-  case Seq.viewl xs of
-    Seq.EmptyL    → if Seq.null $ queue st
-      then return Nothing
-      else throwError StuckError
-    (c Seq.:< cs) → do
+  -- If we pop a goal and we find that its generation is
+  -- at or after the solver's current generation,
+  -- then the solver has made no progress and we are stuck.
+  -- As the generation is monotonically increasing for goals
+  -- pushed to the end of the queue, we know the queue contains
+  -- no more goals from an earlier generation.
+  case Seq.viewl $ queue st of
+    Seq.EmptyL           -> return Nothing
+    (_, _, g) Seq.:< cs  |
+      g >= generation st -> throwError StuckError
+    c Seq.:< cs          -> do
       liftState $ put (st { queue = cs })
       return (Just c)
 
