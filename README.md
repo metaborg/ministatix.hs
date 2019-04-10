@@ -1,9 +1,9 @@
 # Mini Statix
 
-A playground implementation of the Statix constraint language in Haskell
+A playground implementation of the Statix constraint language in Haskell.
 
-This is meant to be a place to quickly prototype extensions and variations on the
-core Statix language.
+This is meant to be a place to quickly prototype extensions and variations
+on the core Statix language.
 
 Currently we have:
 
@@ -19,11 +19,15 @@ To build this project, you need to have the [Haskell Toolstack][1]
 
     make
 
-Execute the project's REPL using:
+Enter the project's REPL using:
 
-    make exe
+    make run
 
-Other makefile targets are currently `test` to run the test spec in `test/`. 
+Other makefile targets are:
+- `test` to run the test specification in `test/`;
+- `clean` to remove the build artifacts;
+- `doc` to build and show the generated documentation.
+
 
 ## Troubleshooting
 
