@@ -1,6 +1,5 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Repl where
+module Statix.Repl where
 
 import System.IO hiding (liftIO)
 import System.Console.ANSI
@@ -11,11 +10,9 @@ import System.Exit
 
 import Data.Default
 import Data.HashMap.Strict as HM
-import Data.Char
 import Data.Functor.Identity
-import Text.Read hiding (lift, get, lex)
 import qualified Data.Text as Text
-import Data.Maybe
+import Text.Read hiding (lift, get, lex)
 
 import Control.Lens
 import Control.Monad.Except hiding (liftIO)
@@ -30,6 +27,7 @@ import Unification
 import Unification.ST
 
 import Statix.Syntax.Parser
+import Statix.Syntax.Lexer
 import Statix.Syntax.Constraint
 
 import Statix.Solver
@@ -39,15 +37,8 @@ import Statix.Analysis.Types hiding (self)
 import Statix.Analysis.Symboltable
 import Statix.Analysis
 
-{- A means to handling various errors in the REPL -}
-class ReplError e where
-  report :: e → IO ()
-
-instance ReplError TCError where
-  report = print
-
-instance ReplError String where
-  report = putStrLn
+import Statix.Repl.Command
+import Statix.Repl.Errors
 
 -- | The REPL Monad.
 type REPL =
@@ -116,43 +107,6 @@ instance MonadAnalysis REPL where
 liftParser :: Text.Text → ParserM a → REPL a
 liftParser mod c = handleErrors $ runParser mod c
 
--- | Repl Commands
--- :def <pred>    - define a new predicate <pred>
--- :import <path> - load a statix module <path>
--- <constraint>   - try to solve <constraint>
-data Cmd
-  = Define String
-  | Main String
-  | Import String
-  | Nop
-  | Help
-  | Quit
-
--- | Cmd parser
-instance Read Cmd where
-
-  readsPrec _ s
-    -- if it's empty, just continue
-    | all isSpace s = [(Nop, "")]
-    -- if starts with a colon, then we parse a command
-    | (':':xs) ← s =
-        maybeToList $ (,"")
-        <$> uncurry
-        readCmd (span isAlpha xs)
-    -- otherwise it is just a constraint
-    | otherwise    = [(Main s, "")]
-
-readCmd :: String -> String -> Maybe Cmd
-readCmd "def"    = Just <$> Define
-readCmd "d"      = readCmd "def"
-readCmd "import" = Just <$> \s -> Import (Text.unpack $ Text.strip $ Text.pack s)
-readCmd "i"      = readCmd "import"
-readCmd "help"   = Just <$> const Help
-readCmd "h"      = readCmd "help"
-readCmd "quit"   = Just <$> const Quit
-readCmd "q"      = readCmd "quit"
-readCmd _        = const Nothing
-
 prompt :: REPL Cmd
 prompt = do
   cmd ← lift $ lift $ getInputLine "► "
@@ -201,7 +155,8 @@ handler κ (Main rawc) = do
   this ← view self
 
   -- interpreter pipeline for a single constraint
-  c        ← liftParser this $ (parseConstraint (lexer rawc))
+  toks     ← handleErrors $ lexer rawc
+  c        ← liftParser this $ (parseConstraint toks)
   c        ← analyze c
   symtab   ← use globals
 
@@ -217,7 +172,8 @@ handler κ (Main rawc) = do
 
 handler κ (Define p) = do
   this  ← view self
-  pr    ← liftParser this (parsePredicate (lexer p))
+  toks  ← handleErrors $ lexer p
+  pr    ← liftParser this (parsePredicate toks)
   ctx   ← ask
   prty  ← analyzePred pr
   let qn = qname prty
@@ -233,7 +189,8 @@ handler κ (Import file) = do
   let modname = Text.pack $ takeBaseName file
 
   -- parse the module
-  rawmod ← liftParser modname $ parseModule $ lexer content
+  toks   ← handleErrors $ lexer content
+  rawmod ← liftParser modname $ parseModule $ toks
 
   -- construct the type environment for the typechecker
   pretyping ← mapM (\p → do
@@ -293,3 +250,4 @@ repl :: IO ()
 repl = do
   liftIO $ putStrLn "Ministatix 0.1 (type :help for help)"
   runREPL def HM.empty loop
+ 

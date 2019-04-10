@@ -10,7 +10,9 @@ import Control.Monad.Reader
 import Control.Monad.Except
 
 import Statix.Regex
+
 import Statix.Syntax.Constraint
+import Statix.Syntax.Lexer
 
 }
 
@@ -105,80 +107,11 @@ type ParserM a = ReaderT Text.Text (Except String) a
 runParser :: Text.Text → ParserM a → Either String a
 runParser mod c = runExcept $ runReaderT c mod
 
-data Token
-  = TokVar Text.Text
-  | TokFalse
-  | TokTrue
-  | TokComma
-  | TokEq
-  | TokOpenBr
-  | TokCloseBr
-  | TokOpenB
-  | TokCloseB
-  | TokOpenSB
-  | TokCloseSB
-  | TokOpenArr
-  | TokCloseArr
-  | TokNew
-  | TokQuery
-  | TokIn
-  | TokAs
-  | TokRegexQuote
-  | TokStar
-  | TokPlus
-  | TokQuote
-  | TokTick
-  | TokOne
-  | TokEvery
-  | TokLeftArrow
-  | TokColon
-  | TokPeriod
-  deriving Show
-
 parseError :: [Token] -> ParserM a
 parseError toks = throwError $ "Parse error while parsing: " ++ show (take 1 toks)
 
 varName :: Token -> Text.Text
 varName (TokVar s) = s
 varName _ = error "Parser error: not a name"
-
-lexer :: String -> [Token]
-lexer []		= []
-
-lexer (c:cs)
-  | isSpace c		= lexer cs
-  | isAlpha c		= lexWord (c:cs)
-
-lexer ('←':cs)	        = TokLeftArrow : lexer cs
-lexer (':':'-':cs)	= TokLeftArrow : lexer cs
-lexer (':':cs)		= TokColon : lexer cs
-lexer (',':cs)		= TokComma   : lexer cs
-lexer ('=':cs)          = TokEq      : lexer cs
-lexer ('{':cs)		= TokOpenBr  : lexer cs
-lexer ('}':cs)		= TokCloseBr : lexer cs
-lexer ('(':cs)		= TokOpenB   : lexer cs
-lexer (')':cs)		= TokCloseB  : lexer cs
-lexer ('-':'[':cs)	= TokOpenArr : lexer cs
-lexer (']':'-':'>':cs)	= TokCloseArr : lexer cs
-lexer ('[':cs)		= TokOpenSB  : lexer cs
-lexer (']':cs)		= TokCloseSB : lexer cs
-lexer ('\'':cs)		= TokQuote : lexer cs
-lexer ('`':cs)		= TokTick : lexer cs
-lexer ('*':cs)		= TokStar : lexer cs
-lexer ('+':cs)		= TokPlus : lexer cs
-lexer ('.':cs)		= TokPeriod : lexer cs
-
-lexWord :: String -> [Token]
-lexWord cs =
-  case span isAlpha cs of
-    ("true", ds)  -> TokTrue    : lexer ds
-    ("false", ds) -> TokFalse   : lexer ds
-    ("new", ds)   -> TokNew     : lexer ds
-    ("in", ds)    -> TokIn      : lexer ds
-    ("as", ds)    -> TokAs      : lexer ds
-    ("query", ds) -> TokQuery   : lexer ds
-    ("only", ds)  -> TokOne     : lexer ds
-    ("every", ds) -> TokEvery   : lexer ds
-    (var, ds)     -> TokVar (Text.pack var) : lexer ds
 
 }
