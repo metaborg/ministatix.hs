@@ -40,8 +40,10 @@ instance (Show (f r), Show v) ⇒ Show (STmF f v r) where
 class (Traversable f) ⇒ Unifiable f where
   zipMatch :: f r → f r → Maybe (f (r , r))
 
-class UnificationError e where
-  symbolClash :: e
+class HasClashError f e  where
+  symbolClash :: f () → f () → e
+
+class HasCyclicError e where
   cyclicTerm  :: e
 
 -- | Construct a dag from the tree representation where variables are
@@ -92,7 +94,7 @@ closure s t = do
         -- rigid-rigid
         (Tm tm₁, Tm tm₂) →
           case zipMatch tm₁ tm₂ of
-            Nothing → throwError symbolClash
+            Nothing → throwError $ symbolClash (fmap (const ()) tm₁) (fmap (const ()) tm₂)
             -- in case the constructors match,
             -- we get a list of pairings for recursive equivalence checking
             Just tm₃ → do
@@ -113,7 +115,13 @@ data Rep n f v = Rep
   { schema :: Dag n f v
   , repId  :: Int }
 
-class (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒ MonadUnify f n v e m  | m → f n v e
+class
+  ( Unifiable f
+  , HasClashError f e
+  , HasCyclicError e
+  , MonadError e m
+  , MonadEquiv n m (Rep n f v)
+  ) ⇒ MonadUnify f n v e m  | m → f n v e
 
 isAcyclic :: MonadUnify f n v e m ⇒ n → m ()
 isAcyclic node = evalStateT (find node) def

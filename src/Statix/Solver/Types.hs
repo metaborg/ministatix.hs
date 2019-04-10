@@ -115,9 +115,11 @@ instance Show StatixError where
   show TypeError = "Constraint unsatisfiable: type error"
   show (Panic x) = "Panic" ++ x
  
-instance UnificationError StatixError where
-  symbolClash = Unsatisfiable "Symbol clash"
-  cyclicTerm  = Unsatisfiable "Cyclic term"
+instance HasClashError (STermF s) StatixError where
+  symbolClash l r = Unsatisfiable $ "Symbol clash: " ++ show l ++ " != " ++ show r
+
+instance HasCyclicError StatixError where
+  cyclicTerm      = Unsatisfiable "Cyclic term"
 
 {- STATE -}
 data Solver s = Solver

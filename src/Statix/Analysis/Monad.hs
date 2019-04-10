@@ -46,9 +46,11 @@ instance MonadLex Ident Ident IPath NCM where
 
 instance MonadNamer NCM
 
-instance UnificationError TCError where
-  symbolClash = TypeError "Type mismatch"
-  cyclicTerm  = Panic "Bug" -- should not occur, since types are non-recursive
+instance HasClashError (Const Type) TCError where
+  symbolClash l r = TypeError $ "Type mismatch: " ++ show l ++ " != " ++ show r
+
+instance HasCyclicError TCError where
+  cyclicTerm      = Panic "Bug" -- should not occur, since types are non-recursive
   
 instance MonadEquiv (TyRef s) (TCM s) (Rep (TyRef s) (Const Type) ()) where
 
