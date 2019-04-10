@@ -5,21 +5,24 @@ import Statix.Syntax.Constraint
 
 data Module ℓ t = Mod 
   { modname  :: Ident
-  , defs     :: HashMap Ident (Predicate QName ℓ t) }
+  , defs     :: HashMap Ident Constraint₁ }
 
-type SymbolTable t = HashMap QName (Predicate QName IPath t)
+type Formals      = [ (Ident, Type) ]
+type ModuleTyping = HashMap Ident Formals
 
-importP :: (Predicate QName IPath t) → SymbolTable t → SymbolTable t
-importP p sym = HM.insert (qname $ sig p) p sym
+type Symbols      = HashMap Ident (Module Ident Term₁)
+type SymbolTyping = HashMap Ident ModuleTyping
+type SymbolTable  = (Symbols, SymbolTyping)
 
-importMod :: Module IPath t → SymbolTable t → SymbolTable t
-importMod (Mod name defs) sym = foldl (flip importP) sym defs
+-- importP :: (Predicate QName IPath Term₁) → SymbolTable → SymbolTable
+-- importP p sym = HM.insert (qname $ sig p) p sym
 
-emptyMod :: Ident → Module ℓ t
-emptyMod m = Mod m HM.empty
+-- importMod :: Module IPath Term₁ → SymbolTable → SymbolTable
+-- importMod (Mod name defs) sym = foldl (flip importP) sym defs
 
-showModuleContent :: Module ℓ t → String
-showModuleContent mod =
-  concatMap (\p → "  (defined " ++ (show $ sig p) ++ ")\n") (HM.elems $ defs mod)
+-- emptyMod :: Ident → Module ℓ t
+-- emptyMod m = Mod m HM.empty
 
-type SymTab = SymbolTable Term₁ -- typer output
+-- showModuleContent :: Module ℓ t → String
+-- showModuleContent mod =
+--   concatMap (\p → "  (defined " ++ (show $ sig p) ++ ")\n") (HM.elems $ defs mod)

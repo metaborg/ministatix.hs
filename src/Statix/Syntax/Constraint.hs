@@ -100,6 +100,10 @@ tmapc f = cata (tmapc_ f)
 ------------------------------------------------------------------
 -- | Predicates and modules
 
+-- | Node permission modes:
+-- `In` denotes that the node requires extension permission.
+-- `Out` denotes that we have extension permission on the variable.
+-- `InOut` means we both require and have extension permission.
 data Mode
   = None
   | Out
@@ -119,6 +123,7 @@ data Type
   = TNode Mode
   | TTerm
   | TPath
+  | TLabel
   | TAns
   | TBot deriving (Eq)
 
@@ -144,10 +149,10 @@ instance Default Param where
 
 instance Show Type where
   show (TNode m) = "Node " ++ show m
-  show TTerm = "Term"
   show TPath = "Path"
   show TAns  = "{Path}"
   show TBot  = "⊥"
+  show TLabel = "Label"
 
 instance Show Param where
   show (Param n reqs τ) = show n ++ ": " ++ show τ

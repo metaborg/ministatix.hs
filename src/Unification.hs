@@ -64,8 +64,7 @@ getSchema n = do
   return σ
 
 -- | Computes the unification closure of two nodes in a term dag
-closure :: (UnificationError e, MonadError e m, Unifiable f, MonadEquiv n m (Rep n f v)) ⇒
-           n → n → m n
+closure :: MonadUnify f n v e m ⇒ n → n → m n
 closure s t = do
   -- find the representatives
   (Rep st _, s) ← repr s
@@ -114,8 +113,9 @@ data Rep n f v = Rep
   { schema :: Dag n f v
   , repId  :: Int }
 
-isAcyclic :: forall e f v n m .
-  (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒ n → m ()
+class (Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒ MonadUnify f n v e m 
+
+isAcyclic :: MonadUnify f n v e m ⇒ n → m ()
 isAcyclic node = evalStateT (find node) def
 
   where
@@ -156,8 +156,7 @@ toTree n = do
       subtree ← mapM toTree tm
       return (Fix (Tm subtree))
 
-unify :: (Traversable f, Unifiable f, UnificationError e, MonadError e m, MonadEquiv n m (Rep n f v)) ⇒
-         n → n → m ()
+unify :: (Traversable f, MonadUnify f n v e m) ⇒ n → n → m ()
 unify l r = do
   -- compute the closure
   r ← closure l r

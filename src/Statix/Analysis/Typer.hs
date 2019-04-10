@@ -1,3 +1,6 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Statix.Analysis.Typer where
 
 import Data.Functor.Fixedpoint
@@ -12,12 +15,17 @@ import Control.Monad.State
 import Control.Monad.Unique
 import Control.Applicative
 
-import Statix.Syntax.Constraint
+import Statix.Syntax.Constraint as Term
 import Statix.Analysis.Types
+import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical as Lex
 
 import Unification as Unif
 import Unification.ST
+
+type PreFormals      s = [ (Ident, TyRef s) ]
+type PreModuleTyping s = HashMap Ident (PreFormals s)
+type PreSymbolTyping s = HashMap Ident (PreModuleTyping s)
 
 instance UnificationError TCError where
   symbolClash = TypeError "Type mismatch"
@@ -31,16 +39,13 @@ instance MonadEquiv (TyRef s) (TCM s) (Rep (TyRef s) (Const Type) ()) where
   modifyDesc c f  = liftST $ modifyDesc c f
   unionWith c d f = liftST $ Equiv.unionWith c d f
 
-instance ScopedM (TCM s) where
-  type Binder (TCM s) = (Ident, TyRef s)
-  type Ref    (TCM s) = IPath
-  type Datum  (TCM s) = TyRef s
+type Typing s = (Ident, TyRef s)
+instance MonadLex (Typing s) IPath (TyRef s) (TCM s) where
+  menter c     = local (HM.empty :) c
 
-  enter c     = local (HM.empty :) c
+  mintros xs c = local (\tyenv → (HM.union (head tyenv) (HM.fromList xs)) : tail tyenv) c
 
-  intros xs c = local (\tyenv → (HM.union (head tyenv) (HM.fromList xs)) : tail tyenv) c
-
-  resolve p   = do
+  mresolve p   = do
     env ← ask
     derefLocal p env
     
@@ -60,22 +65,27 @@ instance MonadUnique Int (TCM s) where
     tyid %= (+1) 
     return id
 
-getPred :: QName → TCM s Predicate₁
-getPred q = gets $ view (symtab . to (HM.! q))
+instance MonadUnify (Const Type) (TyRef s) () TCError (TCM s) where
 
-unfold :: QName → TCM s Constraint₁
-unfold q = body <$> getPred q
+-- | Abstract typer monad class as a composition of various other monads.
+class (
+    MonadLex (Typing (World m)) IPath (TyRef (World m)) m
+  , MonadUnify (Const Type) (TyRef (World m)) () TCError m
+  , MonadUnique Int m
+  , MonadError TCError m
+  , MonadState SymbolTyping m
+  , MonadReader (Ident, PreModuleTyping (World m)) m) ⇒ MonadTyper m where
+  type World m :: *
 
--- | Get the signature of a predicate
-getSig :: QName → TCM s Signature
-getSig q = sig <$> getPred q
+getFormals :: (MonadState SymbolTyping m) ⇒ QName → m Formals
+getFormals (mod, name) = gets ((HM.! name) . (HM.! mod))
 
 -- | Get the arity of a predicate
-getArity :: QName → TCM s Int
-getArity q = length <$> params <$> getSig q
+getArity :: (MonadState SymbolTyping m) ⇒ QName → m Int
+getArity q = length <$> getFormals q
 
 -- | Check the arity of applications against the symboltable
-checkArity :: ConstraintF₁ r → TCM s ()
+checkArity :: (MonadError TCError m, MonadState SymbolTyping m) ⇒ ConstraintF₁ r → m ()
 checkArity c@(CApplyF qn ts) = do
   arity ← getArity qn
   if length ts /= arity
@@ -83,42 +93,85 @@ checkArity c@(CApplyF qn ts) = do
     else return ()
 checkArity c = return ()
 
-collectTyConstraints :: Constraint₁ → TCM s ()
-collectTyConstraints (CEx ns c) = do
+termTypeAnalysis :: MonadTyper m ⇒ Term₁ → m (TyRef (World m))
+termTypeAnalysis (Term.Var x) = mresolve x
+termTypeAnalysis (Label _)    = construct (Tm (Const TLabel))
+termTypeAnalysis (Path _ _ _) = construct (Tm (Const TPath))
+termTypeAnalysis _            = construct (Tm (Const TBot))
+
+-- | Analyze existential variable and parameter types
+typeAnalysis :: MonadTyper m ⇒ Constraint₁ → m ()
+typeAnalysis CTrue  = return ()
+typeAnalysis CFalse = return ()
+typeAnalysis (CEx ns c) = do
   bs ← mapM mkBinder ns
-  enters bs (collectTyConstraints c)
+  menters bs (typeAnalysis c)
   where
     mkBinder n = do
       v ← freshVar ()
       return (pname n , v)
-collectTyConstraints (CEdge n l m)  = do
-  n  ← resolve n
+typeAnalysis (CAnd c d) = do
+  typeAnalysis c
+  typeAnalysis d
+typeAnalysis (CEdge n l m)  = do
+  n  ← mresolve n
   n' ← construct (Tm (Const (TNode In)))
-  m  ← resolve m
+  m  ← mresolve m
   m' ← construct (Tm (Const (TNode In)))
   unify n n'
   void $ unify m m'
-collectTyConstraints (CNew n)       = do
-  n  ← resolve n
+typeAnalysis (CNew n)       = do
+  n  ← mresolve n
   m  ← construct (Tm (Const (TNode Out)))
   void $ unify n m
-collectTyConstraints (CQuery n r x) = do
-  n  ← resolve n
+typeAnalysis (CQuery n r x) = do
+  n  ← mresolve n
   n' ← construct (Tm (Const (TNode None)))
   unify n n'
-  x  ← resolve x
+  x  ← mresolve x
   x' ← construct (Tm (Const TAns))
   void $ unify x x'
-collectTyConstraints c = return ()
+typeAnalysis (CEvery x y c) = do
+  y  ← mresolve y
+  y' ← construct (Tm (Const TAns))
+  unify y y'
+  typeAnalysis c
+typeAnalysis (COne x t) = do
+  x  ← mresolve x
+  x' ← construct (Tm (Const TAns))
+  unify x x'
+typeAnalysis (CApply (mod, name) ts) = do
+  self ← asks fst
 
-checker :: Monad m ⇒ a → (a → m ()) → m a
-checker a f = do
-  f a
-  return a
+  -- compute the type nodes for the formal parameters 
+  actuals ← mapM termTypeAnalysis ts
 
--- | Perform type checking on a constraint against the symboltable
-typecheck :: Constraint₁ → TCM s Constraint₁
+  -- get the formal parameter types
+  formals ← if (mod == self)
+    then do
+      -- get the type nodes for the formal parameters from the module pretyping
+      binders ← asks ((HM.! name) . snd)
+      return (snd <$> binders)
+
+    else do
+      -- get the type nodes for the formal parameters from the symboltable
+      -- and convert to dag
+      binders ← gets ((HM.! name) . (HM.! mod))
+      mapM (\(_, σ) → construct (Tm $ Const σ)) binders
+
+  -- unify formals with actuals
+  void (zipWithM unify formals actuals)
+  
+-- | Perform type checking on a constraint in a given module.
+-- 
+typecheck :: (MonadTyper m) ⇒ Constraint₁ → m Constraint₁
 typecheck c = do
-  cataM (checkArity) c
-  collectTyConstraints c
+  -- we run some checks on the constranit that do not
+  -- require additional type annotations
+  cataM checkArity c
+
+  -- constraint based type analysis
+  typeAnalysis c
+
+  -- for now we just return the inputted constraint
   return c

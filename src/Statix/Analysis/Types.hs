@@ -42,9 +42,14 @@ data TCError
 type NCM = ReaderT NameContext (Except TCError)
 
 -- | Type checking monad
-type TCM s     = ReaderT (TypeEnv s) (StateT TyState (ExceptT TCError (ST s)))
+type TCM s     =
+     ReaderT (TypeEnv s)
+  ( StateT TyState
+  ( ExceptT TCError
+  ( ST s )))
+
 data TyState   = TyState
-  { _symtab :: SymTab
+  { _symtab :: SymbolTyping
   , _tyid   :: !Int
   }
 type TypeEnv s = [Scope s]
@@ -73,7 +78,7 @@ qualify n = do
     Nothing → throwError (UnboundPredicate n)
     Just q  → return q
 
-runTC :: SymTab → (forall s . TCM s a) → (Either TCError (a , SymTab))
+runTC :: SymbolTyping → (forall s . TCM s a) → (Either TCError (a , SymbolTyping))
 runTC sym c = let result = (runST $ runExceptT (runStateT (runReaderT c []) (set symtab sym def)))
                   in (\(a, st) → (a, view symtab st)) <$> result
 
