@@ -37,8 +37,7 @@ run o c = do
     let typed = fst $ fromRight undefined tcresult
 
     -- dynamic semantics
-    it "evaluates" $ do
-      check HM.empty  typed `shouldBe` o
+    it "evaluates" $ check HM.empty typed `shouldBe` o
 
 corespec :: Spec
 corespec =
@@ -93,3 +92,8 @@ queryspec = describe "query" $ do
     run True  "{x, y, z} new x, query x `l+ as y, every x y false"
     run True  "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z true"
     run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z false"
+
+  describe "stuck" $ do
+    run False "{x, z} query x `P as z"
+    run False "{x, y} x -[ P ]-> y"
+    
