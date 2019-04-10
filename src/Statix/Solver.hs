@@ -125,7 +125,7 @@ checkCritical ces = cataM check
 queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
 queryGuard ce = do
   cs ← liftState $ gets queue
-  Set.unions <$> mapM (\(e, c, g) → local (const e) $ checkCritical ce c) cs
+  Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c) cs
 
 -- | Embedding of syntactical terms into the DAG representation of terms
 toDag :: Term₁ → SolverM s (STmRef s)
@@ -297,7 +297,7 @@ kick sym c =
     st ← get
     c  ← popGoal
     case c of
-      Just (env, c, gen) → do
+      Just (env, c, _) → do
         local (const env) (solveFocus c)
         loop
       Nothing → do

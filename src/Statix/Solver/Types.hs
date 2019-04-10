@@ -47,6 +47,9 @@ type STmRef s = Class s (STermF s) VarInfo
 -- | Solver terms
 type STree s  = Tree (STermF s) VarInfo
 
+-- | Solver generation
+type SGen = Int
+
 -- | The constructors of the term language
 data STermF s c =
     SNodeF (SNode s)
@@ -142,8 +145,8 @@ emptySolver = Solver
 -- | The monad that we use to solve Statix constraints
 type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s)))
 
--- | Constraint closure (environment, constraint, generation)
-type Goal s    = (Env s, Constraint₁, Int)
+-- | Constraint closure
+type Goal s    = (Env s, Constraint₁, SGen)
 
 -- | (ST-less) solution to a constraint program
 type Solution = Either StatixError (String, IntGraph Label ())
