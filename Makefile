@@ -1,5 +1,5 @@
 all:
-	stack build
+	stack build --verbosity=warn
 
 run: exe
 exe: all
@@ -8,8 +8,11 @@ exe: all
 test:
 	stack test
 
+doc:
+	stack haddock --keep-going --open
+
 clean:
 	stack clean
 
-.PHONY: all exe test clean
+.PHONY: all exe test doc clean
 .SILENT:
