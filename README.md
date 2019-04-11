@@ -29,23 +29,4 @@ Other makefile targets are:
 - `doc` to build and show the generated documentation.
 
 
-## Troubleshooting
-
-# The program 'happy' is required but it could not be found
-If the build fails with the error:
-
-    --  While building package statix-0.1.0.0:
-    Process exited with code: ExitFailure 1
-
-    Preprocessing library for statix-0.1.0.0..
-    Cabal: The program 'happy' is required but it could not be found
-
-Then install `happy` using:
-
-    stack install happy
-
-Ensure the directory `happy` is copied to (e.g., `~/.local/bin` on MacOS)
-is part of your `$PATH`. Then `stack clean` and `stack build`,
-and it should be fixed.
-
 [1]: https://www.haskellstack.org/

@@ -13,6 +13,7 @@ doc:
 
 clean:
 	stack clean --full
+	rm statix.cabal
 
 .PHONY: all exe test doc clean
 .SILENT:
