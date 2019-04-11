@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE UndecidableInstances #-}
 -- | Implementation of variation of Baader & Snyder description of Huet's unification algorithm.
 -- (Implementation informed by wrengr/unification-fd)
 module Unification where

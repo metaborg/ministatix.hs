@@ -1,8 +1,3 @@
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 module Statix.Graph
   ( IntGraphEdge(..)
   , IntGraphNode(..)

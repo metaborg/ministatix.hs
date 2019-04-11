@@ -52,6 +52,9 @@ default-extensions:
 - RankNTypes
 - TemplateHaskell
 - ScopedTypeVariables
+- DeriveTraversable
+- DeriveFunctor
+- DeriveFoldable
 
 library:
   source-dirs: src

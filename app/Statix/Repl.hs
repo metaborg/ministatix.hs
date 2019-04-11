@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Statix.Repl where
 
 import System.IO hiding (liftIO)

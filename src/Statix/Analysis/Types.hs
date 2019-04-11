@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Statix.Analysis.Types where
 
 import Data.Default
