@@ -7,6 +7,7 @@ import Data.List as List
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 import Data.HashMap.Strict as HM
+import Data.Set as Set
 
 import Control.Applicative
 
@@ -105,21 +106,24 @@ tmapc f = cata (tmapc_ f)
 data Mode
   = None
   | Out
-  | In
-  | InOut deriving (Eq, Show)
+  | In    (Set Label)
+  | InOut (Set Label) deriving (Eq, Show)
 
 modeJoin :: Mode → Mode → Mode
-modeJoin m None = m
-modeJoin None m = m
-
-modeJoin In In   = In
-modeJoin Out Out = Out
-
-modeJoin _ _     = InOut
+modeJoin m None             = m
+modeJoin None m             = m
+modeJoin (In ls) (In ks)    = In (ls `Set.union` ks)
+modeJoin (In ls) Out        = In ls
+modeJoin Out (In ls)        = In ls
+modeJoin Out Out            = Out
+modeJoin (InOut ks) (In ls) = InOut (ls `Set.union` ks)
+modeJoin (In ls) (InOut ks) = InOut (ls `Set.union` ks)
+modeJoin (InOut ks) Out     = InOut ks
+modeJoin Out (InOut ks)     = InOut ks
+modeJoin (InOut ls) (InOut ks) = InOut (ls `Set.union` ks)
 
 data Type
   = TNode Mode
-  | TTerm
   | TPath
   | TLabel
   | TAns

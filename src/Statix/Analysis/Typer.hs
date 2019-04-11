@@ -4,6 +4,7 @@ module Statix.Analysis.Typer where
 import Data.Functor.Fixedpoint
 import Data.Default
 import Data.HashMap.Strict as HM
+import Data.Set as S
 
 import Control.Lens
 import Control.Monad.Except
@@ -115,9 +116,9 @@ typeAnalysis (CEq t s) = do
   unify τ σ
 typeAnalysis (CEdge n l m)  = do
   n  ← resolve n
-  n' ← construct (Tm (Const (TNode In)))
+  n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
   m  ← resolve m
-  m' ← construct (Tm (Const (TNode In)))
+  m' ← construct (Tm (Const (TNode None)))
   unify n n'
   void $ unify m m'
 typeAnalysis (CNew n)       = do
