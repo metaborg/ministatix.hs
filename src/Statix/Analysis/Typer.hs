@@ -168,7 +168,7 @@ typecheckPredicate p = do
 
 typecheckModule :: (MonadTyper m) ⇒ Ident → Module → m Module
 typecheckModule this mod = do
-  -- initiate the 
+  -- initiate the module typing
   pretype ← modInitialTyping mod
 
   -- compute the module signature
