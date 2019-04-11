@@ -28,6 +28,10 @@ dependencies:
 - haskeline
 - lens
 
+build-tools:
+- alex
+- happy
+
 default-extensions:
 - UnicodeSyntax
 - PatternSynonyms
