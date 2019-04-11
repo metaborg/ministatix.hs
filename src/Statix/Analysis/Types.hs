@@ -78,8 +78,8 @@ instance Default NameContext where
 makeLenses ''TyEnv
 makeLenses ''NameContext
 
-runTC :: TyEnv s → TCM s a → Int → ST s (Either TCError (a, Int))
-runTC env c i = do
+runTC :: TyEnv s → Int → TCM s a → ST s (Either TCError (a, Int))
+runTC env i c = do
   runExceptT $ runStateT (runReaderT c env) i
 
 runNC :: NameContext → NCM a → Either TCError a

@@ -96,7 +96,7 @@ instance MonadAnalysis REPL where
     (REPLEnv _ pt self)  ← ask
     (REPLState symtab i) ← get
 
-    let st = runTC (def { _self = self, _modtable = pt, _symty = symtab}) c i
+    let st = runTC (def { _self = self, _modtable = pt, _symty = symtab}) i c
     (a, i') ← (liftIO $ stToIO st) >>= handleErrors
 
     -- ensure that the fresh names remain fresh
