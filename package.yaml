@@ -50,6 +50,8 @@ default-extensions:
 - TypeApplications
 - MultiParamTypeClasses
 - RankNTypes
+- TemplateHaskell
+- ScopedTypeVariables
 
 library:
   source-dirs: src

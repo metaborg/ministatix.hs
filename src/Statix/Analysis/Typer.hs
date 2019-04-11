@@ -1,7 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module Statix.Analysis.Typer where
 
 import Data.Functor.Fixedpoint
