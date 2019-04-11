@@ -96,4 +96,5 @@ queryspec = describe "query" $ do
   describe "stuck" $ do
     run False "{x, z} query x `P as z"
     run False "{x, y} x -[ P ]-> y"
+    run True  "{x, y} x -[ P ]-> y, new x, new y"
     
