@@ -62,6 +62,22 @@ checkArity c@(CApplyF qn ts) = do
     else return ()
 checkArity c = return ()
 
+modInitialTyping ::
+  ( MonadUnique Int m
+  , MonadEquiv (TyRef s) m (Rep (TyRef s) f ())
+  ) ⇒ [Predicate p l t] → m (PreModuleTyping s)
+modInitialTyping mod = do
+  -- for every predicate in the module
+  pretypes ← forM mod $ \ p → do
+    let (_, name) = qname p
+    let formals   = sig p
+    -- for every formal parameter
+    bs ← forM formals $ \(n,_) → do
+      v ← freshVar ()
+      return (n, v)
+    return (name, bs)
+  return (HM.fromList pretypes)
+
 termTypeAnalysis :: MonadTyper m ⇒ Term₁ → m (TyRef (World m))
 termTypeAnalysis (Term.Var x) = resolve x
 termTypeAnalysis (Label _)    = construct (Tm (Const TLabel))

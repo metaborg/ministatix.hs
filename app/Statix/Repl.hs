@@ -34,6 +34,7 @@ import Statix.Solver
 import Statix.Solver.Types
 
 import Statix.Analysis.Types hiding (self)
+import Statix.Analysis.Typer
 import Statix.Analysis.Symboltable
 import Statix.Analysis
 
@@ -73,7 +74,6 @@ instance MonadUnique Int REPL where
     return i
 
 instance (Unifiable f) ⇒ MonadEquiv (Class RealWorld f v) REPL (Rep (Class RealWorld f v) f v) where
-
   newClass         = liftIO . stToIO . newClass
   repr             = liftIO . stToIO . repr
   description      = liftIO . stToIO . description
@@ -192,17 +192,20 @@ handler κ (Import file) = do
   toks   ← handleErrors $ lexer content
   rawmod ← liftParser modname $ parseModule $ toks
 
-  -- construct the type environment for the typechecker
-  pretyping ← mapM (\p → do
-                       let formals = sig p
-                       bs ← mapM (\(n,_) → do v ← freshVar (); return (n, v)) formals
-                       return (snd $ qname p, bs) ) rawmod
+  -- Construct the type environment for the typechecker.
+  -- This initializes all formal parameter typings for all predicates
+  -- to a unification variable.
+  pretyping ← modInitialTyping rawmod
 
-  defs ← local (set self modname . set typing (HM.fromList pretyping)) $ do mapM analyzePred rawmod
+  -- Typecheck the module
+  defs ←
+    local
+      (set self modname . set typing pretyping)
+      (mapM analyzePred rawmod)
 
+  -- Import the typechecked module into the symboltable
   let mod    = HM.fromList $ fmap (\p → (snd $ qname p , p)) defs
   let qnames = fmap qname mod
-
   importsMod mod
 
   -- update the qualifier and the symboltable
@@ -211,24 +214,7 @@ handler κ (Import file) = do
 
   where
 handler κ Help = do
-  liftIO $ putStrLn $ unlines [
-    "Commands:",
-    "  :def p            -- Defines a predicate p",
-    "  :import f         -- Imports constraints from a file f",
-    "  :help             -- Prints this help",
-    "  :quit             -- Quits",
-    "Constraint Syntax:",
-    "  { x, .. } C       -- Extensionally quantifies variables x, .. in constraint C",
-    "  C₁, C₂            -- Asserts constraints C₁ and C₂",
-    "  t₁ = t₂           -- Asserts equality of terms t₁ and t₂",
-    "  true              -- Asserts true",
-    "  false             -- Asserts false",
-    "  new x             -- Asserts that you own a node x in the graph",
-    "  s₁ -[l]-> s₂      -- Asserts that you own an edge from node s₁ to node s₂ with label l in the graph",
-    "  query s r as z    -- Query the graph from s with regex r as z",
-    "  only(ζ, t')       -- Asserts that ζ is a singleton set containing t",
-    "  every x ζ C       -- Asserts constraint C for every x in set ζ"
-    ]
+  liftIO $ putStrLn $ helpText
   loop
 
 handler κ Quit = do
@@ -251,3 +237,22 @@ repl = do
   liftIO $ putStrLn "Ministatix 0.1 (type :help for help)"
   runREPL def HM.empty loop
  
+helpText :: String
+helpText = unlines [
+  "Commands:",
+  "  :def p            -- Defines a predicate p",
+  "  :import f         -- Imports constraints from a file f",
+  "  :help             -- Prints this help",
+  "  :quit             -- Quits",
+  "Constraint Syntax:",
+  "  { x, .. } C       -- Extensionally quantifies variables x, .. in constraint C",
+  "  C₁, C₂            -- Asserts constraints C₁ and C₂",
+  "  t₁ = t₂           -- Asserts equality of terms t₁ and t₂",
+  "  true              -- Asserts true",
+  "  false             -- Asserts false",
+  "  new x             -- Asserts that you own a node x in the graph",
+  "  s₁ -[l]-> s₂      -- Asserts that you own an edge from node s₁ to node s₂ with label l in the graph",
+  "  query s r as z    -- Query the graph from s with regex r as z",
+  "  only(ζ, t')       -- Asserts that ζ is a singleton set containing t",
+  "  every x ζ C       -- Asserts constraint C for every x in set ζ"
+  ]
