@@ -1,0 +1,17 @@
+sudo: false
+
+# Caching so the next build will be fast too.
+cache:
+  directories:
+    - $HOME/.stack
+
+before_install:
+  # Download and unpack the stack executable
+  - mkdir -p ~/.local/bin
+  - export PATH=$HOME/.local/bin:$PATH
+  - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  # Setup GHC
+  - make setup STACK="travis_wait stack" ARGS="--no-terminal --skip-ghc-check"
+
+script:
+  - make test STACK="travis_wait stack" ARGS="--no-terminal --skip-ghc-check"

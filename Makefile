@@ -1,19 +1,33 @@
-all:
-	stack build --verbosity=warn
+STACK      ?= stack
+SETUP_ARGS ?=
+BUILD_ARGS ?=
+EXEC_ARGS  ?=
+TEST_ARGS  ?=
+DOC_ARGS   ?= --keep-going --open
+CLEAN_ARGS ?= --full
+ARGS       ?= --verbosity=warn
+
+all: build
+
+setup:
+	${STACK} setup ${SETUP_ARGS} ${ARGS}
+
+build: setup
+	${STACK} build ${BUILD_ARGS} ${ARGS}
 
 run: exe
-exe: all
-	stack exec statix-exe
+exe: build
+	${STACK} exec statix-exe ${EXEC_ARGS} ${ARGS}
 
-test:
-	stack test
+test: build
+	${STACK} test ${TEST_ARGS} ${ARGS}
 
 doc:
-	stack haddock --keep-going --open
+	${STACK} haddock ${DOC_ARGS} ${ARGS}
 
 clean:
-	stack clean --full
-	rm statix.cabal
+	${STACK} clean ${CLEAN_ARGS} ${ARGS}
+	-rm statix.cabal
 
-.PHONY: all exe test doc clean
+.PHONY: all setup build run exe test doc clean
 .SILENT:
