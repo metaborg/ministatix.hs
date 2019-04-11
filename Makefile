@@ -12,7 +12,7 @@ doc:
 	stack haddock --keep-going --open
 
 clean:
-	stack clean
+	stack clean --full
 
 .PHONY: all exe test doc clean
 .SILENT:
