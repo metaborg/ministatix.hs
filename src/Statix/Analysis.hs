@@ -5,6 +5,7 @@ import Data.Default
 
 import Control.Monad.State
 import Control.Monad.Reader
+import Control.Monad.Unique
 import Control.Lens
 
 import Statix.Syntax.Constraint
@@ -32,12 +33,16 @@ analyze :: (MonadAnalysis m) ⇒ Constraint₀ → m Constraint₁
 analyze c = do
   c ← namer $ checkConstraint c
   typer $ typecheck c
+  return c
 
 -- | Analyze a predicate
 analyzePred :: (MonadAnalysis m) ⇒ Predicate₀ → m Predicate₁
 analyzePred p = do
   pred ← namer $ checkPredicate p
-
-  typer $ typecheck (body pred)
-
+  typer $ typecheckPredicate pred
   return pred
+
+analyzeModule :: (MonadAnalysis m) ⇒ Ident → [Predicate₀] → m Module
+analyzeModule modname rawmod = do
+  mod ← namer $ checkMod modname rawmod
+  typer $ typecheckModule modname mod

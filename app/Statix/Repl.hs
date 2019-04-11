@@ -192,19 +192,10 @@ handler κ (Import file) = do
   toks   ← handleErrors $ lexer content
   rawmod ← liftParser modname $ parseModule $ toks
 
-  -- Construct the type environment for the typechecker.
-  -- This initializes all formal parameter typings for all predicates
-  -- to a unification variable.
-  pretyping ← modInitialTyping rawmod
-
   -- Typecheck the module
-  defs ←
-    local
-      (set self modname . set typing pretyping)
-      (mapM analyzePred rawmod)
+  mod ← analyzeModule modname rawmod
 
   -- Import the typechecked module into the symboltable
-  let mod    = HM.fromList $ fmap (\p → (snd $ qname p , p)) defs
   let qnames = fmap qname mod
   importsMod mod
 

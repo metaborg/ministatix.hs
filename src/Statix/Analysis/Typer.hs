@@ -59,27 +59,44 @@ checkArity c@(CApplyF qn ts) = do
     else return ()
 checkArity c = return ()
 
-modInitialTyping ::
-  ( MonadUnique Int m
-  , MonadEquiv (TyRef s) m (Rep (TyRef s) f ())
-  ) ⇒ [Predicate p l t] → m (PreModuleTyping s)
+modInitialTyping :: (MonadTyper m) ⇒ Module → m (PreModuleTyping (World m))
 modInitialTyping mod = do
   -- for every predicate in the module
-  pretypes ← forM mod $ \ p → do
+  forM mod $ \ p → do
     let (_, name) = qname p
     let formals   = sig p
     -- for every formal parameter
-    bs ← forM formals $ \(n,_) → do
+    forM formals $ \(n,_) → do
       v ← freshVar ()
       return (n, v)
-    return (name, bs)
-  return (HM.fromList pretypes)
+
+-- | Convert a type node from the unification dag to a ground type
+groundType :: MonadTyper m ⇒ TyRef (World m) → m Type
+groundType ref = do
+  τ ← getSchema ref
+  return $ case τ of
+    Unif.Tm  ty → getConst ty
+    Unif.Var _  → TBot        -- variables indicate we don't know anything
+
+-- | Extract a grounded module signature from the typer
+solution :: MonadTyper m ⇒ m ModuleSig
+solution = do
+  pretype ← view modtable
+  forM pretype $ \formals → do
+    forM formals $ \(param, tyref) → do
+      τ ← groundType tyref
+      return (param, τ)
 
 termTypeAnalysis :: MonadTyper m ⇒ Term₁ → m (TyRef (World m))
 termTypeAnalysis (Term.Var x) = resolve x
 termTypeAnalysis (Label _)    = construct (Tm (Const TLabel))
 termTypeAnalysis (Path _ _ _) = construct (Tm (Const TPath))
 termTypeAnalysis _            = construct (Tm (Const TBot))
+
+mkBinder :: MonadTyper m ⇒ Ident → m (Ident, TyRef (World m))
+mkBinder n = do
+ v ← freshVar ()
+ return (n , v)
 
 -- | Analyze existential variable and parameter types
 typeAnalysis :: MonadTyper m ⇒ Constraint₁ → m ()
@@ -89,9 +106,6 @@ typeAnalysis (CEx ns c) = do
   bs ← mapM mkBinder ns
   enters bs (typeAnalysis c)
   where
-    mkBinder n = do
-      v ← freshVar ()
-      return (n , v)
 typeAnalysis (CAnd c d) = do
   typeAnalysis c
   typeAnalysis d
@@ -136,7 +150,7 @@ typeAnalysis (CApply qn ts) = do
   
 -- | Perform type checking on a constraint in a given module.
 -- TODO Think hard about fusion of passses
-typecheck :: (MonadTyper m) ⇒ Constraint₁ → m Constraint₁
+typecheck :: (MonadTyper m) ⇒ Constraint₁ → m ()
 typecheck c = do
   -- we run some checks on the constranit that do not
   -- require additional type annotations
@@ -145,5 +159,24 @@ typecheck c = do
   -- constraint based type analysis
   typeAnalysis c
 
-  -- for now we just return the inputted constraint
-  return c
+typecheckPredicate :: (MonadTyper m) ⇒ Predicate₁ → m ()
+typecheckPredicate p = do
+  let ns = fmap fst (sig p)
+  bs ← mapM mkBinder ns
+  enters bs $ do
+    void $ typecheck (body p)
+
+typecheckModule :: (MonadTyper m) ⇒ Ident → Module → m Module
+typecheckModule this mod = do
+  -- initiate the 
+  pretype ← modInitialTyping mod
+
+  -- compute the module signature
+  sig ← local (set self this . set modtable pretype) $ do
+    forM mod typecheckPredicate
+    solution
+
+  -- annotate the module with the computed signature
+  case annotateModule sig mod of
+    Just annotated → return annotated
+    Nothing        → throwError $ Panic "Module signature incomplete"
