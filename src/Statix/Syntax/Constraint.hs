@@ -132,7 +132,9 @@ instance Unifiable (Const Type) where
   zipMatch (Const (TNode m)) (Const (TNode n)) =
     Just (Const (TNode (modeJoin m n)))
   zipMatch ty ty'
-    | ty == ty' = Just ((\r → (r,r)) <$> ty)
+    | ty == ty'         = Just ((\r → (r,r)) <$> ty)
+    | ty == Const TBot  = Just ((\r → (r,r)) <$> ty')
+    | ty' == Const TBot = Just ((\r → (r,r)) <$> ty)
     | otherwise = Nothing
 
 instance Show Type where

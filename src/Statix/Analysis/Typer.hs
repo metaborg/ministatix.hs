@@ -98,7 +98,7 @@ mkBinder n = do
  v ← freshVar ()
  return (n , v)
 
--- | Analyze existential variable and parameter types
+-- | Collect type constraints
 typeAnalysis :: MonadTyper m ⇒ Constraint₁ → m ()
 typeAnalysis CTrue  = return ()
 typeAnalysis CFalse = return ()

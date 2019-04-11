@@ -51,14 +51,22 @@ reifyPath (Graph.End n) =
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
 
--- | Push a constraint as a goal on the work queue.
--- The goal's generation is the solver's generation when it was
--- pushed on the queue.
-pushGoal :: Constraint₁ → SolverM s ()
-pushGoal c = do
-  st  ← get
+pushGoal :: SGen → Constraint₁ → SolverM s ()
+pushGoal i c = do
   env ← ask
-  put st { queue = queue st Seq.|> (env, c, generation st)}
+  queue %= (\q → q Seq.|> (env, c, i))
+
+-- | Delay a constraint by pushing it back on the work queue.
+-- The constraint gets tagged by the current solver generation,
+-- marking the fact that we have tried solving it in this generation,
+-- but could not.
+delay :: Constraint₁ → SolverM s ()
+delay c = do
+  gen ← use generation
+  pushGoal gen c
+
+newGoal :: Constraint₁ → SolverM s ()
+newGoal = pushGoal minBound
 
 -- | Pop a constraint from the work queue if it is non-empty,
 -- and if the constraint was put in the queue before the current solver
@@ -69,20 +77,23 @@ pushGoal c = do
 -- cannot make progress: the solver is stuck.
 popGoal :: SolverM s (Maybe (Goal s))
 popGoal = do
-  st ← get
+  q   ← use queue
+  gen ← use generation
+
   -- If we pop a goal and we find that its generation is
   -- at or after the solver's current generation,
   -- then the solver has made no progress and we are stuck.
   -- As the generation is monotonically increasing for goals
   -- pushed to the end of the queue, we know the queue contains
   -- no more goals from an earlier generation.
-  case Seq.viewl $ queue st of
-    Seq.EmptyL           -> return Nothing
-    (_, _, g) Seq.:< cs  |
-      g >= generation st -> throwError StuckError
-    c Seq.:< cs          -> do
-      liftState $ put (st { queue = cs })
-      return (Just c)
+  case Seq.viewl $ q of
+    Seq.EmptyL           → return Nothing
+    c@(_, _, lasttry) Seq.:< cs
+      | lasttry >= gen → do
+          throwError StuckError
+      | otherwise          → do
+          queue %= const cs
+          return (Just c)
 
 -- | Continue with the next goal.
 -- As we are making progress, we increment
@@ -90,7 +101,7 @@ popGoal = do
 next :: SolverM s ()
 next = do
   st <- get
-  put st { generation = generation st + 1 }
+  generation %= (+1)
   return ()
 
 -- | Open existential quantifier and run the continuation in the
@@ -126,7 +137,7 @@ checkCritical ces = cataM check
 
 queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
 queryGuard ce = do
-  cs ← liftState $ gets queue
+  cs ← use queue
   Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c) cs
 
 -- | Embedding of syntactical terms into the DAG representation of terms
@@ -160,7 +171,7 @@ solveFocus (CEq t1 t2) = do
   next
 
 solveFocus (CAnd l r) = do
-  pushGoal r
+  newGoal r
   solveFocus l
 
 solveFocus (CEx ns c) =
@@ -182,9 +193,9 @@ solveFocus c@(CEdge x l y) = do
     (SNode n, SNode m) → do
       newEdge (n, l, m)
       next
-    (U.Var _, _)       → pushGoal c
-    (_ , U.Var _)      → pushGoal c
-    _                  → throwError TypeError
+    (U.Var _, _)  → delay c
+    (_ , U.Var _) → delay c
+    _             → throwError TypeError
 
 solveFocus c@(CQuery x r y) = do
   t ← resolve x >>= getSchema
@@ -204,10 +215,10 @@ solveFocus c@(CQuery x r y) = do
         unify b ansRef
         next
       else do
-        pushGoal (trace "Delaying query" c)
+        delay (trace "Delaying query" c)
         next
 
-    (U.Var _) → pushGoal c
+    (U.Var _) → delay c
     _         → throwError TypeError
 
 solveFocus c@(COne x t) = do
@@ -215,7 +226,7 @@ solveFocus c@(COne x t) = do
   ans ← resolve x >>= getSchema
   case ans of
     (U.Var x) →
-      pushGoal c
+      delay c
     (SAns (p : [])) → do
       pref ← reifyPath p
       unify pref t
@@ -232,16 +243,15 @@ solveFocus c@(CEvery x y c') = do
   case ans of
     -- not ground enough
     (U.Var x) →
-      pushGoal c
+      delay c
     -- expand to big conjunction conjunction
     (SAns ps) → do
-      mapM_ (\p → do
-                -- bind the path
-                pn ← reifyPath p
-                enters [(x , pn)] 
-                  -- push the goal in the extended scope
-                  (pushGoal c')
-            ) ps
+      forM ps $ \p → do
+        -- bind the path
+        pn ← reifyPath p
+        -- push the goal in the extended scope
+        enters [(x , pn)] 
+          (newGoal c')
       next
     t →
       throwError TypeError
@@ -254,7 +264,7 @@ solveFocus (CApply p ts) = do
    -- bind the parameters
    enters (List.zip (fmap fst σ) ts') $ do
      -- solve the body
-     solveFocus c
+     trace "solve body" $ solveFocus c
 
 solveFocus _ = throwError (Panic "Not implemented")
 
@@ -281,13 +291,11 @@ kick sym c =
     case c of
       -- open the top level exists if it exists
       (CEx ns b) → openExist ns $ do
-        pushGoal b
-        next
+        newGoal b
         loop
 
       c → do
-        pushGoal c
-        next
+        newGoal c
         loop
 
   where
@@ -304,10 +312,10 @@ kick sym c =
         loop
       Nothing → do
         -- done, gather up the solution (graph and top-level unifier)
-        s ← get
-        g ← liftST $ (toIntGraph (graph s))
-        φ ← unifier
-        return (show φ, void g)
+        graph ← use graph
+        graph ← liftST $ toIntGraph graph
+        φ     ← unifier
+        return (show φ, void graph)
 
 -- | Construct and run a solver for a constraint
 solve :: SymbolTable → Constraint₁ → Solution

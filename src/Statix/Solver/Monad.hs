@@ -37,7 +37,7 @@ instance MonadGraph (SNode s) Label (SDag s) (SolverM s) where
     ni ← fresh
     nr ← liftST $ newSTRef (STNData [] d)
     let node = STNRef ni nr
-    modify (\ s → s { graph = node : graph s })
+    graph %= (node:)
     return node
 
   newEdge (STNRef i r, l, y) =
@@ -86,8 +86,8 @@ instance MonadEquiv (STmRef s) (SolverM s) (Rep (STmRef s) (STermF s) VarInfo) w
 
 instance MonadUnique Int (SolverM s) where
   fresh = do
-    n ← gets nextFresh
-    modify (\s → s { nextFresh = n + 1})
+    n ← use nextFresh
+    nextFresh %= (+1)
     return n
 
 instance MonadUnify (STermF s) (STmRef s) VarInfo StatixError (SolverM s)
@@ -97,7 +97,7 @@ getPredicate qn = view (symbols . to (HM.! qn))
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a
-runSolver c = runST (runExceptT (evalStateT (runReaderT c def) emptySolver))
+runSolver c = runST (runExceptT (evalStateT (runReaderT c def) def))
 
 -- | Lift ST computations into Solver
 liftST :: ST s a → SolverM s a
