@@ -28,6 +28,7 @@ data TCError
     DuplicatePredicate Ident
   | UnboundPredicate Ident
   | UnboundVariable Ident
+  | MatchCaptures Ident
 
   -- typer errors
   | ArityMismatch QName Int Int -- pred, expected, got

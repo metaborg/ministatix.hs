@@ -33,23 +33,29 @@ qualify n = do
     Nothing → throwError (UnboundPredicate n)
     Just q  → return q
 
+checkTermF :: (MonadNamer m) ⇒ TermF₀ r → m (TermF₁ r)
+checkTermF (TConF s ts)   = return $ TConF s ts
+checkTermF (TLabelF l)    = return $ TLabelF l
+checkTermF (TPathF n l p) = return $ TPathF n l p
+checkTermF (TVarF x)      = do
+  p ← resolve x
+  return (TVarF p)
+
 checkTerm :: (MonadNamer m) ⇒ Term₀ → m Term₁
-checkTerm = hmapM checkT
-  where
-    checkT :: (MonadNamer m) ⇒ TermF₀ r → m (TermF₁ r)
-    checkT (TConF s ts)   = return $ TConF s ts
-    checkT (TLabelF l)    = return $ TLabelF l
-    checkT (TPathF n l p) = return $ TPathF n l p
-    checkT (TVarF x)      = do
-      p ← resolve x
-      return (TVarF p)
+checkTerm = hmapM checkTermF
 
 checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
 checkBranch (Branch ns g c) = do
   enters ns $ do
-    g ← checkTerm g
+    g ← hmapM (\t → checkTermF t >>= noCapture) g
     c ← checkConstraint c
     return (Branch ns g c)
+  where
+    -- Disallow free variable usages in patterns:
+    --   {x} f(g()) match { {} x -> true }
+    noCapture :: (MonadNamer m) ⇒ TermF₁ r → m (TermF₁ r)
+    noCapture (TVarF (Skip p))  = throwError $ MatchCaptures (end p)
+    noCapture t                 = return t
 
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
