@@ -51,6 +51,8 @@ instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
 ------------------------------------------------------------------
 -- | The constraint language
 
+data Branch t c = Branch [Ident] t c deriving (Functor, Foldable, Traversable, Show)
+
 data ConstraintF p ℓ t r
   = CTrueF | CFalseF
   | CAndF r r
@@ -63,6 +65,7 @@ data ConstraintF p ℓ t r
   | COneF ℓ t
   | CEveryF Ident ℓ r
   | CApplyF p [t]
+  | CMatchF t [Branch t r]
   deriving (Functor, Foldable, Traversable)
 
 instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) where
@@ -79,6 +82,7 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (COneF x t) = "one(" ++ show x ++ "," ++ show t ++ ")"
   show (CEveryF x y c) = "every " ++ show x ++ " in " ++ show y ++ "(" ++ show c ++ ")"
   show (CApplyF p ts) = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
+  show (CMatchF t bs) = show t ++ " match " ++ (List.concatMap show bs)
 
 type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
 
@@ -95,6 +99,8 @@ tmapc_ f (CQueryF x r y)  = CQuery x r y
 tmapc_ f (COneF x t)      = COne x (f t)
 tmapc_ f (CEveryF x y c)  = CEvery x y c
 tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
+tmapc_ f (CMatchF t br)   =
+  CMatch (f t) (fmap (\(Branch ns g c) → Branch ns (f g) c) br)
 
 tmapc :: (t → s) → Constraint p ℓ t → Constraint p ℓ s
 tmapc f = cata (tmapc_ f)
@@ -169,10 +175,13 @@ pattern Var x         = Fix (TVarF x)
 pattern Path t l t'   = Fix (TPathF t l t')
 
 type ConstraintF₀ r   = ConstraintF Ident Ident Term₀ r -- parsed
-type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named & optionally typed
+type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named
+
+type Branch₀          = Branch Term₀ Constraint₀ -- parsed
+type Branch₁          = Branch Term₁ Constraint₁ -- named
 
 type Constraint₀      = Constraint Ident  Ident Term₀ -- parsed
-type Constraint₁      = Constraint QName  IPath Term₁ -- named & optionally typed
+type Constraint₁      = Constraint QName  IPath Term₁ -- named
 
 pattern CTrue         = Fix CTrueF
 pattern CFalse        = Fix CFalseF
@@ -186,6 +195,7 @@ pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t      = Fix (COneF x t)
 pattern CEvery x y c  = Fix (CEveryF x y c)
 pattern CApply p ts   = Fix (CApplyF p ts)
+pattern CMatch t br   = Fix (CMatchF t br)
 
 type Predicate₀       = Predicate Ident   Ident   Term₀ -- parsed
 type Predicate₁       = Predicate QName   IPath   Term₁ -- named & optionally typed

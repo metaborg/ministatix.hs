@@ -42,6 +42,9 @@ class HasClashError f e  where
 class HasCyclicError e where
   cyclicTerm  :: e
 
+class HasSubsumptionError e where
+  doesNotSubsume :: e
+
 -- | Construct a dag from the tree representation where variables are
 -- already node references; i.e. convert one layer of term structure.
 construct :: (MonadUnique Integer m, MonadEquiv n m (Rep n f v)) ⇒ STmF f n n → m n
@@ -94,8 +97,38 @@ closure s t = do
             -- in case the constructors match,
             -- we get a list of pairings for recursive equivalence checking
             Just tm₃ → do
+              union s t -- optimistically merge the classes
               σ ← mapM (uncurry closure) tm₃
-              unionWith s t (\_ _ → Rep (Tm σ) i)
+              modifyDesc s (\_ → Rep (Tm σ) i) 
+              return s
+
+-- | Computes the unification semiclosure of two nodes in a term dag.
+-- Exactly like unification, except for the rigid-flex case.
+semiclosure :: (HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m n
+semiclosure s t = do
+  (Rep st _, s) ← repr s
+  (Rep tt i, t) ← repr t
+
+  if (s == t)
+    then return s
+    else do
+      case (st, tt) of
+        (Var _, Var _) → do
+          union s t
+          return s
+        (Var _, Tm tm) → do
+          union s t
+          return t
+        -- rigid-flex: RHS is less defined than LHS, so does not subsume
+        (Tm tm, Var _) → do
+          throwError $ doesNotSubsume
+        (Tm tm₁, Tm tm₂) →
+          case zipMatch tm₁ tm₂ of
+            Nothing → throwError $ symbolClash (fmap (const ()) tm₁) (fmap (const ()) tm₂)
+            Just tm₃ → do
+              union s t
+              σ ← mapM (uncurry semiclosure) tm₃
+              modifyDesc s (\_ → Rep (Tm σ) i) 
               return s
 
 data VisitState = Visitor
@@ -121,7 +154,6 @@ class
 
 isAcyclic :: MonadUnify f n v e m ⇒ n → m ()
 isAcyclic node = evalStateT (find node) def
-
   where
     visit  n        = modify (\st → st { visited = insert n (visited st) })
     unvisit n       = modify (\st → st { visited = delete n (visited st) })
@@ -150,6 +182,32 @@ isAcyclic node = evalStateT (find node) def
 
             flagAcyclic nid
 
+unify :: (Traversable f, MonadUnify f n v e m) ⇒ n → n → m ()
+unify l r = do
+  -- compute the closure
+  r ← closure l r
+  -- check if the resulting term isn't cyclic
+  isAcyclic r
+
+subsumes :: (Traversable f, HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m ()
+subsumes l r = do
+  r ← semiclosure l r
+  isAcyclic r
+
+-- | Freshen all variables in a term.
+-- Expensive operation.
+-- Assumes that the term is acyclic.
+freshen :: (Traversable f, MonadUnique Integer m, MonadEquiv n m (Rep n f v)) ⇒ n → m n
+freshen n = do
+  (Rep σ _, n) ← repr n
+  id ← fresh
+
+  t ← case σ of
+    (Tm f)  → do f' ← (mapM freshen f); return (Tm f')
+    (Var v) → return (Var v)
+
+  newClass (Rep t id)
+
 -- | TODO rewrite to cata
 toTree :: (Traversable f, MonadEquiv n m (Rep n f v)) ⇒ n → m (Tree f v)
 toTree n = do
@@ -160,9 +218,3 @@ toTree n = do
       subtree ← mapM toTree tm
       return (Fix (Tm subtree))
 
-unify :: (Traversable f, MonadUnify f n v e m) ⇒ n → n → m ()
-unify l r = do
-  -- compute the closure
-  r ← closure l r
-  -- check if the resulting term isn't cyclic
-  isAcyclic r

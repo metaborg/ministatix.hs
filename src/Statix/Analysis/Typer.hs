@@ -111,6 +111,11 @@ mkBinder n = do
  v ← freshVar ()
  return (n , v)
 
+typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
+typeBranch (Branch ps g c) = do
+  bs ← mapM mkBinder ps
+  enters bs (typeAnalysis c)
+
 -- | Collect type constraints
 typeAnalysis :: MonadTyper n m ⇒ Constraint₁ → m ()
 typeAnalysis CTrue  = return ()
@@ -118,7 +123,6 @@ typeAnalysis CFalse = return ()
 typeAnalysis (CEx ns c) = do
   bs ← mapM mkBinder ns
   enters bs (typeAnalysis c)
-  where
 typeAnalysis (CAnd c d) = do
   typeAnalysis c
   typeAnalysis d
@@ -164,6 +168,8 @@ typeAnalysis (CApply qn ts) = do
 
   -- unify formals with actuals
   void (zipWithM unify (fmap snd formals) actuals)
+typeAnalysis (CMatch t br) = do
+  mapM_ typeBranch br
   
 -- | Perform type checking on a constraint in a given module.
 -- TODO Think hard about fusion of passses

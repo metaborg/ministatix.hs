@@ -22,9 +22,11 @@ tokens :-
   query                                 { const TokQuery }
   only                                  { const TokOne }
   every                                 { const TokEvery }
+  match                                 { const TokMatch }
 
   $alpha [$alpha $digit \_ ]*		{ TokVar . Text.pack }
 
+  "|"                                   { const TokBar }
   ":-"                                  { const TokLeftArrow }
   "<-"                                  { const TokLeftArrow }
   "->"                                  { const TokRightArrow }
@@ -78,6 +80,8 @@ data Token
   | TokColon
   | TokPeriod
   | TokRightArrow
+  | TokMatch
+  | TokBar
   deriving Show
  
 

@@ -231,7 +231,7 @@ solveFocus c@(CQuery x r y) = do
         unify b ansRef
         next
       else do
-        delay c
+        trace "Delaying" $  delay c
 
     (U.Var _) → delay c
     _         → throwError TypeError
@@ -300,6 +300,40 @@ solveFocus (CApply p ts) = do
    enters (List.zip (fmap fst σ) ts') $ do
      -- solve the body
      solveFocus c
+
+solveFocus c@(CMatch t bs) = do
+  t ← toDag t
+  σ ← getSchema t
+  case σ of
+    (U.Var x) → delay c
+    (U.Tm f)  → solveBranch t bs
+
+  where
+    solveBranch :: STmRef s → [Branch₁] → SolverM s ()
+    solveBranch t [] = throwError $ Unsatisfiable "No match"
+    solveBranch t ((Branch ns g c):br) = do
+      thisOne ← openExist ns $ do
+        g ← toDag g
+        thisOne ← catchError
+          (do -- try this branch
+            tcopy ← freshen t
+            g `subsumes` tcopy
+
+            -- no need to try other branches
+            return True
+          )
+          (\_ → return False)
+
+        -- only now we commit the binding
+        if thisOne
+          then do
+            g `unify` t
+            solveFocus c
+            return True
+          else
+            return False
+
+      if not thisOne then do solveBranch t br else return ()
 
 solveFocus _ = throwError (Panic "Not implemented")
 

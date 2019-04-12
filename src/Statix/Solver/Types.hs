@@ -109,6 +109,7 @@ data StatixError
   | StuckError
   | TypeError
   | Panic String
+  | NoMatch
 
 instance Show StatixError where
   show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
@@ -121,6 +122,9 @@ instance HasClashError (STermF s) StatixError where
 
 instance HasCyclicError StatixError where
   cyclicTerm      = Unsatisfiable "Cyclic term"
+
+instance HasSubsumptionError StatixError where
+  doesNotSubsume  = NoMatch
 
 {- STATE -}
 data Solver s = Solver

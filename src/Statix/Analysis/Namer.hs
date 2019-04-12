@@ -44,6 +44,13 @@ checkTerm = hmapM checkT
       p ← resolve x
       return (TVarF p)
 
+checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
+checkBranch (Branch ns g c) = do
+  enters ns $ do
+    g ← checkTerm g
+    c ← checkConstraint c
+    return (Branch ns g c)
+
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
 checkConstraint :: (MonadNamer m) ⇒ Constraint₀ → m Constraint₁
@@ -89,6 +96,10 @@ checkConstraint (CApply n ts)   = do
   qn  ← qualify n
   cts ← mapM checkTerm ts
   return $ CApply qn cts
+checkConstraint (CMatch t br)   = do
+  t  ← checkTerm t
+  br ← mapM checkBranch br
+  return (CMatch t br)
 
 checkPredicate :: (MonadNamer m) ⇒ Predicate₀ → m Predicate₁
 checkPredicate (Pred qn σ body) = do

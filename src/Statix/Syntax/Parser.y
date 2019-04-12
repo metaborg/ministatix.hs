@@ -39,6 +39,7 @@ import Statix.Syntax.Lexer
   '`'       { TokTick }
   '*'       { TokStar }
   '+'       { TokPlus }
+  '|'       { TokBar }
   new       { TokNew }
   arrL      { TokOpenArr }
   arrR      { TokCloseArr }
@@ -53,8 +54,13 @@ import Statix.Syntax.Lexer
   colon     { TokColon }
   period    { TokPeriod }
   rightarrow { TokRightArrow }
+  match     { TokMatch }
 
 %%
+
+Branch     : '{' Names '}' Term rightarrow Constraint { Branch $2 $4 $6 }
+Branches   : Branch { [ $1 ] }
+           | Branches '|' Branch { $3 : $1 }
 
 Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
            | Constraint ',' Constraint	{ CAnd $1 $3 }
@@ -69,6 +75,7 @@ Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
            | every name name Constraint { CEvery $2 $3 $4 }
            | name '(' Terms ')'		{ CApply $1 $3 }
            | '(' Constraint ')'         { $2 }
+           | Term match '{' Branches '}'{ CMatch $1 (reverse $4) }
 
 RegexLit : '`' name          { RMatch (Lab $2) }
          | RegexLit RegexLit { RSeq $1 $2 }
