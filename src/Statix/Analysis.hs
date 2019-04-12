@@ -12,37 +12,58 @@ import Statix.Syntax.Constraint
 
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Types
+import Statix.Analysis.Types.ST
 import Statix.Analysis.Namer
-import Statix.Analysis.Typer
-import Statix.Analysis.Monad
+import Statix.Analysis.Namer.Simple
 
-class (Monad m, MonadTyper (Typer m), MonadNamer (Namer m)) ⇒ MonadAnalysis m where
-  type Typer m :: * → *
-  type Namer m :: * → *
+typecheck :: Ident → [Predicate₀] → SymbolTable → Module
+typecheck modulename mod symab = _
+  do
+  -- initiate the module typing
+  pretype ← modInitialTyping mod
 
-  namer   :: Namer m a → m a
-  typer   :: Typer m a → m a
+  let tyenv = TyEnv
+        { _self = this
+        , _modtable pretype
+        , _symty = symtab
+                    }
+  -- compute the module signature
+  sig ← local tyenv $ do
+    forM mod typecheckPredicate
+    solution
 
-  imports :: Predicate₁ → m ()
+  -- annotate the module with the computed signature
+  case annotateModule sig mod of
+    Just annotated → return annotated
+    Nothing        → throwError $ Panic "Module signature incomplete"
 
-importsMod :: MonadAnalysis m ⇒ Module → m ()
-importsMod mod = mapM_ imports mod
+-- class (Monad m, MonadTyper (Typer m), MonadNamer (Namer m)) ⇒ MonadAnalysis m where
+--   type Typer m :: * → *
+--   type Namer m :: * → *
 
--- | Analyze a constraint
-analyze :: (MonadAnalysis m) ⇒ Constraint₀ → m Constraint₁
-analyze c = do
-  c ← namer $ checkConstraint c
-  typer $ typecheck c
-  return c
+--   namer   :: Namer m a → m a
+--   typer   :: Typer m a → m a
 
--- | Analyze a predicate
-analyzePred :: (MonadAnalysis m) ⇒ Predicate₀ → m Predicate₁
-analyzePred p = do
-  pred ← namer $ checkPredicate p
-  typer $ typecheckPredicate pred
-  return pred
+--   imports :: Predicate₁ → m ()
 
-analyzeModule :: (MonadAnalysis m) ⇒ Ident → [Predicate₀] → m Module
-analyzeModule modname rawmod = do
-  mod ← namer $ checkMod modname rawmod
-  typer $ typecheckModule modname mod
+-- importsMod :: MonadAnalysis m ⇒ Module → m ()
+-- importsMod mod = mapM_ imports mod
+
+-- -- | Analyze a constraint
+-- analyze :: (MonadAnalysis m) ⇒ Constraint₀ → m Constraint₁
+-- analyze c = do
+--   c ← namer $ checkConstraint c
+--   typer $ typecheck c
+--   return c
+
+-- -- | Analyze a predicate
+-- analyzePred :: (MonadAnalysis m) ⇒ Predicate₀ → m Predicate₁
+-- analyzePred p = do
+--   pred ← namer $ checkPredicate p
+--   typer $ typecheckPredicate pred
+--   return pred
+
+-- analyzeModule :: (MonadAnalysis m) ⇒ Ident → [Predicate₀] → m Module
+-- analyzeModule modname rawmod = do
+--   mod ← namer $ checkMod modname rawmod
+--   typer $ typecheckModule modname mod

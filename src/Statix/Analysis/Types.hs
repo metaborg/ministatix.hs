@@ -37,58 +37,38 @@ data TCError
   | Panic String
   deriving (Show)
 
--- | Name checking monad
-type NCM = ReaderT NameContext (Except TCError)
+instance HasClashError (Const Type) TCError where
+  symbolClash l r = TypeError $ "Type mismatch: " ++ show l ++ " != " ++ show r
 
--- | Type checking monad
-type TCM s     =
-  ( ReaderT (TyEnv s)
-  ( StateT Int
-  ( ExceptT TCError
-  ( ST s ))))
-
-type Scope s   = HashMap Ident (TyRef s)
-type TyRef s   = Class s (Const Type) ()
-
-type PreFormals      s = [ (Ident, TyRef s) ]
-type PreModuleTyping s = HashMap Ident (PreFormals s)
-
-data TyEnv s = TyEnv
-  { _self     :: Ident
-  , _modtable :: PreModuleTyping s
-  , _symty    :: SymbolTable
-  , _scopes   :: [Scope s]
-  }
+instance HasCyclicError TCError where
+  cyclicTerm      = Panic "Bug" -- should not occur, since types are non-recursive
 
 data NameContext = NC
   { _qualifier :: Qualifier -- predicate names → qualified
   , _locals    :: [[Ident]] -- local environment
   }
 type Qualifier = HashMap Ident QName
- 
-instance Default (TyEnv s) where
-  def = TyEnv (pack "") HM.empty HM.empty [HM.empty]
 
 instance Default NameContext where
   -- Any namecontext should have at least one scope,
   -- the LexicalM interface ensures that the list of active scopes is never empty
   def = NC HM.empty [[]]
  
-makeLenses ''TyEnv
 makeLenses ''NameContext
 
-runTC :: TyEnv s → Int → TCM s a → ST s (Either TCError (a, Int))
-runTC env i c = do
-  runExceptT $ runStateT (runReaderT c env) i
+type Scope n           = HashMap Ident n
+type PreFormals n      = [ (Ident, n) ]
+type PreModuleTyping n = HashMap Ident (PreFormals n)
+type TyRef s           = Class s (Const Type) ()
 
-runNC :: NameContext → NCM a → Either TCError a
-runNC ctx c = runExcept $ runReaderT c ctx
+data TyEnv n = TyEnv
+  { _self     :: Ident
+  , _modtable :: PreModuleTyping n
+  , _symty    :: SymbolTable
+  , _scopes   :: [Scope n]
+  }
 
-liftST :: ST s a → TCM s a
-liftST = lift . lift . lift
+instance Default (TyEnv n) where
+  def = TyEnv (pack "") HM.empty HM.empty [HM.empty]
 
-liftNC :: NameContext → NCM a → TCM s a
-liftNC ctx c = do
-  case runNC ctx c of
-    Left e  → throwError e
-    Right v → return v
+makeLenses ''TyEnv

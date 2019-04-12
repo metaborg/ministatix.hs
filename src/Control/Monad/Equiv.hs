@@ -1,6 +1,7 @@
 module Control.Monad.Equiv where
 
 import Data.Hashable
+import Control.Monad.Reader
 
 -- A union find interface
 -- TODO investigate if package `equivalence` works as well

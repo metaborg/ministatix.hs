@@ -119,20 +119,36 @@ openExist ns c = do
 checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → SolverM s (Set (SNode s, Label))
 checkCritical ces = cataM check
   where
+    checkTerm n ls = do
+      t ← getSchema n
+      return $ case t of
+        (SNode n) →
+          case ces Map.!? n of
+            Nothing  → Set.empty
+            Just re  →
+              let critics = (\l →
+                               if not $ Re.empty $ match l re
+                               then Set.singleton (n, l)
+                               else Set.empty) <$> (Set.toList ls)
+              in Set.unions critics
+        _ → Set.empty
+
+    checkParam t ty
+      | TNode (In ls)    ← ty = checkTerm t ls
+      | TNode (InOut ls) ← ty = checkTerm t ls
+      | otherwise             = return Set.empty
+
     check (CAndF l r) = return (l `Set.union` r)
     check (CExF xs c) = return c
     check (CEdgeF x l y) = do
-      t₁ ← resolve x >>= getSchema
-      case t₁ of
-        (SNode n) → 
-          case ces Map.!? n of
-            Nothing  → return Set.empty
-            Just re  →
-              if not $ Re.empty $ match l re
-              then return $ Set.singleton (n, l)
-              else return Set.empty
-        _ → return Set.empty
-    check (CApplyF p ts) = return Set.empty -- TODO!
+      t₁ ← resolve x
+      checkTerm t₁ (Set.singleton l)
+    check (CApplyF p ts) = do
+      ts ← mapM toDag ts
+      -- get type information for p
+      formals  ← view (symbols . to (HM.! p) . to sig)
+      critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
+      return $ Set.unions critters
     check _ = return Set.empty
 
 queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
