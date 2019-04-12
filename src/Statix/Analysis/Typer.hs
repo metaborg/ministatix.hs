@@ -32,7 +32,7 @@ import Unification.ST
 class
   ( MonadLex (Ident, n) IPath n m
   , MonadUnify (Const Type) n () TCError m
-  , MonadUnique Int m
+  , MonadUnique Integer m
   , MonadError TCError m
   , MonadReader (TyEnv n) m
   ) ⇒ MonadTyper n m | m → n where
@@ -49,7 +49,7 @@ getFormals qn@(mod, name) = do
     else do
       -- get the type nodes for the formal parameters from the symboltable
       -- and convert to dag
-      binders ← view (symty . to (HM.! qn) . to sig)
+      binders ← view (symty . to (HM.! (fst qn)) . to (HM.! (snd qn)) . to sig)
       mapM (\(name, σ) → do n ← construct (Tm $ Const σ); return (name , n)) binders
 
 -- | Get the arity of a predicate
@@ -65,7 +65,10 @@ checkArity c@(CApplyF qn ts) = do
     else return ()
 checkArity c = return ()
 
-predInitialTyping :: (MonadTyper n m) ⇒ Predicate₁ → m (PreFormals n)
+predInitialTyping ::
+  ( MonadUnique Integer m
+  , MonadEquiv n m (Rep n (Const Type) ())
+  ) ⇒ Predicate₁ → m (PreFormals n)
 predInitialTyping p = do
   let (_, name) = qname p
   let formals   = sig p
@@ -74,7 +77,10 @@ predInitialTyping p = do
     v ← freshVar ()
     return (n, v)
 
-modInitialTyping :: (MonadTyper n m) ⇒ Module → m (PreModuleTyping n)
+modInitialTyping ::
+  ( MonadUnique Integer m
+  , MonadEquiv n m (Rep n (Const Type) ())
+  ) ⇒ Module → m (PreModuleTyping n)
 modInitialTyping mod = forM mod predInitialTyping
 
 -- | Convert a type node from the unification dag to a ground type

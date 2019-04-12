@@ -1,4 +1,4 @@
-module Statix.Analyis.Typer.ST where
+module Statix.Analysis.Typer.ST where
 
 import Data.Default
 import Data.HashMap.Strict as HM
@@ -26,11 +26,11 @@ import Unification.ST
 -- | Type checking monad
 type TCM s =
   ( ReaderT (TyEnv (TyRef s))
-  ( StateT Int
+  ( StateT Integer
   ( ExceptT TCError
   ( ST s ))))
 
-runTC :: TyEnv (TyRef s) → Int → TCM s a → ST s (Either TCError (a, Int))
+runTC :: TyEnv (TyRef s) → Integer → TCM s a → ST s (Either TCError (a, Integer))
 runTC env i c = do
   runExceptT $ runStateT (runReaderT c env) i
 
@@ -44,11 +44,8 @@ instance MonadEquiv (TyRef s) (TCM s) (Rep (TyRef s) (Const Type) ()) where
   modifyDesc c f  = liftST $ modifyDesc c f
   unionWith c d f = liftST $ Equiv.unionWith c d f
 
-instance MonadUnique Int (TCM s) where
-  fresh = do
-    id ← get 
-    modify (+1) 
-    return id
+instance MonadUnique Integer (TCM s) where
+  fresh = lift fresh
 
 instance MonadLex (Ident, TyRef s) IPath (TyRef s) (TCM s) where
   enter = local (over scopes (HM.empty:))

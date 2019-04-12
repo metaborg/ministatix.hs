@@ -89,26 +89,3 @@ checkPredicate (Pred qn σ body) = do
   enters (fmap fst σ) $ do
     body' ← checkConstraint body
     return (Pred qn σ body')
-
--- | Compute the signature of a module if it is consistent.
-checkMod :: (MonadNamer m) ⇒ Ident → [Predicate₀] → m Module
-checkMod mname m = do
-  -- collect signatures and bind them in the context
-  ps      ← execStateT (mapM_ collect m) HM.empty
-  let ctx = HM.mapWithKey (\k _ → (mname, k)) ps
-
-  -- check predicates for wellboundness of applications
-  local (\_ → set qualifier ctx def) $ do
-    qps ← mapM checkPredicate ps
-    return $ qps
-
-  where
-    -- | Collect a signature from a raw Predicate.
-    -- Checks against duplicate definitions.
-    collect :: (MonadNamer m) ⇒ Predicate₀ → StateT (HashMap Ident Predicate₀) m ()
-    collect p = do
-      let name = snd $ qname p
-      bound ← gets (member name)
-      if bound
-        then throwError $ DuplicatePredicate name
-        else modify (HM.insert name p)

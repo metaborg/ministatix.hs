@@ -1,7 +1,8 @@
+{-# LANGUAGE UndecidableInstances #-}
 module Control.Monad.Equiv where
 
 import Data.Hashable
-import Control.Monad.Reader
+import Control.Monad.State
 
 -- A union find interface
 -- TODO investigate if package `equivalence` works as well
@@ -27,3 +28,11 @@ class (Eq n, Monad m) ⇒ MonadEquiv n m d | n m → d
 
 union :: MonadEquiv n m d ⇒ n → n → m ()
 union n n' = unionWith n n' (\_ d → d)
+
+instance (MonadEquiv n m d) ⇒ MonadEquiv n (StateT r m) d where
+  newClass    = lift . newClass
+  repr        = lift . repr
+  description = lift . description
+  modifyDesc n f = lift (modifyDesc n f)
+  unionWith n m f = lift (unionWith n m f)
+  

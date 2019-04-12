@@ -10,7 +10,7 @@ import Statix.Syntax.Constraint
 type Module       = HashMap Ident Predicate₁
 type ModuleSig    = HashMap Ident Signature
 
-type SymbolTable  = HashMap QName Predicate₁
+type SymbolTable  = HashMap Ident Module
 
 -- | Annotate a module with a signature.
 -- Fails if the module signature misses entries

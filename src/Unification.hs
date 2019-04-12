@@ -44,14 +44,14 @@ class HasCyclicError e where
 
 -- | Construct a dag from the tree representation where variables are
 -- already node references; i.e. convert one layer of term structure.
-construct :: (MonadUnique Int m, MonadEquiv n m (Rep n f v)) ⇒ STmF f n n → m n
+construct :: (MonadUnique Integer m, MonadEquiv n m (Rep n f v)) ⇒ STmF f n n → m n
 construct (Var n) = return n
 construct (Tm tm) = do
   id  ← fresh
   c   ← newClass (Rep (Tm tm) id)
   return c
 
-freshVar :: (MonadUnique Int m, MonadEquiv n m (Rep n f v)) ⇒ v → m n
+freshVar :: (MonadUnique Integer m, MonadEquiv n m (Rep n f v)) ⇒ v → m n
 freshVar v = do
   id ← fresh
   newClass (Rep (Var v) id) 
@@ -99,8 +99,8 @@ closure s t = do
               return s
 
 data VisitState = Visitor
-  { visited :: HashSet Int
-  , acyclic :: HashSet Int
+  { visited :: HashSet Integer
+  , acyclic :: HashSet Integer
   }
 
 instance Default VisitState where
@@ -109,7 +109,7 @@ instance Default VisitState where
 -- | Equivalence class representatives
 data Rep n f v = Rep
   { schema :: Dag n f v
-  , repId  :: Int }
+  , repId  :: Integer }
 
 class
   ( Unifiable f
