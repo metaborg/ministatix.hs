@@ -52,6 +52,7 @@ import Statix.Syntax.Lexer
   leftarrow { TokLeftArrow }
   colon     { TokColon }
   period    { TokPeriod }
+  rightarrow { TokRightArrow }
 
 %%
 
@@ -61,6 +62,7 @@ Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
            | true			{ CTrue }
            | false			{ CFalse }
            | new name			{ CNew $2 }
+           | name rightarrow Term	{ CData $1 $3 }
            | name arrL name arrR name   { CEdge $1 (Lab $3) $5 }
            | query name Regex as name	{ CQuery $2 $3 $5 }
            | one  '(' name ',' Term ')' { COne $3 $5 }

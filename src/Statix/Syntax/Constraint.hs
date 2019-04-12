@@ -57,6 +57,7 @@ data ConstraintF p ℓ t r
   | CEqF t t
   | CExF [Ident] r
   | CNewF ℓ
+  | CDataF ℓ t
   | CEdgeF ℓ Label ℓ
   | CQueryF ℓ (Regex Label) ℓ
   | COneF ℓ t
@@ -72,6 +73,7 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (CEqF t₁ t₂) = show t₁ ++ " = " ++ show t₂
   show (CExF ns c) = "∃ " ++ intercalate ", " (fmap show ns) ++ ". " ++ show c
   show (CNewF t)  = "∇ (" ++ show t ++ ")"
+  show (CDataF l t)  = show l ++ " ↦ " ++ show t
   show (CEdgeF t l t') = show t ++ "─⟨ " ++ show l ++ " ⟩⟶" ++ show t'
   show (CQueryF t r s) = show t ++ "(" ++ show r ++ ")" ++ show s
   show (COneF x t) = "one(" ++ show x ++ "," ++ show t ++ ")"
@@ -85,6 +87,7 @@ tmapc_ f (CTrueF)         = CTrue
 tmapc_ f (CFalseF)        = CFalse
 tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
 tmapc_ f (CNewF n)        = CNew n
+tmapc_ f (CDataF l t)     = CData l (f t)
 tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ l n₂
 tmapc_ f (CAndF c d)      = CAnd c d
 tmapc_ f (CExF ns c)      = CEx ns c
@@ -177,6 +180,7 @@ pattern CAnd l r      = Fix (CAndF l r)
 pattern CEq l r       = Fix (CEqF l r)
 pattern CEx ns c      = Fix (CExF ns c)
 pattern CNew t        = Fix (CNewF t)
+pattern CData x t     = Fix (CDataF x t)
 pattern CEdge n l m   = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t      = Fix (COneF x t)

@@ -99,11 +99,11 @@ printSolution solution =
       setSGR [SetColor Foreground Dull Green]
       putStrLn "  ⟨✓⟩ Satisfiable"
       setSGR [SetColor Foreground Vivid White]
-      putStrLn "  ♯ Unifier"
+      putStrLn "  ⟪ Unifier ⟫"
       setSGR [Reset]
       putStrLn φ
       setSGR [SetColor Foreground Vivid White]
-      putStrLn "  ♯ Graph"
+      putStrLn "  ⟪ Graph ⟫"
       setSGR [Reset]
       print g
       setSGR [Reset]

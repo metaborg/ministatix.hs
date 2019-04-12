@@ -137,6 +137,10 @@ typeAnalysis (CNew n)       = do
   n  ← resolve n
   m  ← construct (Tm (Const (TNode Out)))
   void $ unify n m
+typeAnalysis (CData x t)       = do
+  n  ← resolve x
+  m  ← construct (Tm (Const (TNode None)))
+  void $ unify n m
 typeAnalysis (CQuery n r x) = do
   n  ← resolve n
   n' ← construct (Tm (Const (TNode None)))

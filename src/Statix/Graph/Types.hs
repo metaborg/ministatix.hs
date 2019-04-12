@@ -16,6 +16,7 @@ class (Monad m, Eq l, Ord n) => MonadGraph n l d m | m -> n l d where
   newNode  :: Maybe d -> m n
   newEdge  :: (n, l, n) → m ()
   getDatum :: n → m (Maybe d)
+  setDatum :: n → d → m ()
   getOutEdges :: n → m [(l, n)]
 
 -- | Find reachable nodes in the graph over a regex.

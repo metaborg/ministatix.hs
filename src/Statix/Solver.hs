@@ -253,6 +253,26 @@ solveFocus c@(COne x t) = do
     t →
       throwError TypeError
 
+solveFocus c@(CData x t) = do
+  x ← resolve x >>= getSchema
+
+  -- check if sufficiently ground
+  case x of
+    (SNode n) → do
+      t' ← getDatum n
+      t  ← toDag t
+
+      -- check if a datum is already associated
+      -- with the node
+      case t' of
+        Nothing →
+          setDatum n t
+        Just t' → do
+          unify t t'
+          next
+    (U.Var x) → delay c
+    _         → throwError TypeError
+
 solveFocus c@(CEvery x y c') = do
   ans ← resolve y >>= getSchema
   case ans of
@@ -299,7 +319,7 @@ formatUnifier fr =
     formatBinding (k , t) = "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
 
 -- | Construct a solver for a raw constraint
-kick :: SymbolTable → Constraint₁ → (forall s. SolverM s (String, IntGraph Label ()))
+kick :: SymbolTable → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))
 kick sym c =
   -- convert the raw constraint to the internal representatio
   local (\_ → set symbols sym def) $ do
@@ -317,7 +337,7 @@ kick sym c =
   -- | The solver loop just continuously checks the work queue,
   -- steals an item and focuses it down, until nothing remains.
   -- When the work is done it grounds the solution and returns it.
-  loop :: SolverM s (String, IntGraph Label ())
+  loop :: SolverM s (String, IntGraph Label String)
   loop = do
     st ← get
     c  ← popGoal
@@ -329,8 +349,9 @@ kick sym c =
         -- done, gather up the solution (graph and top-level unifier)
         graph ← use graph
         graph ← liftST $ toIntGraph graph
+        graph ← forM graph (\n → show <$> toTree n)
         φ     ← unifier
-        return (formatUnifier φ, void graph)
+        return (formatUnifier φ, graph)
 
 -- | Construct and run a solver for a constraint
 solve :: SymbolTable → Constraint₁ → Solution

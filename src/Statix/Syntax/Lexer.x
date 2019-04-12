@@ -27,6 +27,7 @@ tokens :-
 
   ":-"                                  { const TokLeftArrow }
   "<-"                                  { const TokLeftArrow }
+  "->"                                  { const TokRightArrow }
   ":"                                   { const TokColon }
   "-["                                  { const TokOpenArr }
   "]->"                                 { const TokCloseArr }
@@ -76,6 +77,7 @@ data Token
   | TokLeftArrow
   | TokColon
   | TokPeriod
+  | TokRightArrow
   deriving Show
  
 

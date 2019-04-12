@@ -29,17 +29,17 @@ data IntGraphNode l d = IntNode
   { id    :: Int
   , edges :: [IntGraphEdge l]
   , datum :: Maybe d
-  }
+  } deriving (Foldable, Traversable)
 
 newtype IntGraph l d = IntGraph (IntMap (IntGraphNode l d))
-  deriving (Functor)
+  deriving (Functor, Foldable, Traversable)
 
-instance Show l ⇒ Show (IntGraphEdge l) where
+instance (Show l) ⇒ Show (IntGraphEdge l) where
   show (IntEdge l i) = "─⟨ " ++ show l ++ " ⟩⟶ " ++ show i
 
-instance (Show l) ⇒ Show (IntGraphNode l d) where
+instance (Show d, Show l) ⇒ Show (IntGraphNode l d) where
   show (IntNode i es d) =
-    "∇ (" ++ (show i) ++ ")"
+    "∇ (" ++ (show i) ++ ")" ++ " ──■ " ++ show d
     ++ concatMap (\e → "\n    " ++ show e) es
 
 instance (Show l, Show d) ⇒ Show (IntGraph l d) where

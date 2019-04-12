@@ -29,7 +29,7 @@ import Unification
 import Unification.ST
 
 -- | Graph node references in ST 
-type SNode s = STNodeRef s Label (SDag s)
+type SNode s = STNodeRef s Label (STmRef s)
 
 -- | Graph paths in ST
 type SPath s = Graph.Path (SNode s) Label
@@ -38,7 +38,6 @@ type SPath s = Graph.Path (SNode s) Label
 type VarInfo = Text
 
 -- | Solver DAG in ST
-type SDag s   = Dag (STmRef s) (STermF s) VarInfo
 type STmRef s = Class s (STermF s) VarInfo
 
 -- | Solver terms
@@ -127,7 +126,7 @@ instance HasCyclicError StatixError where
 data Solver s = Solver
   { _queue      :: Seq.Seq (Goal s)
   , _nextFresh  :: Integer
-  , _graph      :: STGraph s Label (SDag s)
+  , _graph      :: STGraph s Label (STmRef s)
   , _generation :: SGen
   }
 
@@ -146,6 +145,6 @@ type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s))
 type Goal s    = (Env s, Constraint₁, SGen)
 
 -- | (ST-less) solution to a constraint program
-type Solution = Either StatixError (String, IntGraph Label ())
+type Solution = Either StatixError (String, IntGraph Label String)
 
 makeLenses ''Solver

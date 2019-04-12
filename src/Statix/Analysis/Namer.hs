@@ -64,6 +64,10 @@ checkConstraint (CEx ns c)      = do
 checkConstraint (CNew x)        = do
   p ← resolve x
   return (CNew p)
+checkConstraint (CData x t)        = do
+  p ← resolve x
+  t ← checkTerm t
+  return (CData p t)
 checkConstraint (CEdge x l y)   = do
   p ← resolve x
   q ← resolve y

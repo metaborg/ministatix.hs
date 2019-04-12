@@ -33,7 +33,7 @@ import Statix.Graph.Types
 import Statix.Graph.Paths
 
 -- | The SolverM type implement the graph manipulation operations
-instance MonadGraph (SNode s) Label (SDag s) (SolverM s) where
+instance MonadGraph (SNode s) Label (STmRef s) (SolverM s) where
 
   newNode d = do
     ni ← fresh :: SolverM s Integer
@@ -48,6 +48,9 @@ instance MonadGraph (SNode s) Label (SDag s) (SolverM s) where
   getDatum (STNRef i r) = do
     STNData _ d ← liftST (readSTRef r)
     return d
+
+  setDatum (STNRef i r) d = do
+    liftST $ modifySTRef r (\case STNData es _ → STNData es (Just d))
 
   getOutEdges (STNRef _ r) = do
     STNData es _ ← liftST (readSTRef r)
