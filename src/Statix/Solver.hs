@@ -330,7 +330,7 @@ kick sym c =
         graph ← use graph
         graph ← liftST $ toIntGraph graph
         φ     ← unifier
-        return (show φ, void graph)
+        return (formatUnifier φ, void graph)
 
 -- | Construct and run a solver for a constraint
 solve :: SymbolTable → Constraint₁ → Solution
