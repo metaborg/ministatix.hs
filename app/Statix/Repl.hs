@@ -205,7 +205,7 @@ handler κ (Type pred) = do
       Text.unpack pred
         ++ " :: "
         ++ (intercalate " → "
-            (fmap (\(n,t) → "(" ++ Text.unpack n ++ " : " ++ show t ++ ")") $ sig p))
+            (fmap (\(n,t) → "(" ++ Text.unpack n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
         ++ " → Constraint"
     Nothing → liftIO $ putStrLn $ "No predicate named: " ++ Text.unpack pred
 
