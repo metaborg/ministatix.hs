@@ -200,7 +200,7 @@ handler κ (Type pred) = do
   symtab ← use globals
   let q = importsQualifier imps symtab
 
-  case (\(m, n) → (symtab HM.! m) HM.! n) <$> HM.lookup pred q of
+  case (symtab !!!) <$> HM.lookup pred q of
     Just p  → liftIO $ putStrLn $
       Text.unpack pred
         ++ " :: "

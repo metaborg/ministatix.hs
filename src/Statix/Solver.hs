@@ -143,10 +143,10 @@ checkCritical ces = cataM check
     check (CEdgeF x l y) = do
       t₁ ← resolve x
       checkTerm t₁ (Set.singleton l)
-    check (CApplyF (m,p) ts) = do
+    check (CApplyF qn ts) = do
       ts ← mapM toDag ts
       -- get type information for p
-      formals  ← view (symbols . to (HM.! m) . to (HM.! p) . to sig)
+      formals  ← view (symbols . to (!!! qn) . to sig)
       critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
       return $ Set.unions critters
     check _ = return Set.empty

@@ -12,6 +12,12 @@ type ModuleSig    = HashMap Ident Signature
 
 type SymbolTable  = HashMap Ident Module
 
+(!!!) :: SymbolTable → QName → Predicate₁
+symtab !!! (mod,pred) = symtab HM.! mod HM.! pred
+
+(!?!) :: SymbolTable → QName → Maybe Predicate₁
+symtab !?! (mod,pred) = HM.lookup mod symtab >>= HM.lookup pred
+
 -- | Annotate a module with a signature.
 -- Fails if the module signature misses entries
 annotateModule :: ModuleSig → Module → Maybe Module

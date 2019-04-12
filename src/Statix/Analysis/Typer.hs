@@ -49,7 +49,7 @@ getFormals qn@(mod, name) = do
     else do
       -- get the type nodes for the formal parameters from the symboltable
       -- and convert to dag
-      binders ← view (symty . to (HM.! (fst qn)) . to (HM.! (snd qn)) . to sig)
+      binders ← view (symty . to (!!! qn) . to sig)
       mapM (\(name, σ) → do n ← construct (Tm $ Const σ); return (name , n)) binders
 
 -- | Get the arity of a predicate

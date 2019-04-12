@@ -25,6 +25,7 @@ import Unification as U
 import Unification.ST
 
 import Statix.Analysis.Lexical as Lex
+import Statix.Analysis.Symboltable
 import Statix.Syntax.Constraint
 import Statix.Solver.Types
 import Statix.Graph
@@ -96,7 +97,7 @@ instance MonadUnique Integer (SolverM s) where
 instance MonadUnify (STermF s) (STmRef s) VarInfo StatixError (SolverM s)
 
 getPredicate :: (MonadReader (Env s) m) ⇒ QName → m Predicate₁
-getPredicate qn = view (symbols . to (HM.! (fst qn)) . to (HM.! (snd qn)))
+getPredicate qn = view (symbols . to (!!! qn))
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a
