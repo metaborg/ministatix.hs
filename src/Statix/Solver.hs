@@ -232,7 +232,6 @@ solveFocus c@(CQuery x r y) = do
         next
       else do
         delay (trace "Delaying query" c)
-        next
 
     (U.Var _) → delay c
     _         → throwError TypeError

@@ -5,6 +5,7 @@ import System.Console.ANSI
 import System.Directory
 import System.FilePath
 import System.Console.Haskeline
+import System.Console.Haskeline.History
 import System.Exit
 
 import Data.Default
@@ -65,7 +66,7 @@ main :: Getting Text.Text REPLState Text.Text
 main = gen . (to $ \g → "main" ++ show g) . to Text.pack
 
 runREPL :: SymbolTable → REPL a → IO a
-runREPL sym c = runInputT defaultSettings $ evalStateT c (REPLState sym 0 [] 0)
+runREPL sym c = runInputT (defaultSettings { historyFile = Just ".statix" }) $ evalStateT c (REPLState sym 0 [] 0)
 
 instance MonadUnique Integer REPL where
   fresh = do

@@ -45,7 +45,8 @@ instance MonadEquiv (TyRef s) (TCM s) (Rep (TyRef s) (Const Type) ()) where
   unionWith c d f = liftST $ Equiv.unionWith c d f
 
 instance MonadUnique Integer (TCM s) where
-  fresh = lift fresh
+  fresh      = lift fresh
+  updateSeed = lift . updateSeed
 
 instance MonadLex (Ident, TyRef s) IPath (TyRef s) (TCM s) where
   enter = local (over scopes (HM.empty:))
