@@ -174,7 +174,6 @@ typecheckConstraint c = do
 
 typecheckPredicate :: (MonadTyper n m) ⇒ Predicate₁ → m ()
 typecheckPredicate p = do
-  let ns = fmap fst (sig p)
-  bs ← mapM mkBinder ns
+  bs ← getFormals (qname p)
   enters bs $ do
     void $ typecheckConstraint (body p)

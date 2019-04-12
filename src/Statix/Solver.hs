@@ -147,7 +147,7 @@ checkCritical ces = cataM check
       ts ← mapM toDag ts
       -- get type information for p
       formals  ← view (symbols . to (HM.! m) . to (HM.! p) . to sig)
-      critters ← zipWithM (\t (_,ty) → checkParam t ty) ts (traceShowId formals)
+      critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
       return $ Set.unions critters
     check _ = return Set.empty
 
