@@ -72,3 +72,12 @@ instance Default (TyEnv n) where
   def = TyEnv (pack "") HM.empty HM.empty [HM.empty]
 
 makeLenses ''TyEnv
+
+-- | Compute a qualifier for a module
+moduleQualifier :: Module → Qualifier
+moduleQualifier = fmap qname
+
+-- | Compute a qualifier for an import list.
+-- Precedence is from high to low
+importsQualifier :: [Ident] → SymbolTable → Qualifier
+importsQualifier imps symtab = HM.unions (fmap (moduleQualifier . (symtab HM.!) ) imps)

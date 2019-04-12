@@ -25,6 +25,8 @@ import Control.Monad.Equiv as Equiv
 import Unification
 import Unification.ST
 
+import Debug.Trace
+
 import Statix.Syntax.Parser
 import Statix.Syntax.Lexer
 import Statix.Syntax.Constraint
@@ -34,6 +36,7 @@ import Statix.Solver.Types
 
 import Statix.Analysis.Types hiding (self)
 import Statix.Analysis.Typer
+import Statix.Analysis.Namer
 import Statix.Analysis.Symboltable
 import Statix.Analysis
 
@@ -42,73 +45,42 @@ import Statix.Repl.Errors
 
 -- | The REPL Monad.
 type REPL =
-  ( ReaderT REPLEnv
   ( StateT REPLState
-  ( InputT IO )))
+  ( InputT IO ))
 
 data REPLState = REPLState
   { _globals :: SymbolTable
-  , _freshId :: Int
+  , _freshId :: Integer
+  , _imports :: [Ident]
+  , _gen     :: Integer
   }
 
-data REPLEnv = REPLEnv
-  { _lexical :: NameContext
-  , _typing  :: PreModuleTyping RealWorld
-  , _self    :: Ident
-  }
-
-makeLenses ''REPLEnv
 makeLenses ''REPLState
 
-runREPL :: NameContext → SymbolTable → REPL a → IO a
-runREPL ctx sym c =
-  let replmod = (Text.pack "repl") in
-    runInputT defaultSettings $
-    evalStateT (runReaderT c (REPLEnv ctx HM.empty replmod)) (REPLState sym 0)
+-- | The module name for the current generation of the REPL
+self :: Getting Text.Text REPLState Text.Text
+self = gen . (to $ \g → "repl-" ++ show g) . to Text.pack
 
-instance MonadUnique Int REPL where
+main :: Getting Text.Text REPLState Text.Text
+main = gen . (to $ \g → "main" ++ show g) . to Text.pack
+
+runREPL :: SymbolTable → REPL a → IO a
+runREPL sym c = runInputT defaultSettings $ evalStateT c (REPLState sym 0 [] 0)
+
+instance MonadUnique Integer REPL where
   fresh = do
     i ← use freshId
     freshId %= (+1)
     return i
 
-instance (Unifiable f) ⇒ MonadEquiv (Class RealWorld f v) REPL (Rep (Class RealWorld f v) f v) where
-  newClass         = liftIO . stToIO . newClass
-  repr             = liftIO . stToIO . repr
-  description      = liftIO . stToIO . description
-  modifyDesc c     = liftIO . stToIO . modifyDesc c
-  unionWith n n' f = liftIO $ stToIO $ Equiv.unionWith n n' f
-
-instance MonadAnalysis REPL where
-  type Typer REPL = TCM RealWorld
-  type Namer REPL = NCM
-
-  imports p = do
-    modify (over globals (HM.insert (qname p) p))
-    
-  namer c = do
-    ctx ← view lexical
-    let a = runNC ctx c
-    handleErrors a
-
-  typer c = do
-    (REPLEnv _ pt self)  ← ask
-    (REPLState symtab i) ← get
-
-    let st = runTC (def { _self = self, _modtable = pt, _symty = symtab}) i c
-    (a, i') ← (liftIO $ stToIO st) >>= handleErrors
-
-    -- ensure that the fresh names remain fresh
-    modify (set freshId i')
-
-    return a
+  updateSeed i = modify (set freshId i)
 
 liftParser :: Text.Text → ParserM a → REPL a
 liftParser mod c = handleErrors $ runParser mod c
 
 prompt :: REPL Cmd
 prompt = do
-  cmd ← lift $ lift $ getInputLine "► "
+  cmd ← lift $ getInputLine "► "
   case cmd of
     Nothing  → prompt
     Just cmd → handleErrors (readEither cmd)
@@ -134,10 +106,15 @@ printSolution solution =
       print g
       setSGR [Reset]
 
-handleErrors :: (Show e, ReplError e) ⇒ Either e a → REPL a
+withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a
+withErrors c = do
+  err ← runExceptT c
+  handleErrors err
+
+handleErrors :: (ReplError e) ⇒ Either e a → REPL a
 handleErrors (Right a)  = return a
 handleErrors (Left err) = do
-  liftIO $ putStrLn $ show err
+  liftIO $ report err
   loop
 
 reportImports :: Module → IO ()
@@ -149,18 +126,28 @@ reportImports mod = do
   -- putStrLn $ showModuleContent mod
   -- putStrLn ""
 
+importMod :: Ident → Module → REPL ()
+importMod i mod = do
+  modify (over imports (i:))
+  modify (over globals (HM.insert i mod))
+
 handler :: REPL a → Cmd → REPL a
 handler κ (Main rawc) = do
-  this ← view self
+  main   ← use main
+  this   ← use self
+  imps   ← use imports
+  symtab ← use globals
 
-  -- interpreter pipeline for a single constraint
+  -- parse and analyze the constraint as a singleton module
   toks     ← handleErrors $ lexer rawc
-  c        ← liftParser this $ (parseConstraint toks)
-  c        ← analyze c
-  symtab   ← use globals
+  c        ← liftParser this $ (parseConstraint toks) 
+  mod      ← withErrors $ analyze this imps symtab [Pred (this, main) [] c]
 
-  -- run the solver
-  let solution = solve symtab c
+  -- import the module
+  importMod this mod
+  modify (over gen (+1))
+
+  let solution = solve symtab (body $ mod HM.! main)
 
   -- output solution
   liftIO $ putStrLn ""
@@ -170,39 +157,42 @@ handler κ (Main rawc) = do
   loop
 
 handler κ (Define p) = do
-  this  ← view self
+  this   ← use self
+  imps   ← use imports
+  symtab ← use globals
+
   toks  ← handleErrors $ lexer p
   pr    ← liftParser this (parsePredicate toks)
-  ctx   ← ask
-  prty  ← analyzePred pr
-  let qn = qname prty
+  mod   ← withErrors $ analyze this imps symtab [pr]
 
-  -- update the lexical context
-  local (over (lexical.qualifier) (HM.insert (snd qn) (qn)))
-    loop
+  -- import the predicate into the symboltable
+  importMod this mod
+  modify (over gen (+1))
+
+  -- rinse and repeat
+  loop
 
 handler κ (Import file) = do
   here     ← liftIO getCurrentDirectory
   let path = here </> file
   content  ← liftIO $ readFile path
-  let modname = Text.pack $ takeBaseName file
+  let modname = Text.pack file
+
+  symtab ← use globals
 
   -- parse the module
   toks   ← handleErrors $ lexer content
   rawmod ← liftParser modname $ parseModule $ toks
 
   -- Typecheck the module
-  mod ← analyzeModule modname rawmod
+  mod ← withErrors $ analyze modname [] symtab rawmod
 
   -- Import the typechecked module into the symboltable
-  let qnames = fmap qname mod
-  importsMod mod
+  importMod modname mod
 
-  -- update the qualifier and the symboltable
-  local (over (lexical . qualifier) (HM.union qnames))
-    loop
+  -- rinse and repeat
+  loop
 
-  where
 handler κ Help = do
   liftIO $ putStrLn $ helpText
   loop
@@ -225,7 +215,7 @@ loop = do
 repl :: IO ()
 repl = do
   liftIO $ putStrLn "Ministatix 0.1 (type :help for help)"
-  runREPL def HM.empty loop
+  runREPL HM.empty loop
  
 helpText :: String
 helpText = unlines [

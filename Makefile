@@ -1,32 +1,31 @@
-STACK      ?= stack
-SETUP_ARGS ?=
-BUILD_ARGS ?=
-EXEC_ARGS  ?=
-TEST_ARGS  ?=
-DOC_ARGS   ?= --keep-going --open
-CLEAN_ARGS ?= --full
-ARGS       ?= --verbosity=warn
+STACK       ?= stack
+SETUP_FLAGS ?=
+BUILD_FLAGS ?=
+EXEC_FLAGS  ?=
+TEST_FLAGS  ?=
+DOC_FLAGS   ?= --keep-going --open
+CLEAN_FLAGS ?= --full
+FLAGS       ?= --verbosity=warn
 
 all: build
 
 setup:
-	${STACK} setup ${SETUP_ARGS} ${ARGS}
+	$(STACK) setup $(SETUP_FLAGS) $(FLAGS)
 
 build: setup
-	${STACK} build ${BUILD_ARGS} ${ARGS}
+	$(STACK) build $(BUILD_FLAGS) $(FLAGS)
 
-run: exe
-exe: build
-	${STACK} exec statix-exe ${EXEC_ARGS} ${ARGS}
+run: build
+	$(STACK) exec statix-exe $(EXEC_FLAGS) $(FLAGS)
 
 test: build
-	${STACK} test ${TEST_ARGS} ${ARGS}
+	$(STACK) test $(TEST_FLAGS) $(FLAGS)
 
 doc:
-	${STACK} haddock ${DOC_ARGS} ${ARGS}
+	$(STACK) haddock $(DOC_FLAGS) $(FLAGS)
 
 clean:
-	${STACK} clean ${CLEAN_ARGS} ${ARGS}
+	$(STACK) clean $(CLEAN_FLAGS) $(FLAGS)
 	-rm statix.cabal
 
 .PHONY: all setup build run exe test doc clean

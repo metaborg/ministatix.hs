@@ -10,6 +10,7 @@ import Data.STRef
 import Data.Coerce
 import Data.Text
 import Data.Default
+import Data.Hashable
 import Debug.Trace
 
 import Control.Lens
@@ -34,9 +35,9 @@ import Statix.Graph.Paths
 instance MonadGraph (SNode s) Label (SDag s) (SolverM s) where
 
   newNode d = do
-    ni ← fresh
+    ni ← fresh :: SolverM s Integer
     nr ← liftST $ newSTRef (STNData [] d)
-    let node = STNRef ni nr
+    let node = STNRef (hash ni) nr
     graph %= (node:)
     return node
 
@@ -84,16 +85,18 @@ instance MonadEquiv (STmRef s) (SolverM s) (Rep (STmRef s) (STermF s) VarInfo) w
   unionWith c c' f = liftST $ Equiv.unionWith c c' f
   repr c         = liftST $ repr c
 
-instance MonadUnique Int (SolverM s) where
+instance MonadUnique Integer (SolverM s) where
   fresh = do
     n ← use nextFresh
     nextFresh %= (+1)
     return n
 
+  updateSeed i = modify (set nextFresh i)
+
 instance MonadUnify (STermF s) (STmRef s) VarInfo StatixError (SolverM s)
 
 getPredicate :: (MonadReader (Env s) m) ⇒ QName → m Predicate₁
-getPredicate qn = view (symbols . to (HM.! qn))
+getPredicate qn = view (symbols . to (HM.! (fst qn)) . to (HM.! (snd qn)))
 
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → Either StatixError a

@@ -3,7 +3,7 @@ module Main where
 import Data.Map.Strict
 import Control.Monad.State
 
-import Statix.Repl
+import qualified Statix.Repl as Repl
 
 main :: IO ()
-main = repl
+main = Repl.repl

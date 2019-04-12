@@ -17,6 +17,8 @@ import Statix.Analysis.Types
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 
+import Debug.Trace
+
 class
   ( MonadLex Ident Ident IPath m
   , MonadError TCError m

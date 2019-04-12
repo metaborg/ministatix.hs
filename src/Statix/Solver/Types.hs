@@ -126,7 +126,7 @@ instance HasCyclicError StatixError where
 {- STATE -}
 data Solver s = Solver
   { _queue      :: Seq.Seq (Goal s)
-  , _nextFresh  :: Int
+  , _nextFresh  :: Integer
   , _graph      :: STGraph s Label (SDag s)
   , _generation :: SGen
   }

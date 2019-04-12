@@ -25,13 +25,10 @@ namecheck mname q defs = do
   -- collect signatures and bind them in the context,
   -- because modules are defined as a big mutual block
   mod ← execStateT (mapM_ collect defs) HM.empty
-  let q = q `HM.union` (HM.mapWithKey (\k _ → (mname, k)) mod)
+  let q' = q `HM.union` (HM.mapWithKey (\k _ → (mname, k)) mod)
 
   -- namecheck it
-  liftEither $
-    runNC
-      (set qualifier q def)
-      (mapM checkPredicate mod)
+  liftEither $ runNC (set qualifier q' def) (mapM checkPredicate mod)
 
   where
     -- | Collect a signature from a raw Predicate.
@@ -68,25 +65,16 @@ typecheck this mod symtab = do
           Just annotated → return annotated
           Nothing        → throwError $ Panic "Module signature incomplete"
 
--- | Compute a qualifier for a module
-moduleQualifier :: Module → Qualifier
-moduleQualifier = fmap qname
-
--- | Compute a qualifier for an import list.
--- Precedence is from low to high.
-importsQualifier :: [Ident] → SymbolTable → Qualifier
-importsQualifier imps symtab = HM.unions (fmap (moduleQualifier . (symtab HM.!) ) imps)
-
 analyze ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ Ident → [Ident] → [Predicate₀] → SymbolTable → m Module
-analyze name imports defs symtab = do
+  ) ⇒ Ident → [Ident] → SymbolTable → [Predicate₀] → m Module
+analyze name imports symtab defs = do
   -- first construct the initial context from the import list
   let q = importsQualifier imports symtab
 
   -- namecheck the module
-  mod ← namecheck name q defs
+  mod ← namecheck name (q) defs
 
   -- typecheck the module and compute a symboltable for it
   typecheck name mod symtab 
