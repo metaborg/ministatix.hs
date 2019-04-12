@@ -231,7 +231,7 @@ solveFocus c@(CQuery x r y) = do
         unify b ansRef
         next
       else do
-        delay (trace "Delaying query" c)
+        delay c
 
     (U.Var _) → delay c
     _         → throwError TypeError
