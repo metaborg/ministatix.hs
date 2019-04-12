@@ -12,6 +12,7 @@ data Cmd
   = Define String
   | Main String
   | Import String
+  | Type Text
   | Nop
   | Help
   | Quit
@@ -38,4 +39,5 @@ readCmd "help"   = Just <$> const Help
 readCmd "h"      = readCmd "help"
 readCmd "quit"   = Just <$> const Quit
 readCmd "q"      = readCmd "quit"
+readCmd "type"   = Just <$> Type . strip . pack
 readCmd _        = const Nothing

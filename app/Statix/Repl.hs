@@ -9,6 +9,7 @@ import System.Console.Haskeline.History
 import System.Exit
 
 import Data.Default
+import Data.List
 import Data.HashMap.Strict as HM
 import Data.Functor.Identity
 import qualified Data.Text as Text
@@ -155,7 +156,7 @@ handler κ (Main rawc) = do
   liftIO $ printSolution solution
 
   -- rinse and repeat
-  loop
+  κ
 
 handler κ (Define p) = do
   this   ← use self
@@ -171,7 +172,7 @@ handler κ (Define p) = do
   modify (over gen (+1))
 
   -- rinse and repeat
-  loop
+  κ
 
 handler κ (Import file) = do
   here     ← liftIO getCurrentDirectory
@@ -192,18 +193,33 @@ handler κ (Import file) = do
   importMod modname mod
 
   -- rinse and repeat
-  loop
+  κ
+
+handler κ (Type pred) = do
+  imps   ← use imports
+  symtab ← use globals
+  let q = importsQualifier imps symtab
+
+  case (\(m, n) → (symtab HM.! m) HM.! n) <$> HM.lookup pred q of
+    Just p  → liftIO $ putStrLn $
+      Text.unpack pred
+        ++ " :: "
+        ++ (intercalate " → "
+            (fmap (\(n,t) → "(" ++ Text.unpack n ++ " : " ++ show t ++ ")") $ sig p))
+        ++ " → Constraint"
+    Nothing → liftIO $ putStrLn $ "No predicate named: " ++ Text.unpack pred
+
+  κ
 
 handler κ Help = do
   liftIO $ putStrLn $ helpText
-  loop
+  κ
 
 handler κ Quit = do
   liftIO $ exitSuccess
-  loop
+  κ
  
-handler κ Nop =
-  loop
+handler κ Nop = κ
 
 -- | We trick the type checker by typing loop as `REPL a`.
 -- This allows us to handle errors by outputting some string and resuming the loop.
@@ -223,6 +239,7 @@ helpText = unlines [
   "Commands:",
   "  :def p            -- Defines a predicate p",
   "  :import f         -- Imports constraints from a file f",
+  "  :type p           -- Print the type of p",
   "  :help             -- Prints this help",
   "  :quit             -- Quits",
   "Constraint Syntax:",
