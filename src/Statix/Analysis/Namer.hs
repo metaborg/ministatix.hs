@@ -54,8 +54,12 @@ checkBranch (Branch ns g c) = do
     -- Disallow free variable usages in patterns:
     --   {x} f(g()) match { {} x -> true }
     noCapture :: (MonadNamer m) ⇒ TermF₁ r → m (TermF₁ r)
-    noCapture (TVarF (Skip p))  = throwError $ MatchCaptures (end p)
-    noCapture t                 = return t
+    noCapture (TVarF (Skip p))  =
+      -- a path longer than 'End' means the variable resolved to
+      -- a declaration outside the pattern match existential
+      throwError $ MatchCaptures (end p)
+    noCapture t =
+      return t
 
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
