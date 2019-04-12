@@ -22,10 +22,6 @@ import Control.Monad.Reader hiding (liftIO)
 import Control.Monad.IO.Class
 import Control.Monad.ST
 import Control.Monad.Unique as Unique
-import Control.Monad.Equiv as Equiv
-
-import Unification
-import Unification.ST
 
 import Debug.Trace
 
@@ -37,8 +33,6 @@ import Statix.Solver
 import Statix.Solver.Types
 
 import Statix.Analysis.Types hiding (self)
-import Statix.Analysis.Typer
-import Statix.Analysis.Namer
 import Statix.Analysis.Symboltable
 import Statix.Analysis
 
