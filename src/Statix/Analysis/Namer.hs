@@ -36,7 +36,12 @@ qualify n = do
 checkTermF :: (MonadNamer m) ⇒ TermF₀ r → m (TermF₁ r)
 checkTermF (TConF s ts)   = return $ TConF s ts
 checkTermF (TLabelF l)    = return $ TLabelF l
-checkTermF (TPathF n l p) = return $ TPathF n l p
+checkTermF (TPathConsF n l p) = do
+  n ← resolve n
+  return $ TPathConsF n l p
+checkTermF (TPathEndF n)  = do
+  n ← resolve n
+  return $ TPathEndF n
 checkTermF (TVarF x)      = do
   p ← resolve x
   return (TVarF p)

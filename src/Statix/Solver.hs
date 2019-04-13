@@ -44,9 +44,10 @@ reifyPath :: SPath s → SolverM s (STmRef s)
 reifyPath (Graph.Via (n, l) p) = do
   n  ← construct (Tm (SNodeF n))
   pr ← reifyPath p
-  construct (Tm (SPathF n l pr))
-reifyPath (Graph.End n) =
-  construct (Tm (SNodeF n))
+  construct (Tm (SPathConsF n l pr))
+reifyPath (Graph.End n) = do
+  n ← construct (Tm (SNodeF n))
+  construct (Tm (SPathEndF n))
 
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
@@ -167,11 +168,16 @@ toDag (Con c ts) = do
 toDag (Label l) = do
   id ← fresh
   newClass (Rep (SLabel l) id)
-toDag (Path t₁ l t₂) = do
+toDag (PathCons x l t₂) = do
   id ← fresh
-  t₁ ← toDag t₁
+  n  ← resolve x
   t₂ ← toDag t₂
-  newClass (Rep (SPath t₁ l t₂) id)
+  newClass (Rep (SPathCons n l t₂) id)
+toDag (PathEnd x) = do
+  id ← fresh
+  n ← resolve x
+  newClass (Rep (SPathEnd n) id)
+
 toDag _ = throwError (Panic "Not implemented")
 
 -- | Try to solve a focused constraint

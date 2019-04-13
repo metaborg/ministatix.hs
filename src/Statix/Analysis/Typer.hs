@@ -103,7 +103,8 @@ solution = do
 termTypeAnalysis :: MonadTyper n m ⇒ Term₁ → m n
 termTypeAnalysis (Term.Var x) = resolve x
 termTypeAnalysis (Label _)    = construct (Tm (Const TLabel))
-termTypeAnalysis (Path _ _ _) = construct (Tm (Const TPath))
+termTypeAnalysis (PathCons _ _ _) = construct (Tm (Const TPath))
+termTypeAnalysis (PathEnd _)  = construct (Tm (Const TPath))
 termTypeAnalysis _            = construct (Tm (Const TBot))
 
 mkBinder :: MonadTyper n m ⇒ Ident → m (Ident, n)

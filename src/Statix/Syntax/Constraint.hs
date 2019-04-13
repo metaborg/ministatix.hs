@@ -39,14 +39,16 @@ data TermF ℓ r
   = TConF Ident [r]
   | TLabelF Label
   | TVarF ℓ 
-  | TPathF r Label r
+  | TPathConsF ℓ Label r
+  | TPathEndF ℓ
   deriving (Eq, Functor, Foldable, Traversable)
 
 instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
   show (TConF c ts)  = show c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
   show (TLabelF l)   = "`" ++ show l
   show (TVarF x)     = show x
-  show (TPathF n l p)     = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
+  show (TPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
+  show (TPathEndF l)      = " ▻ " ++ show l ++ " ◅"
 
 ------------------------------------------------------------------
 -- | The constraint language
@@ -140,8 +142,8 @@ data Type
 
 instance Unifiable (Const Type) where
 
-  zipMatch (Const (TNode m)) (Const (TNode n)) =
-    Just (Const (TNode (modeJoin m n)))
+  zipMatch (Const (TNode m)) (Const (TNode n))
+    = Just (Const (TNode (modeJoin m n)))
   zipMatch ty ty'
     | ty == ty'         = Just ((\r → (r,r)) <$> ty)
     | ty == Const TBot  = Just ((\r → (r,r)) <$> ty')
@@ -172,7 +174,8 @@ type Term₁            = Fix (TermF IPath)
 pattern Con c ts      = Fix (TConF c ts)
 pattern Label l       = Fix (TLabelF l)
 pattern Var x         = Fix (TVarF x)
-pattern Path t l t'   = Fix (TPathF t l t')
+pattern PathCons t l t'   = Fix (TPathConsF t l t')
+pattern PathEnd l         = Fix (TPathEndF l)
 
 type ConstraintF₀ r   = ConstraintF Ident Ident Term₀ r -- parsed
 type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named

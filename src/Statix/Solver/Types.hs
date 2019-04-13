@@ -52,35 +52,47 @@ data STermF s c =
   | SLabelF Label
   | SConF Ident [c]
   | SAnsF [SPath s]
-  | SPathF c Label c deriving (Functor, Foldable, Traversable)
+  | SPathEndF c
+  | SPathConsF c Label c deriving (Functor, Foldable, Traversable)
 
 instance (Show c) ⇒ Show (STermF s c) where
   show (SNodeF n)   = "∇(" ++ show n ++ ")"
   show (SLabelF l)  = "Label(" ++ show l ++ ")"
   show (SConF k ts) = show k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
   show (SAnsF _)    = "{...}"
-  show (SPathF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
+  show (SPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
+  show (SPathEndF n) = " ▻ " ++ show n ++ " ◅ "
  
 pattern SNode n    = Tm (SNodeF n)
 pattern SLabel l   = Tm (SLabelF l)
 pattern SCon id ts = Tm (SConF id ts)
 pattern SAns ps    = Tm (SAnsF ps)
-pattern SPath n l p = Tm (SPathF n l p)
+pattern SPathCons s l p = Tm (SPathConsF s l p)
+pattern SPathEnd s = Tm (SPathEndF s)
 
 instance Unifiable (STermF s) where
 
   zipMatch (SNodeF n) (SNodeF m)
     | n == m    = Just (SNodeF n)
     | otherwise = Nothing
+
   zipMatch (SConF k₁ ts₁) (SConF k₂ ts₂)
     | k₁ == k₂ =
       if List.length ts₁ == List.length ts₂
         then Just (SConF k₁ (List.zip ts₁ ts₂))
         else Nothing
     | otherwise = Nothing
+
   zipMatch (SLabelF l₁) (SLabelF l₂)
     | l₁ == l₂  = Just (SLabelF l₁)
     | otherwise = Nothing
+
+  -- paths
+  zipMatch (SPathConsF s l p) (SPathConsF s' l' p')
+    | l == l'   = Just (SPathConsF (s, s') l (p, p'))
+    | otherwise = Nothing
+  zipMatch (SPathEndF s) (SPathEndF s')
+    = Just (SPathEndF (s, s'))
 
   -- unifying answer sets is prohibited
   zipMatch (SAnsF _) (SAnsF _) = Nothing

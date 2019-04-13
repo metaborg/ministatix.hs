@@ -13,6 +13,7 @@ $alpha = [a-zA-Z] -- alphabetic characters
 tokens :-
 
   $white+				;
+  "//".*                                ;
 
   true					{ const TokTrue }
   false                                 { const TokFalse }
@@ -23,9 +24,13 @@ tokens :-
   only                                  { const TokOne }
   every                                 { const TokEvery }
   match                                 { const TokMatch }
+  edge                                  { const TokEdge }
+  end                                   { const TokEnd }
 
   $alpha [$alpha $digit \_ ]*		{ TokVar . Text.pack }
 
+  "<"                                   { const TokLAngle }
+  ">"                                   { const TokRAngle }
   "|"                                   { const TokBar }
   ":-"                                  { const TokLeftArrow }
   "<-"                                  { const TokLeftArrow }
@@ -82,6 +87,10 @@ data Token
   | TokRightArrow
   | TokMatch
   | TokBar
+  | TokRAngle
+  | TokLAngle
+  | TokEdge
+  | TokEnd
   deriving Show
  
 

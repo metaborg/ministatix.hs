@@ -55,6 +55,8 @@ import Statix.Syntax.Lexer
   period    { TokPeriod }
   rightarrow { TokRightArrow }
   match     { TokMatch }
+  end       { TokEnd }
+  edge      { TokEdge }
 
 %%
 
@@ -88,7 +90,12 @@ Names :                { [] }
       | name           { [ $1 ] }
       | Names ',' name { $3 : $1 }
 
-Term  : name '(' Terms ')'      { Con $1 $3 }
+Label : name           { Lab $1 }
+
+Term  : '`' Label               { Label $2 }
+      | edge '(' name ',' Label ',' Term ')' { PathCons $3 $5 $7 }
+      | end  '(' name ')'       { PathEnd $3 }
+      | name '(' Terms ')'      { Con $1 $3 }
       | name                    { Var $1 }
 
 Terms :                         { []  }
