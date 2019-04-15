@@ -96,7 +96,7 @@ Names :                { [] }
 Label : name           { Lab $1 }
 
 Term  : '`' Label               { Label $2 }
-      | edge '(' name ',' Label ',' Term ')' { PathCons $3 $5 $7 }
+      | edge '(' name ',' Term ',' Term ')' { PathCons $3 $5 $7 }
       | end  '(' name ')'       { PathEnd $3 }
       | name '(' Terms ')'      { Con $1 $3 }
       | name                    { Var $1 }
@@ -117,12 +117,12 @@ Predicates :                        { []      }
            | Predicate              { [$1]    }
            | Predicates Predicate   { $2 : $1 }
 
-Import  : import modpath            { Text.pack $2 }
-Imports :                           { []      }
-        | Import                    { [$1]    }
-        | Imports newline Import    { $3 : $1 } 
+-- Import  : import modpath period     { Text.pack $2 }
+-- Imports :                           { []      }
+--       | Import                    { [$1]    }
+-- | Imports Import            { $2 : $1 }
 
-Module : Imports newline Predicates { Mod $1 $3 }
+Module : Predicates { Mod [] $1 }
 
 {
 

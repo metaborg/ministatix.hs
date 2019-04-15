@@ -53,7 +53,7 @@ data STermF s c =
   | SConF Ident [c]
   | SAnsF [SPath s]
   | SPathEndF c
-  | SPathConsF c Label c deriving (Functor, Foldable, Traversable)
+  | SPathConsF c c c deriving (Functor, Foldable, Traversable)
 
 instance (Show c) ⇒ Show (STermF s c) where
   show (SNodeF n)   = "∇(" ++ show n ++ ")"
@@ -89,8 +89,7 @@ instance Unifiable (STermF s) where
 
   -- paths
   zipMatch (SPathConsF s l p) (SPathConsF s' l' p')
-    | l == l'   = Just (SPathConsF (s, s') l (p, p'))
-    | otherwise = Nothing
+    = Just (SPathConsF (s, s') (l, l') (p, p'))
   zipMatch (SPathEndF s) (SPathEndF s')
     = Just (SPathEndF (s, s'))
 
@@ -136,7 +135,7 @@ instance HasCyclicError StatixError where
   cyclicTerm      = Unsatisfiable "Cyclic term"
 
 instance HasSubsumptionError StatixError where
-  doesNotSubsume  = NoMatch
+  doesNotSubsume  = StuckError
 
 {- STATE -}
 data Solver s = Solver

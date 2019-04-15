@@ -43,6 +43,7 @@ import Unification as U
 reifyPath :: SPath s → SolverM s (STmRef s)
 reifyPath (Graph.Via (n, l) p) = do
   n  ← construct (Tm (SNodeF n))
+  l  ← construct (Tm (SLabelF l))
   pr ← reifyPath p
   construct (Tm (SPathConsF n l pr))
 reifyPath (Graph.End n) = do
@@ -172,6 +173,7 @@ toDag (PathCons x l t₂) = do
   id ← fresh
   n  ← resolve x
   t₂ ← toDag t₂
+  l  ← toDag l
   newClass (Rep (SPathCons n l t₂) id)
 toDag (PathEnd x) = do
   id ← fresh
@@ -318,28 +320,25 @@ solveFocus c@(CMatch t bs) = do
     solveBranch :: STmRef s → [Branch₁] → SolverM s ()
     solveBranch t [] = throwError $ Unsatisfiable "No match"
     solveBranch t ((Branch ns g c):br) = do
-      thisOne ← openExist ns $ do
+      -- Beware this opens the context of this branch.
+      -- Other branches should not be solved within this sub-computation
+      catchError (openExist ns $ do
         g ← toDag g
-        thisOne ← catchError
-          (do -- try this branch
-            tcopy ← freshen t
-            g `subsumes` tcopy
+        -- try this branch
+        tcopy ← freshen t
+        g `subsumes` tcopy
 
-            -- no need to try other branches
-            return True
-          )
-          (\_ → return False)
-
-        -- only now we commit the binding
-        if thisOne
-          then do
-            g `unify` t
-            solveFocus c
-            return True
-          else
-            return False
-
-      if not thisOne then do solveBranch t br else return ()
+        -- success! Let's commit
+        g `unify` t
+        solveFocus c
+        next
+        ) (
+          \case
+            StuckError → -- insufficient information to do match
+              delay c    -- delay the entiry disjunction
+            e          → -- no match
+              solveBranch t br -- try next
+        )
 
 solveFocus _ = throwError (Panic "Not implemented")
 

@@ -39,7 +39,7 @@ data TermF ℓ r
   = TConF Ident [r]
   | TLabelF Label
   | TVarF ℓ 
-  | TPathConsF ℓ Label r
+  | TPathConsF ℓ r r
   | TPathEndF ℓ
   deriving (Eq, Functor, Foldable, Traversable)
 
@@ -205,4 +205,6 @@ type Predicate₀       = Predicate Ident   Ident   Term₀ -- parsed
 type Predicate₁       = Predicate QName   IPath   Term₁ -- named & optionally typed
 
 type ModPath   = Text
-data RawModule = Mod [ModPath] [Predicate₀]
+data RawModule = Mod 
+  { moduleImports :: [ModPath]
+  , definitions   :: [Predicate₀] }
