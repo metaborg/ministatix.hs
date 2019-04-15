@@ -26,6 +26,8 @@ tokens :-
   match                                 { const TokMatch }
   edge                                  { const TokEdge }
   end                                   { const TokEnd }
+  import                                { const TokImport }
+  [a-zA-Z_\-\/]                         { TokModpath }
 
   $alpha [$alpha $digit \_ ]*		{ TokVar . Text.pack }
 
@@ -38,6 +40,7 @@ tokens :-
   ":"                                   { const TokColon }
   "-["                                  { const TokOpenArr }
   "]->"                                 { const TokCloseArr }
+  [\n]                                  { const TokNewline }
 
   \(                                    { const TokOpenB }
   \)                                    { const TokCloseB }
@@ -91,6 +94,9 @@ data Token
   | TokLAngle
   | TokEdge
   | TokEnd
+  | TokImport
+  | TokNewline
+  | TokModpath String
   deriving Show
  
 

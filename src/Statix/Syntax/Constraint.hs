@@ -48,8 +48,9 @@ instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
   show (TLabelF l)   = "`" ++ show l
   show (TVarF x)     = show x
   show (TPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
-  show (TPathEndF l)      = " ▻ " ++ show l ++ " ◅"
+  show (TPathEndF l)      = show l ++ " ◅"
 
+  
 ------------------------------------------------------------------
 -- | The constraint language
 
@@ -202,3 +203,6 @@ pattern CMatch t br   = Fix (CMatchF t br)
 
 type Predicate₀       = Predicate Ident   Ident   Term₀ -- parsed
 type Predicate₁       = Predicate QName   IPath   Term₁ -- named & optionally typed
+
+type ModPath   = Text
+data RawModule = Mod [ModPath] [Predicate₀]

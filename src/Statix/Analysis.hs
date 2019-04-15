@@ -68,13 +68,13 @@ typecheck this mod symtab = do
 analyze ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ Ident → [Ident] → SymbolTable → [Predicate₀] → m Module
-analyze name imports symtab defs = do
+  ) ⇒ Ident → SymbolTable → RawModule → m Module
+analyze name symtab (Mod imports defs) = do
   -- first construct the initial context from the import list
   let q = importsQualifier imports symtab
 
   -- namecheck the module
-  mod ← namecheck name (q) defs
+  mod ← namecheck name q defs
 
   -- typecheck the module and compute a symboltable for it
   typecheck name mod symtab 

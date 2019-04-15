@@ -18,7 +18,7 @@ import Statix.Syntax.Lexer
 
 %name parseConstraint Constraint
 %name parsePredicate  Predicate
-%name parseModule     Predicates
+%name parseModule     Module
 %monad {ParserM}
 
 %tokentype { Token }
@@ -26,6 +26,7 @@ import Statix.Syntax.Lexer
 
 %token
   name      { TokVar $$ }
+  modpath   { TokModpath $$ }
   true      { TokTrue }
   false     { TokFalse }
   ','       { TokComma }
@@ -57,6 +58,8 @@ import Statix.Syntax.Lexer
   match     { TokMatch }
   end       { TokEnd }
   edge      { TokEdge }
+  import    { TokImport }
+  newline   { TokNewline }
 
 %%
 
@@ -110,9 +113,16 @@ Predicate :
       return (Pred (mod , $1) (mkParams $3) $6)
   }
 
-Predicates :                           { []      }
-           | Predicate                 { [$1]    }
-           | Predicates Predicate      { $2 : $1 }
+Predicates :                        { []      }
+           | Predicate              { [$1]    }
+           | Predicates Predicate   { $2 : $1 }
+
+Import  : import modpath            { Text.pack $2 }
+Imports :                           { []      }
+        | Import                    { [$1]    }
+        | Imports newline Import    { $3 : $1 } 
+
+Module : Imports newline Predicates { Mod $1 $3 }
 
 {
 
