@@ -1,21 +1,24 @@
 import Test.Hspec
 import Text.Printf
 
-import Data.Text
+import Data.Text hiding (unlines)
 import Data.Default
 import Data.Either
 import Data.HashMap.Strict as HM
 
 import Control.Lens
 import Control.Monad.ST
+import Control.Monad.Identity
+import Control.Monad.Except
+import Control.Monad.State
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
 import Statix.Syntax.Lexer
 import Statix.Analysis.Types
-import Statix.Analysis.Monad
 import Statix.Analysis.Typer
 import Statix.Analysis.Namer
+import Statix.Analysis
 import Statix.Solver
 
 main :: IO ()
@@ -38,14 +41,19 @@ run o c = do
       isRight parsed `shouldBe` True
 
     -- static analysis
-    let named = runNC def (checkConstraint (fromRight undefined parsed))
-    let typed = (\c → runST $ runTC (set self specmod def) 0 (typecheck c)) <$> named
-    it "type checks" $ do
-      isRight typed `shouldBe` True
+    let rawbody  = fromRight undefined parsed
+    let testpred = pack "test"
+    let qn       = (specmod, testpred)
+    let rawmod   = (Mod [] [Pred qn [] rawbody])
+    let mod      = runIdentity $ runExceptT $
+          evalStateT (analyze specmod HM.empty rawmod) (0 :: Integer)
+
+    it "analyzes" $ do
+      isRight mod `shouldBe` True
 
     -- dynamic semantics
     it "evaluates" $ do
-      check HM.empty (fromRight undefined named) `shouldBe` o
+      check HM.empty (body $ (HM.! testpred) $ fromRight undefined mod) `shouldBe` o
 
 corespec :: Spec
 corespec = do
@@ -105,3 +113,23 @@ queryspec = describe "query" $ do
     run True  "{x, y, z} new x, query x `l+ as y, every x y false"
     run True  "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z true"
     run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z false"    
+
+  describe "min" $ do
+    run False $ unlines
+      [ "{x,y,z,d,ans} new x, new y, new z, new d"
+      , ", x -[ a ]-> y, y -[ a ]-> z, x -[ b ]-> d, y -[ b ]-> d"
+      , ", query x `a*`b as ans, {p} only(ans, p)"
+      ]
+      
+    run True $ unlines
+      [ "{x,y,z,d,ans} new x, new y, new z, new d"
+      , ", x -[ a ]-> y, y -[ a ]-> z, x -[ b ]-> d, y -[ b ]-> d"
+      , ", query x `a*`b as ans, {ps, p} min ans pathLt[b < a] ps, only(ps, p)"
+      ]
+      
+    run True $ unlines
+      [ "{x,y,z,d,ans} new x, new y, new z, new d"
+      , ", x -[ a ]-> y, y -[ a ]-> z, x -[ b ]-> d, y -[ b ]-> d"
+      , ", query x `a*`b as ans, {ps, p} min ans pathLt[a < b] ps, only(ps, p)"
+      ]
+      
