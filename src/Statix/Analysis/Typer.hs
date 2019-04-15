@@ -160,6 +160,13 @@ typeAnalysis (COne x t) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   unify x x'
+typeAnalysis (CMin x p y) = do
+  x  ← resolve x
+  x' ← construct (Tm (Const TAns))
+  y  ← resolve y
+  y' ← construct (Tm (Const TAns))
+  unify x x'
+  unify y y'
 typeAnalysis (CApply qn ts) = do
   -- compute the type nodes for the formal parameters 
   formals ← getFormals qn

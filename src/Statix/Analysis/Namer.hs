@@ -69,28 +69,30 @@ checkBranch (Branch ns g c) = do
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
 checkConstraint :: (MonadNamer m) ⇒ Constraint₀ → m Constraint₁
-checkConstraint CTrue           = return CTrue
-checkConstraint CFalse          = return CFalse
-checkConstraint (CEq t₁ t₂)     = do
+checkConstraint CTrue =
+  return CTrue
+checkConstraint CFalse =
+  return CFalse
+checkConstraint (CEq t₁ t₂) = do
   t₃ ← checkTerm t₁ 
   t₄ ← checkTerm t₂
   return (CEq t₃ t₄)
-checkConstraint (CAnd c d)      = do
+checkConstraint (CAnd c d) = do
   cc ← checkConstraint c
   cd ← checkConstraint d
   return (CAnd cc cd)
-checkConstraint (CEx ns c)      = do
+checkConstraint (CEx ns c) = do
   enters ns $ do
     cc ← checkConstraint c
     return (CEx ns cc)
-checkConstraint (CNew x)        = do
+checkConstraint (CNew x) = do
   p ← resolve x
   return (CNew p)
-checkConstraint (CData x t)        = do
+checkConstraint (CData x t) = do
   p ← resolve x
   t ← checkTerm t
   return (CData p t)
-checkConstraint (CEdge x l y)   = do
+checkConstraint (CEdge x l y) = do
   p ← resolve x
   q ← resolve y
   return (CEdge p l q)
@@ -98,20 +100,24 @@ checkConstraint (CQuery x re y) = do
   p ← resolve x
   q ← resolve y
   return (CQuery p re q)
-checkConstraint (COne x t)      = do
+checkConstraint (COne x t) = do
   p  ← resolve x
   ct ← checkTerm t
   return (COne p ct)
-checkConstraint (CEvery x y c)    = do
+checkConstraint (CEvery x y c) = do
   p ← resolve y
   enters [ x ] $ do
     c ← checkConstraint c
     return (CEvery x p c)
-checkConstraint (CApply n ts)   = do
+checkConstraint (CMin x le y) = do
+  p  ← resolve x
+  q  ← resolve y
+  return (CMin p le q)
+checkConstraint (CApply n ts) = do
   qn  ← qualify n
   cts ← mapM checkTerm ts
-  return $ CApply qn cts
-checkConstraint (CMatch t br)   = do
+  return (CApply qn cts)
+checkConstraint (CMatch t br) = do
   t  ← checkTerm t
   br ← mapM checkBranch br
   return (CMatch t br)

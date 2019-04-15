@@ -13,7 +13,8 @@
 (setq ministatix-font-lock-keywords
       (let* (
              ;; define several category of keywords
-             (x-keywords '("import" "match" "true" "false" "in" "as" "query" "new"))
+             (x-keywords '("import" "match" "true" "false"
+			   "in" "as" "query" "new" "using"))
              (x-builtins '("edge" "end" "only" "every"))
 
              ;; generate regex string for each category of keywords

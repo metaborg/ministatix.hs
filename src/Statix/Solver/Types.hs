@@ -123,10 +123,11 @@ data StatixError
   | NoMatch
 
 instance Show StatixError where
+  show TypeError         = "Constraint unsatisfiable: type error"
   show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
-  show StuckError = "Stuck"
-  show TypeError = "Constraint unsatisfiable: type error"
-  show (Panic x) = "Panic" ++ x
+  show StuckError        = "Stuck"
+  show NoMatch           = "No match"
+  show (Panic x)         = "Panic" ++ x
  
 instance HasClashError (STermF s) StatixError where
   symbolClash l r = Unsatisfiable $ "Symbol clash: " ++ show l ++ " != " ++ show r

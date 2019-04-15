@@ -7,6 +7,7 @@ import Data.List as List
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 import Data.HashMap.Strict as HM
+import Data.Hashable
 import Data.Set as Set
 
 import Control.Applicative
@@ -24,6 +25,9 @@ import Unification
 type Node     = String
 
 newtype Label = Lab Text deriving (Eq, Ord)
+instance Hashable Label where
+  hashWithSalt salt (Lab txt) = hashWithSalt salt txt
+
 instance Show Label where
   show (Lab l) = unpack l
 
@@ -55,6 +59,7 @@ instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
 -- | The constraint language
 
 data Branch t c = Branch [Ident] t c deriving (Functor, Foldable, Traversable, Show)
+type PathLT     = [(Label,Label)]
 
 data ConstraintF p ℓ t r
   = CTrueF | CFalseF
@@ -67,6 +72,7 @@ data ConstraintF p ℓ t r
   | CQueryF ℓ (Regex Label) ℓ
   | COneF ℓ t
   | CEveryF Ident ℓ r
+  | CMinF ℓ PathLT ℓ
   | CApplyF p [t]
   | CMatchF t [Branch t r]
   deriving (Functor, Foldable, Traversable)
@@ -81,11 +87,12 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (CNewF t)  = "new " ++ show t
   show (CDataF l t)  = show l ++ " ↦ " ++ show t
   show (CEdgeF t l t') = show t ++ " ─[ " ++ show l ++ " ]-> " ++ show t'
+  show (CApplyF p ts) = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
+  show (CMatchF t bs) = show t ++ " match " ++ (List.concatMap show bs)
   show (CQueryF t r s) = "query " ++ show t ++ " " ++ show r ++ " as " ++ show s
   show (COneF x t) = "only(" ++ show x ++ "," ++ show t ++ ")"
   show (CEveryF x y c) = "every " ++ show x ++ " in " ++ show y ++ "(" ++ show c ++ ")"
-  show (CApplyF p ts) = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
-  show (CMatchF t bs) = show t ++ " match " ++ (List.concatMap show bs)
+  show (CMinF x p v) = "min " ++ show x ++ " " ++ show p ++ " " ++ show v
 
 type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
 
@@ -101,6 +108,7 @@ tmapc_ f (CExF ns c)      = CEx ns c
 tmapc_ f (CQueryF x r y)  = CQuery x r y
 tmapc_ f (COneF x t)      = COne x (f t)
 tmapc_ f (CEveryF x y c)  = CEvery x y c
+tmapc_ f (CMinF x p t)    = CMin x p t
 tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
 tmapc_ f (CMatchF t br)   =
   CMatch (f t) (fmap (\(Branch ns g c) → Branch ns (f g) c) br)
@@ -198,6 +206,7 @@ pattern CEdge n l m   = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t      = Fix (COneF x t)
 pattern CEvery x y c  = Fix (CEveryF x y c)
+pattern CMin x p t    = Fix (CMinF x p t)
 pattern CApply p ts   = Fix (CApplyF p ts)
 pattern CMatch t br   = Fix (CMatchF t br)
 

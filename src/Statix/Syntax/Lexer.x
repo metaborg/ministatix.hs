@@ -23,9 +23,11 @@ tokens :-
   query                                 { const TokQuery }
   only                                  { const TokOne }
   every                                 { const TokEvery }
+  min                                   { const TokMin }
   match                                 { const TokMatch }
   edge                                  { const TokEdge }
   end                                   { const TokEnd }
+  pathLt                                { const TokPathLT }
 
   $alpha [$alpha $digit \_ ]*		{ TokVar . Text.pack }
 
@@ -58,44 +60,13 @@ tokens :-
 
 data Token
   = TokVar Text.Text
-  | TokFalse
-  | TokTrue
-  | TokComma
-  | TokEq
-  | TokOpenBr
-  | TokCloseBr
-  | TokOpenB
-  | TokCloseB
-  | TokOpenSB
-  | TokCloseSB
-  | TokOpenArr
-  | TokCloseArr
-  | TokNew
-  | TokQuery
-  | TokIn
-  | TokAs
-  | TokRegexQuote
-  | TokStar
-  | TokPlus
-  | TokQuote
-  | TokTick
-  | TokOne
-  | TokEvery
-  | TokLeftArrow
-  | TokColon
-  | TokPeriod
-  | TokRightArrow
-  | TokMatch
-  | TokBar
-  | TokRAngle
-  | TokLAngle
-  | TokEdge
-  | TokEnd
-  | TokImport
-  | TokNewline
-  | TokModpath String
-  deriving Show
- 
+  | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokIn | TokAs| TokMatch 
+  | TokOne | TokEvery | TokMin | TokEdge | TokEnd | TokPathLT
+  | TokRegexQuote | TokStar | TokPlus | TokTick | TokColon | TokPeriod
+  | TokComma | TokOpenBr | TokCloseBr | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB
+  | TokOpenArr | TokCloseArr | TokQuote | TokLeftArrow | TokRightArrow | TokBar
+  | TokRAngle | TokLAngle | TokImport | TokNewline
+  | TokModpath String deriving Show
 
 lexer :: String -> Either String [Token]
 lexer str = go ('\n',[],str)

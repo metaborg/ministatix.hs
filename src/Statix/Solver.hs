@@ -5,6 +5,7 @@ import Data.Map.Strict as Map hiding (map, null)
 import Data.HashMap.Strict as HM
 import Data.HashSet as HS
 import Data.Set as Set
+import Data.Hashable
 import Data.Either
 import Data.Maybe
 import Data.STRef
@@ -14,6 +15,7 @@ import Data.Default
 import Data.Sequence as Seq
 import Data.Foldable as Fold
 import qualified Data.Text as Text
+import Data.Relation as Rel
 
 import Control.Lens
 import Control.Monad.ST
@@ -343,7 +345,39 @@ solveFocus c@(CMatch t bs) = do
               solveBranch t' br    -- try next
         )
 
-solveFocus _ = throwError (Panic "Not implemented")
+solveFocus c@(CMin x lt z) = do
+  σ ← resolve x >>= getSchema
+  case σ of
+    (U.Var x)  → delay c
+    (SAns ans) → do
+      let min =
+            setLeMin
+              (\p q → reflexiveClosure (pathLT (transitiveClosure (finite lt))) (labels p) (labels q))
+              ans
+      ansRef ← construct (Tm (SAnsF min))
+      b      ← resolve z
+      unify b ansRef
+      next
+
+  where
+
+    pathLT :: Rel a a → Rel [a] [a]
+    pathLT lt (a:as) (b:bs) =
+      if a `lt` b then True else     -- a < b
+        if b `lt` a then False else  -- b < a
+          pathLT lt as bs
+    pathLT lt _ _ = True
+
+    setLeMin :: (a → a → Bool) → [a] → [a]
+    setLeMin le []     = []
+    setLeMin le (x:xs) = snd $ Fold.foldl f (x , [x]) xs
+      where
+        f (rep, acc) e =
+          if e `le` rep then
+            if rep `le` e
+            then (rep, e:acc)
+            else (e, [e])     -- RIP king, long live the king
+          else (rep, acc)
 
 type Unifier s = HashMap Ident (STree s)
 

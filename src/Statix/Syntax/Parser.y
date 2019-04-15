@@ -41,6 +41,7 @@ import Statix.Syntax.Lexer
   '*'       { TokStar }
   '+'       { TokPlus }
   '|'       { TokBar }
+  '<'       { TokLAngle }
   new       { TokNew }
   arrL      { TokOpenArr }
   arrR      { TokCloseArr }
@@ -51,6 +52,7 @@ import Statix.Syntax.Lexer
   quote     { TokQuote }
   one       { TokOne }
   every     { TokEvery }
+  min       { TokMin }
   leftarrow { TokLeftArrow }
   colon     { TokColon }
   period    { TokPeriod }
@@ -59,6 +61,7 @@ import Statix.Syntax.Lexer
   end       { TokEnd }
   edge      { TokEdge }
   import    { TokImport }
+  pathlt    { TokPathLT }
   newline   { TokNewline }
 
 %%
@@ -66,6 +69,13 @@ import Statix.Syntax.Lexer
 Branch     : '{' Names '}' Term rightarrow Constraint { Branch $2 $4 $6 }
 Branches   : Branch { [ $1 ] }
            | Branches '|' Branch { $3 : $1 }
+
+LabelLT    : Label '<' Label   { ($1, $3) }
+LabelLTs   :                       { [] }
+           | LabelLT               { [ $1 ] }
+           | LabelLTs ',' LabelLT  { $3 : $1 }
+
+PathLT     : pathlt '[' LabelLTs ']' { $3 }
 
 Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
            | Constraint ',' Constraint	{ CAnd $1 $3 }
@@ -78,6 +88,7 @@ Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
            | query name Regex as name	{ CQuery $2 $3 $5 }
            | one  '(' name ',' Term ')' { COne $3 $5 }
            | every name name Constraint { CEvery $2 $3 $4 }
+           | min name PathLT name       { CMin $2 $3 $4 }
            | name '(' Terms ')'		{ CApply $1 $3 }
            | '(' Constraint ')'         { $2 }
            | Term match '{' Branches '}'{ CMatch $1 (reverse $4) }
