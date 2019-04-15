@@ -17,9 +17,10 @@ datum(p,d) :- {s} tgt(p, s), s -> d.
 decl(s,x,t) :- {sd} new sd, s -[ Decl ]-> sd, sd -> pair(x,t).
 
 // (x:ty) is the only reachable declaration over `P*`Decl with name x from scope s
-lookup(s,x,ty) :- {dec, ps, qs, p}
-    query s `P*`Decl as ps
-  , min ps pathLt[ Decl < P ] qs
+lookup(s,x,ty) :- {dec, ans, ps, qs, p}
+    query s `P*`Decl as ans
+  , filter ans ({ty} pair(y(), ty)) ps
+  , min ps lexico(Decl < P) qs
   , only(qs, p)
   , datum(p, dec)
   , dec match { {y, typ} pair(y,typ) -> ty = typ }.
