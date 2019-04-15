@@ -56,19 +56,19 @@ data STermF s c =
   | SPathConsF c c c deriving (Functor, Foldable, Traversable)
 
 instance (Show c) ⇒ Show (STermF s c) where
-  show (SNodeF n)   = "∇(" ++ show n ++ ")"
-  show (SLabelF l)  = "Label(" ++ show l ++ ")"
-  show (SConF k ts) = show k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
-  show (SAnsF _)    = "{...}"
+  show (SNodeF n)         = "new " ++ show n
+  show (SLabelF l)        = show l
+  show (SConF k ts)       = unpack k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
+  show (SAnsF _)          = "{...}"
   show (SPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
-  show (SPathEndF n) = " ▻ " ++ show n ++ " ◅ "
+  show (SPathEndF n)      = show n ++ " ◅ "
  
-pattern SNode n    = Tm (SNodeF n)
-pattern SLabel l   = Tm (SLabelF l)
-pattern SCon id ts = Tm (SConF id ts)
-pattern SAns ps    = Tm (SAnsF ps)
+pattern SNode n         = Tm (SNodeF n)
+pattern SLabel l        = Tm (SLabelF l)
+pattern SCon id ts      = Tm (SConF id ts)
+pattern SAns ps         = Tm (SAnsF ps)
 pattern SPathCons s l p = Tm (SPathConsF s l p)
-pattern SPathEnd s = Tm (SPathEndF s)
+pattern SPathEnd s      = Tm (SPathEndF s)
 
 instance Unifiable (STermF s) where
 
@@ -127,7 +127,7 @@ instance Show StatixError where
   show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
   show StuckError        = "Stuck"
   show NoMatch           = "No match"
-  show (Panic x)         = "Panic" ++ x
+  show (Panic x)         = "Panic: " ++ x
  
 instance HasClashError (STermF s) StatixError where
   symbolClash l r = Unsatisfiable $ "Symbol clash: " ++ show l ++ " != " ++ show r
