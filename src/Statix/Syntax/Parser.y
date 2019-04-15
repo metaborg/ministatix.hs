@@ -77,7 +77,7 @@ LabelLTs   :                       { [] }
 
 PathLT     : pathlt '[' LabelLTs ']' { $3 }
 
-Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
+Constraint : '{' Names '}' Constraint   { CEx (reverse $2) $4 }
            | Constraint ',' Constraint	{ CAnd $1 $3 }
            | Term '=' Term		{ CEq $1 $3 }
            | true			{ CTrue }
@@ -89,7 +89,7 @@ Constraint : '{' Names '}' Constraint   { CEx $2 $4 }
            | one  '(' name ',' Term ')' { COne $3 $5 }
            | every name name Constraint { CEvery $2 $3 $4 }
            | min name PathLT name       { CMin $2 $3 $4 }
-           | name '(' Terms ')'		{ CApply $1 $3 }
+           | name '(' Terms ')'		{ CApply $1 (reverse $3) }
            | '(' Constraint ')'         { $2 }
            | Term match '{' Branches '}'{ CMatch $1 (reverse $4) }
 
@@ -109,7 +109,7 @@ Label : name           { Lab $1 }
 Term  : '`' Label               { Label $2 }
       | edge '(' name ',' Term ',' Term ')' { PathCons $3 $5 $7 }
       | end  '(' name ')'       { PathEnd $3 }
-      | name '(' Terms ')'      { Con $1 $3 }
+      | name '(' Terms ')'      { Con $1 (reverse $3) }
       | name                    { Var $1 }
 
 Terms :                         { []  }
@@ -121,7 +121,7 @@ Predicate :
   {%
     do
       mod ← ask
-      return (Pred (mod , $1) (mkParams $3) $6)
+      return (Pred (mod , $1) (reverse $ mkParams $3) $6)
   }
 
 Predicates :                        { []      }
