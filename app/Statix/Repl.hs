@@ -248,5 +248,6 @@ helpText = unlines [
   "  query s r as z             -- Query the graph from s with regex r as z",
   "  only(ζ, t')                -- Asserts that ζ is a singleton set containing t",
   "  every x ζ C                -- Asserts constraint C for every x in set ζ",
+  "  min   ζ e ζ'               -- Asserts that ζ' is the minimum of ζ using path order expression e",
   "  match t₁ { t₂ -> C | ... } -- Assert C if t₁ and t₂ are equal"
   ]
