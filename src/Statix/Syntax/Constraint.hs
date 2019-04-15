@@ -54,45 +54,44 @@ instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
   show (TPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
   show (TPathEndF l)      = show l ++ " ◅"
 
-  
 ------------------------------------------------------------------
 -- | The constraint language
 
-data Branch t c = Branch [Ident] t c deriving (Functor, Foldable, Traversable, Show)
-type PathLT     = [(Label,Label)]
+data Matcher t    = Matcher [Ident] t [(t , t)]
+  deriving (Functor, Foldable, Traversable, Show)
+data Branch t c   = Branch (Matcher t) c
+  deriving (Functor, Foldable, Traversable, Show)
+data PathComp     = Lex [(Label,Label)]
+  deriving (Show)
+data PathFilter t = MatchDatum (Matcher t)
+  deriving (Functor, Foldable, Traversable, Show)
 
 data ConstraintF p ℓ t r
   = CTrueF | CFalseF
-  | CAndF r r
-  | CEqF t t
-  | CExF [Ident] r
-  | CNewF ℓ
-  | CDataF ℓ t
-  | CEdgeF ℓ Label ℓ
+  | CAndF r r | CEqF t t | CExF [Ident] r
+  | CNewF ℓ | CDataF ℓ t | CEdgeF ℓ Label ℓ
   | CQueryF ℓ (Regex Label) ℓ
-  | COneF ℓ t
-  | CEveryF Ident ℓ r
-  | CMinF ℓ PathLT ℓ
-  | CApplyF p [t]
-  | CMatchF t [Branch t r]
+  | COneF ℓ t | CEveryF Ident ℓ r | CMinF ℓ PathComp ℓ | CFilterF ℓ (PathFilter t) ℓ
+  | CApplyF p [t] | CMatchF t [Branch t r]
   deriving (Functor, Foldable, Traversable)
 
 instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) where
 
-  show CTrueF  = "⊤"
-  show CFalseF = "⊥"
-  show (CAndF c₁ c₂) = show c₁ ++ ", " ++ show c₂
-  show (CEqF t₁ t₂) = show t₁ ++ " = " ++ show t₂
-  show (CExF ns c) = "{ " ++ intercalate ", " (fmap show ns) ++ "} " ++ show c
-  show (CNewF t)  = "new " ++ show t
-  show (CDataF l t)  = show l ++ " ↦ " ++ show t
+  show CTrueF          = "⊤"
+  show CFalseF         = "⊥"
+  show (CAndF c₁ c₂)   = show c₁ ++ ", " ++ show c₂
+  show (CEqF t₁ t₂)    = show t₁ ++ " = " ++ show t₂
+  show (CExF ns c)     = "{ " ++ intercalate ", " (fmap show ns) ++ "} " ++ show c
+  show (CNewF t)       = "new " ++ show t
+  show (CDataF l t)    = show l ++ " ↦ " ++ show t
   show (CEdgeF t l t') = show t ++ " ─[ " ++ show l ++ " ]-> " ++ show t'
-  show (CApplyF p ts) = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
-  show (CMatchF t bs) = show t ++ " match " ++ (List.concatMap show bs)
+  show (CApplyF p ts)  = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
+  show (CMatchF t bs)  = show t ++ " match " ++ (List.concatMap show bs)
   show (CQueryF t r s) = "query " ++ show t ++ " " ++ show r ++ " as " ++ show s
-  show (COneF x t) = "only(" ++ show x ++ "," ++ show t ++ ")"
+  show (COneF x t)     = "only(" ++ show x ++ "," ++ show t ++ ")"
   show (CEveryF x y c) = "every " ++ show x ++ " in " ++ show y ++ "(" ++ show c ++ ")"
-  show (CMinF x p v) = "min " ++ show x ++ " " ++ show p ++ " " ++ show v
+  show (CMinF x e v)   = "min " ++ show x ++ " " ++ show e ++ " " ++ show v
+  show (CFilterF x e v) = "filter " ++ show x ++ " " ++ show e ++ " " ++ show v
 
 type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
 
@@ -109,9 +108,10 @@ tmapc_ f (CQueryF x r y)  = CQuery x r y
 tmapc_ f (COneF x t)      = COne x (f t)
 tmapc_ f (CEveryF x y c)  = CEvery x y c
 tmapc_ f (CMinF x p t)    = CMin x p t
+tmapc_ f (CFilterF x p t) = CFilter x (fmap f p) t
 tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
 tmapc_ f (CMatchF t br)   =
-  CMatch (f t) (fmap (\(Branch ns g c) → Branch ns (f g) c) br)
+  CMatch (f t) (fmap (\(Branch m c) → Branch (fmap f m) c) br)
 
 tmapc :: (t → s) → Constraint p ℓ t → Constraint p ℓ s
 tmapc f = cata (tmapc_ f)
@@ -207,6 +207,7 @@ pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t      = Fix (COneF x t)
 pattern CEvery x y c  = Fix (CEveryF x y c)
 pattern CMin x p t    = Fix (CMinF x p t)
+pattern CFilter x p t = Fix (CFilterF x p t)
 pattern CApply p ts   = Fix (CApplyF p ts)
 pattern CMatch t br   = Fix (CMatchF t br)
 

@@ -49,12 +49,12 @@ checkTermF (TVarF x)      = do
 checkTerm :: (MonadNamer m) ⇒ Term₀ → m Term₁
 checkTerm = hmapM checkTermF
 
-checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
-checkBranch (Branch ns g c) = do
+checkMatch  :: MonadNamer m ⇒ Matcher Term₀ → m a → m (Matcher Term₁, a)
+checkMatch (Matcher ns g eqs) ma = do
   enters ns $ do
     g ← hmapM (\t → checkTermF t >>= noCapture) g
-    c ← checkConstraint c
-    return (Branch ns g c)
+    a ← ma
+    return (Matcher ns g [], a) -- TODO
   where
     -- Disallow free variable usages in patterns:
     --   {x} f(g()) match { {} x -> true }
@@ -65,6 +65,11 @@ checkBranch (Branch ns g c) = do
       throwError $ MatchCaptures (end p)
     noCapture t =
       return t
+
+checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
+checkBranch (Branch m c) = do
+  (m, c) ← checkMatch m (checkConstraint c)
+  return (Branch m c)
 
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
@@ -113,6 +118,11 @@ checkConstraint (CMin x le y) = do
   p  ← resolve x
   q  ← resolve y
   return (CMin p le q)
+checkConstraint (CFilter x (MatchDatum m) y) = do
+  p  ← resolve x
+  q  ← resolve y
+  (m, ())  ← checkMatch m (return ())
+  return (CFilter p (MatchDatum m) q)
 checkConstraint (CApply n ts) = do
   qn  ← qualify n
   cts ← mapM checkTerm ts

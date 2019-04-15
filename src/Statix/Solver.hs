@@ -186,7 +186,19 @@ toDag (PathEnd x) = do
 
 toDag _ = throwError (Panic "Not implemented")
 
--- | Try to solve a focused constraint
+matches :: STmRef s → Matcher Term₁ → SolverM s a → SolverM s a
+matches t (Matcher ns g eqs) ma = 
+  openExist ns $ do
+    g ← toDag g
+    g `subsumes` t -- check if we have a match, will throw otherwise
+
+    -- check the equalities
+    -- TODO
+
+    ma
+
+-- | Try to solve a focused constraint.
+-- This should not be a recursive function, as not to infer with scheduling.
 solveFocus :: Constraint₁ → SolverM s ()
 
 solveFocus CTrue  = return ()
@@ -199,11 +211,11 @@ solveFocus (CEq t1 t2) = do
   next
 
 solveFocus (CAnd l r) = do
+  newGoal l
   newGoal r
-  solveFocus l
 
 solveFocus (CEx ns c) =
-  openExist ns (solveFocus c)
+  openExist ns (newGoal c)
 
 solveFocus (CNew x) = do
   t  ← resolve x
@@ -221,8 +233,8 @@ solveFocus c@(CEdge x l y) = do
     (SNode n, SNode m) → do
       newEdge (n, l, m)
       next
-    (U.Var _, _)  → delay c
-    (_ , U.Var _) → delay c
+    (U.Var _, _)  → throwError StuckError
+    (_ , U.Var _) → throwError StuckError
     _             → throwError TypeError
 
 solveFocus c@(CQuery x r y) = do
@@ -243,9 +255,9 @@ solveFocus c@(CQuery x r y) = do
         unify b ansRef
         next
       else do
-        traceWithQueue $ delay c
+        throwError StuckError
 
-    (U.Var _) → delay c
+    (U.Var _) → throwError StuckError
     _         → throwError TypeError
 
 solveFocus c@(COne x t) = do
@@ -253,7 +265,7 @@ solveFocus c@(COne x t) = do
   ans ← resolve x >>= getSchema
   case ans of
     (U.Var x) →
-      delay c
+      throwError StuckError
     (SAns (p : [])) → do
       pref ← reifyPath p
       unify pref t
@@ -282,15 +294,14 @@ solveFocus c@(CData x t) = do
         Just t' → do
           unify t t'
           next
-    (U.Var x) → delay c
+    (U.Var x) → throwError StuckError
     _         → throwError TypeError
 
 solveFocus c@(CEvery x y c') = do
   ans ← resolve y >>= getSchema
   case ans of
     -- not ground enough
-    (U.Var x) →
-      delay c
+    (U.Var x) → throwError StuckError
     -- expand to big conjunction conjunction
     (SAns ps) → do
       forM ps $ \p → do
@@ -311,73 +322,71 @@ solveFocus (CApply p ts) = do
    -- bind the parameters
    enters (List.zip (fmap fst σ) ts') $ do
      -- solve the body
-     solveFocus c
+     newGoal c
 
-solveFocus c@(CMatch t bs) = do
+solveFocus (CMatch t bs) = do
   t' ← toDag t
   σ  ← getSchema t'
   case σ of
-    (U.Var x) → delay c
+    (U.Var x) → throwError StuckError
     (U.Tm f)  → solveBranch t' bs
 
   where
     solveBranch :: STmRef s → [Branch₁] → SolverM s ()
-    solveBranch t' [] = throwError $ Unsatisfiable "No match"
-    solveBranch t' ((Branch ns g c):br) = do
-      -- Beware this opens the context of this branch.
-      -- Other branches should not be solved within this sub-computation
-      catchError (
-        openExist ns $ do
-            g ← toDag g
-
-            -- try this branch
-            tcopy ← freshen t'
-            g `subsumes` tcopy
-
-            -- success! Let's commit
-            g `unify` t'
-            newGoal c
-       ) {- catch -} (
-          \case
-            StuckError →           -- insufficient information to do match
-              delay (CMatch t br)  -- delay the remainder of the disjunction
-            e →                    -- no match
-              solveBranch t' br    -- try next
+    solveBranch t' []                    = throwError $ Unsatisfiable "No match"
+    solveBranch t' ((Branch match c):br) = do
+      -- determine if the matcher matches the term
+      -- and schedule the body of the branch in that environment
+      catchError (matches t' match (newGoal c))
+        (\case
+          Unsatisfiable s → solveBranch t' br
+          e               → throwError e
         )
 
-solveFocus c@(CMin x lt z) = do
+solveFocus (CMin x lt z) = do
   σ ← resolve x >>= getSchema
   case σ of
-    (U.Var x)  → delay c
+    (U.Var x)  → throwError StuckError
     (SAns ans) → do
-      let min =
-            setLeMin
-              (\p q → reflexiveClosure (pathLT (transitiveClosure (finite lt))) (labels p) (labels q))
-              ans
-      ansRef ← construct (Tm (SAnsF min))
+      let min = setLeMin (comp lt) ans
+      ansRef  ← construct (Tm (SAnsF min))
+      b       ← resolve z
+      unify b ansRef
+      next
+    _          → throwError TypeError
+  where
+    comp :: PathComp → Rel (SPath s) (SPath s)
+    comp (Lex lt) p q =
+      reflexiveClosure
+        (pathLT (transitiveClosure (finite lt)))
+        (labels p)
+        (labels q)
+
+solveFocus (CFilter x m z) = do
+  σ ← resolve x >>= getSchema
+  case σ of
+    (U.Var x)  → throwError StuckError
+    (SAns ans) → do
+      ans'   ← filterM (filt m) ans
+      ansRef ← construct (Tm (SAnsF ans'))
       b      ← resolve z
       unify b ansRef
       next
-
+    _          → throwError TypeError
   where
+    filt :: PathFilter Term₁ → SPath s → SolverM s Bool
+    filt (MatchDatum m) p = do
+      let tgt = target p
+      t ← getDatum tgt
 
-    pathLT :: Rel a a → Rel [a] [a]
-    pathLT lt (a:as) (b:bs) =
-      if a `lt` b then True else     -- a < b
-        if b `lt` a then False else  -- b < a
-          pathLT lt as bs
-    pathLT lt _ _ = True
-
-    setLeMin :: (a → a → Bool) → [a] → [a]
-    setLeMin le []     = []
-    setLeMin le (x:xs) = snd $ Fold.foldl f (x , [x]) xs
-      where
-        f (rep, acc) e =
-          if e `le` rep then
-            if rep `le` e
-            then (rep, e:acc)
-            else (e, [e])     -- RIP king, long live the king
-          else (rep, acc)
+      case t of
+        Nothing  → return False -- TODO issue #17
+        (Just t) → catchError
+          (matches t m (return True))
+          (\case
+            Unsatisfiable s → return False
+            e               → throwError e
+          )
 
 type Unifier s = HashMap Ident (STree s)
 
@@ -429,7 +438,12 @@ kick sym c =
     c  ← popGoal
     case c of
       Just (env, c, _) → do
-        local (const env) (solveFocus c)
+        catchError
+          (local (const env) (solveFocus c))
+          (\case
+              StuckError → delay c
+              e          → throwError e
+          )
         loop
       Nothing → do
         -- done, gather up the solution (graph and top-level unifier)

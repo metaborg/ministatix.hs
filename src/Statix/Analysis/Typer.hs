@@ -112,10 +112,14 @@ mkBinder n = do
  v ← freshVar ()
  return (n , v)
 
-typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
-typeBranch (Branch ps g c) = do
+typeMatch  :: MonadTyper n m ⇒ Matcher Term₁ → m a → m a
+typeMatch (Matcher ps t eqs) ma = do
   bs ← mapM mkBinder ps
-  enters bs (typeAnalysis c)
+  enters bs ma
+
+typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
+typeBranch (Branch m c) = do
+  typeMatch m (typeAnalysis c)
 
 -- | Collect type constraints
 typeAnalysis :: MonadTyper n m ⇒ Constraint₁ → m ()
@@ -161,6 +165,13 @@ typeAnalysis (COne x t) = do
   x' ← construct (Tm (Const TAns))
   unify x x'
 typeAnalysis (CMin x p y) = do
+  x  ← resolve x
+  x' ← construct (Tm (Const TAns))
+  y  ← resolve y
+  y' ← construct (Tm (Const TAns))
+  unify x x'
+  unify y y'
+typeAnalysis (CFilter x p y) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   y  ← resolve y

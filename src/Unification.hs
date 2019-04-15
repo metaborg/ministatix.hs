@@ -104,6 +104,7 @@ closure s t = do
 
 -- | Computes the unification semiclosure of two nodes in a term dag.
 -- Exactly like unification, except for the rigid-flex case.
+-- The rhs is not refined
 semiclosure :: (HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m n
 semiclosure s t = do
   (Rep st _, s) ← repr s
