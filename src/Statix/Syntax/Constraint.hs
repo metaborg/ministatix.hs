@@ -75,14 +75,14 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
 
   show CTrueF  = "⊤"
   show CFalseF = "⊥"
-  show (CAndF c₁ c₂) = show c₁ ++ " ∧ " ++ show c₂
+  show (CAndF c₁ c₂) = show c₁ ++ ", " ++ show c₂
   show (CEqF t₁ t₂) = show t₁ ++ " = " ++ show t₂
-  show (CExF ns c) = "∃ " ++ intercalate ", " (fmap show ns) ++ ". " ++ show c
-  show (CNewF t)  = "∇ (" ++ show t ++ ")"
+  show (CExF ns c) = "{ " ++ intercalate ", " (fmap show ns) ++ "} " ++ show c
+  show (CNewF t)  = "new " ++ show t
   show (CDataF l t)  = show l ++ " ↦ " ++ show t
-  show (CEdgeF t l t') = show t ++ "─⟨ " ++ show l ++ " ⟩⟶" ++ show t'
-  show (CQueryF t r s) = show t ++ "(" ++ show r ++ ")" ++ show s
-  show (COneF x t) = "one(" ++ show x ++ "," ++ show t ++ ")"
+  show (CEdgeF t l t') = show t ++ " ─[ " ++ show l ++ " ]-> " ++ show t'
+  show (CQueryF t r s) = "query " ++ show t ++ " " ++ show r ++ " as " ++ show s
+  show (COneF x t) = "only(" ++ show x ++ "," ++ show t ++ ")"
   show (CEveryF x y c) = "every " ++ show x ++ " in " ++ show y ++ "(" ++ show c ++ ")"
   show (CApplyF p ts) = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
   show (CMatchF t bs) = show t ++ " match " ++ (List.concatMap show bs)

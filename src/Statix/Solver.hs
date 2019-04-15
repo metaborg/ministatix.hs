@@ -11,9 +11,9 @@ import Data.STRef
 import Data.Functor.Fixedpoint
 import Data.List as List
 import Data.Default
-import Data.Sequence
+import Data.Sequence as Seq
+import Data.Foldable as Fold
 import qualified Data.Text as Text
-import qualified Data.Sequence as Seq
 
 import Control.Lens
 import Control.Monad.ST
@@ -68,7 +68,9 @@ delay c = do
   pushGoal gen c
 
 newGoal :: Constraint₁ → SolverM s ()
-newGoal = pushGoal minBound
+newGoal c = do
+  pushGoal minBound c
+  next -- fresh meat
 
 -- | Pop a constraint from the work queue if it is non-empty,
 -- and if the constraint was put in the queue before the current solver
@@ -239,7 +241,7 @@ solveFocus c@(CQuery x r y) = do
         unify b ansRef
         next
       else do
-        trace "Delaying" $  delay c
+        traceWithQueue $ delay c
 
     (U.Var _) → delay c
     _         → throwError TypeError
@@ -310,34 +312,35 @@ solveFocus (CApply p ts) = do
      solveFocus c
 
 solveFocus c@(CMatch t bs) = do
-  t ← toDag t
-  σ ← getSchema t
+  t' ← toDag t
+  σ  ← getSchema t'
   case σ of
     (U.Var x) → delay c
-    (U.Tm f)  → solveBranch t bs
+    (U.Tm f)  → solveBranch t' bs
 
   where
     solveBranch :: STmRef s → [Branch₁] → SolverM s ()
-    solveBranch t [] = throwError $ Unsatisfiable "No match"
-    solveBranch t ((Branch ns g c):br) = do
+    solveBranch t' [] = throwError $ Unsatisfiable "No match"
+    solveBranch t' ((Branch ns g c):br) = do
       -- Beware this opens the context of this branch.
       -- Other branches should not be solved within this sub-computation
-      catchError (openExist ns $ do
-        g ← toDag g
-        -- try this branch
-        tcopy ← freshen t
-        g `subsumes` tcopy
+      catchError (
+        openExist ns $ do
+            g ← toDag g
 
-        -- success! Let's commit
-        g `unify` t
-        solveFocus c
-        next
-        ) (
+            -- try this branch
+            tcopy ← freshen t'
+            g `subsumes` tcopy
+
+            -- success! Let's commit
+            g `unify` t'
+            newGoal c
+       ) {- catch -} (
           \case
-            StuckError → -- insufficient information to do match
-              delay c    -- delay the entiry disjunction
-            e          → -- no match
-              solveBranch t br -- try next
+            StuckError →           -- insufficient information to do match
+              delay (CMatch t br)  -- delay the remainder of the disjunction
+            e →                    -- no match
+              solveBranch t' br    -- try next
         )
 
 solveFocus _ = throwError (Panic "Not implemented")
@@ -356,6 +359,16 @@ formatUnifier fr =
   in intercalate "\n" bs
   where
     formatBinding (k , t) = "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
+
+traceWithQueue :: SolverM s a → SolverM s a
+traceWithQueue c = do
+  q   ← use queue
+  let out = intercalate "\n" $ fmap format (Fold.toList q)
+  trace out c
+
+  where
+    format :: Goal s → String
+    format (_, c, _) = show c
 
 -- | Construct a solver for a raw constraint
 kick :: SymbolTable → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))

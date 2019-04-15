@@ -127,10 +127,8 @@ typeAnalysis (CEx ns c) = do
 typeAnalysis (CAnd c d) = do
   typeAnalysis c
   typeAnalysis d
-typeAnalysis (CEq t s) = do
-  τ ← termTypeAnalysis t
-  σ ← termTypeAnalysis s
-  unify τ σ
+typeAnalysis (CEq t s) =
+  return ()
 typeAnalysis (CEdge n l m)  = do
   n  ← resolve n
   n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
