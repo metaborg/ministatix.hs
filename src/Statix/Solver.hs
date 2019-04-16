@@ -262,14 +262,14 @@ solveFocus c@(CQuery x r y) = do
 
 solveFocus c@(COne x t) = do
   t   ← toDag t
-  ans ← resolve x >>= getSchema
+  ans ← trace "before" $ resolve x >>= getSchema
   case ans of
     (U.Var x) →
       throwError StuckError
     (SAns (p : [])) → do
-      pref ← reifyPath p
+      pref ← trace "after" $ reifyPath p
       unify pref t
-      return ()
+      next
     (SAns []) →
       throwError (Unsatisfiable $ show c ++ " (No paths)")
     (SAns ps) →
@@ -438,12 +438,12 @@ kick sym c =
     c  ← popGoal
     case c of
       Just (env, c, _) → do
-        catchError
-          (local (const env) (solveFocus c))
-          (\case
-              StuckError → delay c
+        local (const env) $ do
+          catchError (solveFocus c)
+            (\case
+              StuckError → local (const env) (delay c)
               e          → throwError e
-          )
+            )
         loop
       Nothing → do
         -- done, gather up the solution (graph and top-level unifier)
