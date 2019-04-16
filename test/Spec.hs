@@ -110,9 +110,9 @@ queryspec = describe "query" $ do
     run False "{x,y,z,zt} new x, new y, query x `l* as z, x -[ l ]-> y, only(z, zt)"
 
   describe "every" $ do
-    run True  "{x, y, z} new x, query x `l+ as y, every x y false"
-    run True  "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z true"
-    run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every x z false"    
+    run True  "{x, y, z} new x, query x `l+ as y, every y ({x} x -> false)"
+    run True  "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every z ({x} x -> true)"
+    run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every z ({x} x -> false)"    
 
   describe "min" $ do
     run False $ unlines
@@ -124,12 +124,25 @@ queryspec = describe "query" $ do
     run True $ unlines
       [ "{x,y,z,d,ans} new x, new y, new z, new d"
       , ", x -[ a ]-> y, y -[ a ]-> z, x -[ b ]-> d, y -[ b ]-> d"
-      , ", query x `a*`b as ans, {ps, p} min ans pathLt[b < a] ps, only(ps, p)"
+      , ", query x `a*`b as ans, {ps, p} min ans lexico(b < a) ps, only(ps, p)"
       ]
       
     run True $ unlines
       [ "{x,y,z,d,ans} new x, new y, new z, new d"
       , ", x -[ a ]-> y, y -[ a ]-> z, x -[ b ]-> d, y -[ b ]-> d"
-      , ", query x `a*`b as ans, {ps, p} min ans pathLt[a < b] ps, only(ps, p)"
+      , ", query x `a*`b as ans, {ps, p} min ans lexico(a < b) ps, only(ps, p)"
       ]
       
+
+  describe "filter" $ do
+    run False $ unlines
+      [ "{x,y,z} new x, new y, new z, x -[ A ]-> y, x -[ A ]-> z"
+      , ", y -> f(), z -> g()"
+      , ", {ans, p} query x `A as ans, only(ans, p)"
+      ]
+
+    run True $ unlines
+      [ "{x,y,z} new x, new y, new z, x -[ A ]-> y, x -[ A ]-> z"
+      , ", y -> f(), z -> g()"
+      , ", {ans, ps, p} query x `A as ans, filter ans ({d} d where d = f()) ps, only(ps, p)"
+      ]

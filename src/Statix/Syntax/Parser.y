@@ -81,6 +81,8 @@ Branch          : Matcher rightarrow Constraint         { Branch $1 $3 }
 Branches        : Branch                                { [ $1 ] }
                 | Branches '|' Branch                   { $3 : $1 }
 
+Lambda          : '(' Branch ')'                        { $2 }
+
 LabelLT         : Label '<' Label                       { ($1, $3) }
 LabelLTs        :                                       { [] }
                 | LabelLT                               { [ $1 ] }
@@ -98,7 +100,7 @@ Constraint      : '{' Names '}' Constraint              { CEx (reverse $2) $4 }
                 | name arrL name arrR name              { CEdge $1 (Lab $3) $5 }
                 | query name Regex as name              { CQuery $2 $3 $5 }
                 | one  '(' name ',' Term ')'            { COne $3 $5 }
-                | every name name Constraint            { CEvery $2 $3 $4 }
+                | every name Lambda                     { CEvery $2 $3 }
                 | min name PathComp name                { CMin $2 $3 $4 }
                 | filter name '(' Matcher ')' name      { CFilter $2 (MatchDatum $4) $6 }
                 | name '(' Terms ')'                    { CApply $1 (reverse $3) }

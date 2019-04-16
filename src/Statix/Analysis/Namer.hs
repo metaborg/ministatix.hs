@@ -113,11 +113,10 @@ checkConstraint (COne x t) = do
   p  ← resolve x
   ct ← checkTerm t
   return (COne p ct)
-checkConstraint (CEvery x y c) = do
-  p ← resolve y
-  enters [ x ] $ do
-    c ← checkConstraint c
-    return (CEvery x p c)
+checkConstraint (CEvery x br) = do
+  p ← resolve x
+  br ← checkBranch br
+  return (CEvery p br)
 checkConstraint (CMin x le y) = do
   p  ← resolve x
   q  ← resolve y

@@ -71,7 +71,7 @@ data ConstraintF p ℓ t r
   | CAndF r r | CEqF t t | CExF [Ident] r
   | CNewF ℓ | CDataF ℓ t | CEdgeF ℓ Label ℓ
   | CQueryF ℓ (Regex Label) ℓ
-  | COneF ℓ t | CEveryF Ident ℓ r | CMinF ℓ PathComp ℓ | CFilterF ℓ (PathFilter t) ℓ
+  | COneF ℓ t | CEveryF ℓ (Branch t r) | CMinF ℓ PathComp ℓ | CFilterF ℓ (PathFilter t) ℓ
   | CApplyF p [t] | CMatchF t [Branch t r]
   deriving (Functor, Foldable, Traversable)
 
@@ -89,7 +89,7 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (CMatchF t bs)  = show t ++ " match " ++ (List.concatMap show bs)
   show (CQueryF t r s) = "query " ++ show t ++ " " ++ show r ++ " as " ++ show s
   show (COneF x t)     = "only(" ++ show x ++ "," ++ show t ++ ")"
-  show (CEveryF x y c) = "every " ++ show x ++ " in " ++ show y ++ "(" ++ show c ++ ")"
+  show (CEveryF y br)  = "every " ++ show y ++ "(" ++ show br ++ ")"
   show (CMinF x e v)   = "min " ++ show x ++ " " ++ show e ++ " " ++ show v
   show (CFilterF x e v) = "filter " ++ show x ++ " " ++ show e ++ " " ++ show v
 
@@ -106,7 +106,7 @@ tmapc_ f (CAndF c d)      = CAnd c d
 tmapc_ f (CExF ns c)      = CEx ns c
 tmapc_ f (CQueryF x r y)  = CQuery x r y
 tmapc_ f (COneF x t)      = COne x (f t)
-tmapc_ f (CEveryF x y c)  = CEvery x y c
+tmapc_ f (CEveryF x (Branch m c)) = CEvery x (Branch (fmap f m) c)
 tmapc_ f (CMinF x p t)    = CMin x p t
 tmapc_ f (CFilterF x p t) = CFilter x (fmap f p) t
 tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
@@ -205,7 +205,7 @@ pattern CData x t     = Fix (CDataF x t)
 pattern CEdge n l m   = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t      = Fix (COneF x t)
-pattern CEvery x y c  = Fix (CEveryF x y c)
+pattern CEvery x b    = Fix (CEveryF x b)
 pattern CMin x p t    = Fix (CMinF x p t)
 pattern CFilter x p t = Fix (CFilterF x p t)
 pattern CApply p ts   = Fix (CApplyF p ts)

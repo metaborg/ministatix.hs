@@ -229,7 +229,7 @@ solveFocus (CNew x) = do
     (\ err → throwError (Unsatisfiable "Not fresh!"))
   next
 
-solveFocus c@(CEdge x l y) = do
+solveFocus (CEdge x l y) = do
   t₁ ← resolve x >>= getSchema
   t₂ ← resolve y >>= getSchema
   case (t₁ , t₂) of
@@ -240,7 +240,7 @@ solveFocus c@(CEdge x l y) = do
     (_ , U.Var _) → throwError StuckError
     _             → throwError TypeError
 
-solveFocus c@(CQuery x r y) = do
+solveFocus (CQuery x r y) = do
   t ← resolve x >>= getSchema
   case t of
     -- If the source node is ground
@@ -280,7 +280,7 @@ solveFocus c@(COne x t) = do
     t →
       throwError TypeError
 
-solveFocus c@(CData x t) = do
+solveFocus (CData x t) = do
   x ← resolve x >>= getSchema
 
   -- check if sufficiently ground
@@ -300,8 +300,8 @@ solveFocus c@(CData x t) = do
     (U.Var x) → throwError StuckError
     _         → throwError TypeError
 
-solveFocus c@(CEvery x y c') = do
-  ans ← resolve y >>= getSchema
+solveFocus (CEvery x (Branch m c)) = do
+  ans ← resolve x >>= getSchema
   case ans of
     -- not ground enough
     (U.Var x) → throwError StuckError
@@ -310,9 +310,7 @@ solveFocus c@(CEvery x y c') = do
       forM ps $ \p → do
         -- bind the path
         pn ← reifyPath p
-        -- push the goal in the extended scope
-        enters [(x , pn)] 
-          (newGoal c')
+        matches pn m (newGoal c)
       next
     t →
       throwError TypeError

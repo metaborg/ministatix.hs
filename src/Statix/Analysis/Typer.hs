@@ -155,11 +155,11 @@ typeAnalysis (CQuery n r x) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   void $ unify x x'
-typeAnalysis (CEvery x y c) = do
-  y  ← resolve y
-  y' ← construct (Tm (Const TAns))
-  unify y y'
-  typeAnalysis c
+typeAnalysis (CEvery x br) = do
+  x  ← resolve x
+  x' ← construct (Tm (Const TAns))
+  unify x x'
+  typeBranch br 
 typeAnalysis (COne x t) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))

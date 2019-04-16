@@ -32,8 +32,7 @@ typeOf(s, e, ty) :- e match
   | {f, e, ta} app(f, e) ->
           typeOf(s, f, fun(ta, ty))
 	, typeOf(s, e, ta)
-  | {x, ta,body} lam(x, ta, body) ->
-      {sbody, tb}
+  | {x, ta, body, sbody, tb} lam(x, ta, body) ->
           new sbody
 	, sbody -[ P ]-> s
 	, decl(sbody, x, ta)
