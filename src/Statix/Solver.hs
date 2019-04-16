@@ -265,12 +265,12 @@ solveFocus c@(CQuery x r y) = do
 
 solveFocus c@(COne x t) = do
   t   ← toDag t
-  ans ← trace "before" $ resolve x >>= getSchema
+  ans ← resolve x >>= getSchema
   case ans of
     (U.Var x) →
       throwError StuckError
     (SAns (p : [])) → do
-      pref ← trace "after" $ reifyPath p
+      pref ← reifyPath p
       unify pref t
       next
     (SAns []) →
