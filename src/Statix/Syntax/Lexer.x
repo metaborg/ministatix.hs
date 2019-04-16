@@ -12,10 +12,10 @@ $alpha = [a-zA-Z]
 
 tokens :-
 
-  $white+			;
+  $white+                       ;
   "//".*                        ;
 
-  true				{ const TokTrue }
+  true                          { const TokTrue }
   false                         { const TokFalse }
   new                           { const TokNew }
   in                            { const TokIn }
