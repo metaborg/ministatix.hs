@@ -25,7 +25,7 @@ namecheck mname q defs = do
   -- collect signatures and bind them in the context,
   -- because modules are defined as a big mutual block
   mod ← execStateT (mapM_ collect defs) HM.empty
-  let q' = q `HM.union` (HM.mapWithKey (\k _ → (mname, k)) mod)
+  let q' = (HM.mapWithKey (\k _ → (mname, k)) mod) `HM.union` q
 
   -- namecheck it
   liftEither $ runNC (set qualifier q' def) (mapM checkPredicate mod)
