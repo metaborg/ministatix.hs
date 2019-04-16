@@ -19,7 +19,7 @@ decl(s,x,t) :- {sd} new sd, s -[ Decl ]-> sd, sd -> pair(x,t).
 // (x:ty) is the only reachable declaration over `P*`Decl with name x from scope s
 lookup(s,x,ty) :- {dec, ans, ps, qs, p}
     query s `P*`Decl as ans
-  , filter ans ({ty} pair(y(), ty)) ps
+  , filter ans ({y, ty} pair(y, ty) where y = x) ps
   , min ps lexico(Decl < P) qs
   , only(qs, p)
   , datum(p, dec)
@@ -29,6 +29,9 @@ lookup(s,x,ty) :- {dec, ans, ps, qs, p}
 //   e ::= lam(x, ty, body) | var(x()) | zero() | suc()
 typeOf(s, e, ty) :- e match
   { {x} var(x) -> lookup(s, x, ty)
+  | {f, e, ta} app(f, e) ->
+          typeOf(s, f, fun(ta, ty))
+	, typeOf(s, e, ta)
   | {x, ta,body} lam(x, ta, body) ->
       {sbody, tb}
           new sbody
@@ -36,8 +39,8 @@ typeOf(s, e, ty) :- e match
 	, decl(sbody, x, ta)
 	, typeOf(sbody, body, tb)
 	, ty = fun(ta, tb)
-  | {}  zero()              -> ty = nat()
-  | {x} suc(x)              -> typeOf(s, x, nat()), ty = nat()
+  | {}  zero() -> ty = nat()
+  | {x} suc(x) -> typeOf(s, x, nat()), ty = nat()
   }.
 
 // ty is the type of *closed* lambda expression e

@@ -193,7 +193,10 @@ matches t (Matcher ns g eqs) ma =
     g `subsumes` t -- check if we have a match, will throw otherwise
 
     -- check the equalities
-    -- TODO
+    forM eqs $ \(lhs, rhs) → do
+      lhs ← toDag lhs
+      rhs ← toDag rhs
+      lhs `subsumes` rhs
 
     ma
 
@@ -413,6 +416,33 @@ traceWithQueue c = do
     format :: Goal s → String
     format (_, c, _) = show c
 
+-- | Constraint scheduler
+-- | The solver loop just continuously checks the work queue,
+-- steals an item and focuses it down, until nothing remains.
+-- When the work is done it grounds the solution and returns it.
+schedule :: SolverM s (String, IntGraph Label String)
+schedule = do
+  st ← get
+  c  ← popGoal
+  case c of
+    Just (env, c, _) → do
+      local (const env) $ do
+        catchError (solveFocus c)
+          (\case
+            -- reschedule stuck goals
+            StuckError → local (const env) (delay c)
+            e          → throwError e
+          )
+      schedule
+
+    -- done, gather up the solution (graph and top-level unifier)
+    Nothing → do
+      graph ← use graph
+      graph ← liftST $ toIntGraph graph
+      graph ← forM graph (\n → show <$> toTree n)
+      φ     ← unifier
+      return (formatUnifier φ, graph)
+
 -- | Construct a solver for a raw constraint
 kick :: SymbolTable → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))
 kick sym c =
@@ -422,36 +452,11 @@ kick sym c =
       -- open the top level exists if it exists
       (CEx ns b) → openExist ns $ do
         newGoal b
-        loop
+        schedule
 
       c → do
         newGoal c
-        loop
-
-  where
-  -- | The solver loop just continuously checks the work queue,
-  -- steals an item and focuses it down, until nothing remains.
-  -- When the work is done it grounds the solution and returns it.
-  loop :: SolverM s (String, IntGraph Label String)
-  loop = do
-    st ← get
-    c  ← popGoal
-    case c of
-      Just (env, c, _) → do
-        local (const env) $ do
-          catchError (solveFocus c)
-            (\case
-              StuckError → local (const env) (delay c)
-              e          → throwError e
-            )
-        loop
-      Nothing → do
-        -- done, gather up the solution (graph and top-level unifier)
-        graph ← use graph
-        graph ← liftST $ toIntGraph graph
-        graph ← forM graph (\n → show <$> toTree n)
-        φ     ← unifier
-        return (formatUnifier φ, graph)
+        schedule
 
 -- | Construct and run a solver for a constraint
 solve :: SymbolTable → Constraint₁ → Solution

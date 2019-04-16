@@ -54,7 +54,11 @@ checkMatch (Matcher ns g eqs) ma = do
   enters ns $ do
     g ← hmapM (\t → checkTermF t >>= noCapture) g
     a ← ma
-    return (Matcher ns g [], a) -- TODO
+    eqs ← forM eqs $ \(lhs, rhs) → do
+      lhs ← checkTerm lhs
+      rhs ← checkTerm rhs
+      return (lhs, rhs)
+    return (Matcher ns g eqs, a)
   where
     -- Disallow free variable usages in patterns:
     --   {x} f(g()) match { {} x -> true }
