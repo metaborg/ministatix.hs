@@ -75,7 +75,8 @@ Eqs             :                                       { [] }
 WhereClause     :                                       { [] }
                 | where Eqs                             { $2 }
 
-Matcher         : '{' Names '}' Term WhereClause        { Matcher $2 $4 $5 }
+Pattern         : Term                                  { $1 }
+Matcher         : Pattern WhereClause                   { Matcher [] $1 $2 }
 
 Branch          : Matcher rightarrow Constraint         { Branch $1 $3 }
 Branches        : Branch                                { [ $1 ] }
@@ -158,7 +159,7 @@ runParser :: Text.Text → ParserM a → Either String a
 runParser mod c = runExcept $ runReaderT c mod
 
 parseError :: [Token] -> ParserM a
-parseError toks = throwError $ "Parse error while parsing: " ++ show (take 1 toks)
+parseError toks = throwError $ "Parse error while parsing: " ++ show (take 5 toks)
 
 varName :: Token -> Text.Text
 varName (TokVar s) = s

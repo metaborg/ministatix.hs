@@ -1,13 +1,13 @@
 // s is the target scope of a path p
 tgt(p,s) :- p match
-  { {x}      end(x)       -> s = x
-  | {x,l,xs} edge(x,l,xs) -> tgt(xs,s)
+  { end(x)       -> s = x
+  | edge(x,l,xs) -> tgt(xs,s)
   }.
 
 // s is the source scope of a path p
 src(p,s) :- p match
-  { {x}      end(x)       -> s = x
-  | {x,l,xs} edge(x,l,xs) -> s = x
+  { end(x)       -> s = x
+  | edge(x,l,xs) -> s = x
   }.
 
 // d is the datum of the target of p
@@ -19,27 +19,27 @@ decl(s,x,t) :- {sd} new sd, s -[ Decl ]-> sd, sd -> pair(x,t).
 // (x:ty) is the only reachable declaration over `P*`Decl with name x from scope s
 lookup(s,x,ty) :- {dec, ans, ps, qs, p}
     query s `P*`Decl as ans
-  , filter ans ({y, ty} pair(y, ty) where y = x) ps
+  , filter ans (pair(y, ty) where y = x) ps
   , min ps lexico(Decl < P) qs
   , only(qs, p)
   , datum(p, dec)
-  , dec match { {y, typ} pair(y,typ) -> ty = typ }.
+  , dec match { pair(y,typ) -> ty = typ }.
 
 // ty is the type of lambda expression e in scope s
 //   e ::= lam(x, ty, body) | var(x()) | zero() | suc()
 typeOf(s, e, ty) :- e match
-  { {x} var(x) -> lookup(s, x, ty)
-  | {f, e, ta} app(f, e) ->
+  { var(x) -> lookup(s, x, ty)
+  | app(f, e) -> {ta}
           typeOf(s, f, fun(ta, ty))
 	, typeOf(s, e, ta)
-  | {x, ta, body, sbody, tb} lam(x, ta, body) ->
+  | lam(x, ta, body) -> {sbody, tb}
           new sbody
 	, sbody -[ P ]-> s
 	, decl(sbody, x, ta)
 	, typeOf(sbody, body, tb)
 	, ty = fun(ta, tb)
-  | {}  zero() -> ty = nat()
-  | {x} suc(x) -> typeOf(s, x, nat()), ty = nat()
+  | zero() -> ty = nat()
+  | suc(x) -> typeOf(s, x, nat()), ty = nat()
   }.
 
 // ty is the type of *closed* lambda expression e

@@ -1,13 +1,13 @@
 // s is the target scope of a path p
 tgt(p,s) :- p match
-  { {x}      end(x)       -> s = x
-  | {x,l,xs} edge(x,l,xs) -> tgt(xs,s)
+  { end(x)       -> s = x
+  | edge(x,l,xs) -> tgt(xs,s)
   }.
 
 // s is the source scope of a path p
 src(p,s) :- p match
-  { {x}      end(x)       -> s = x
-  | {x,l,xs} edge(x,l,xs) -> s = x
+  { end(x)       -> s = x
+  | edge(x,l,xs) -> s = x
   }.
 
 // d is the datum of the target of p
@@ -20,15 +20,15 @@ newTVar(s,X,Y) :- new Y, s -[ TyDecl ]-> Y, Y -> X.
 // (x:ty) is the only reachable declaration over `P*`Decl with name x from scope s
 lookup(s,x,ty) :- {dec, ans, ps, qs, p}
     query s `P*`Decl as ans
-  , filter ans ({y, ty} pair(y, ty) where y = x) ps
+  , filter ans (pair(y, ty) where y = x) ps
   , min ps lexico(Decl < P) qs
   , only(qs, p)
   , datum(p, dec)
-  , dec match { {y, typ} pair(y,typ) -> ty = typ }.
+  , dec match {pair(y,typ) -> ty = typ}.
 
 lookupTVar(s,X,T) :- {tys, matches, closest, p, X'}
         query s `P*`TyDecl as tys
-      , filter tys ({Z} Z where Z = X) matches
+      , filter tys (Z where Z = X) matches
       , min matches lexico(NewTVar < P) closest
       , only(closest, p)
       , tgt(p, X')
@@ -36,10 +36,10 @@ lookupTVar(s,X,T) :- {tys, matches, closest, p, X'}
 
 typeOf(s, e, ty) :- e match
   // variables
-  { {x} var(x) -> lookup(s, x, ty)
+  { var(x) -> lookup(s, x, ty)
 
   // lambda abstraction
-  | {x, ta, TA, body, sbody, TB} lam(x, ta, body) ->
+  | lam(x, ta, body) -> {TA, sbody, TB}
           new sbody
 	, sbody -[ P ]-> s
 	, decl(sbody, x, TA)
@@ -48,12 +48,12 @@ typeOf(s, e, ty) :- e match
 	, ty = Fun(TA, TB)
 
   // lambda application
-  | {f, e, ta} app(f, e) ->
+  | app(f, e) -> {ta}
           typeOf(s, f, Fun(ta, ty))
 	, typeOf(s, e, ta)
 
   // type abstraction
-  | {X, body, sbody, TA, Q} Lam(X, body) ->
+  | Lam(X, body) -> {sbody, TA, Q} 
           new sbody
 	, sbody -[ P ]-> s
 	, newTVar(sbody, X, Q)
@@ -61,48 +61,48 @@ typeOf(s, e, ty) :- e match
 	, ty = Forall(Q, TA)
 
   // type application
-  | {X, F, t, T, A} App(F, t) ->
+  | App(F, t) -> {X, T, A} 
           interp(s, t, T)
         , typeOf(s, F, Forall(X, A))
 	, subst(X, A, T, ty)
 
   // natural numbers
-  | {} zero()  -> ty = Nat()
-  | {x} suc(x) -> typeOf(s, x, Nat()), ty = Nat()
+  | zero() -> ty = Nat()
+  | suc(x) -> typeOf(s, x, Nat()), ty = Nat()
   }.
 
 // interpret syntactic types
 interp(s,ty,ty') :- ty match 
-  { {X} tvar(X) -> {tys, matches, closest, p}
+  { tvar(X) -> {tys, matches, closest, p}
         lookupTVar(s, X, ty')
-  | {a,b} fun(a, b) -> {A, B}
+  | fun(a, b) -> {A, B}
         interp(s, a, A)
       , interp(s, b, B)
       , ty' = Fun(A, B)
-  | {X,a} forall(X, a) -> {A, s', X'}
+  | forall(X, a) -> {A, s', X'}
         new s'
       , s' -[ P ]-> s
       , newTVar(s', X, X')
       , interp(s', a, a)
       , ty' = Forall(X', A)
-  | {} nat() -> ty' = Nat()
+  | nat() -> ty' = Nat()
   }.
 
 // Substitute eagerly in a semantic type.
 // Because we use semantic types this is trivally capture avoiding.
 subst(N, t, s, out) :- t match
-  { {alpha, r, r'} Forall(alpha, r) ->
+  { Forall(alpha, r) -> {r'}
         subst(N, r, s, r')
       , out = Forall(alpha, r')
-  | {a, b, A, B} Fun(a, b) ->
+  | Fun(a, b) -> {A, B}
         subst(N, a, s, A)
       , subst(N, b, s, B)
       , out = Fun(A, B)
-  | {}  Nat() ->
+  | Nat() ->
         out = Nat()
-  | {X} TVar(X) where X = N ->
+  | TVar(X) where X = N ->
         out = s
-  | {X} TVar(X) ->
+  | TVar(X) ->
         out = X
   }.
 

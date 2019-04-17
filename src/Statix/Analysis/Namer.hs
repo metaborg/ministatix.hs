@@ -8,6 +8,7 @@ import Control.Monad.Trans
 
 import Data.Default
 import Data.HashMap.Strict as HM
+import Data.HashSet as HSet
 import Data.Functor.Fixedpoint
 import Data.Coerce
 import qualified Data.Text as Text
@@ -50,25 +51,19 @@ checkTerm :: (MonadNamer m) ⇒ Term₀ → m Term₁
 checkTerm = hmapM checkTermF
 
 checkMatch  :: MonadNamer m ⇒ Matcher Term₀ → m a → m (Matcher Term₁, a)
-checkMatch (Matcher ns g eqs) ma = do
+checkMatch (Matcher _ g eqs) ma = do
+  -- first extract free variables from g
+  let ns = HSet.toList $ fv g
+
+  -- introduce those variables
   enters ns $ do
-    g ← hmapM (\t → checkTermF t >>= noCapture) g
+    g ← checkTerm g
     a ← ma
     eqs ← forM eqs $ \(lhs, rhs) → do
       lhs ← checkTerm lhs
       rhs ← checkTerm rhs
       return (lhs, rhs)
     return (Matcher ns g eqs, a)
-  where
-    -- Disallow free variable usages in patterns:
-    --   {x} f(g()) match { {} x -> true }
-    noCapture :: (MonadNamer m) ⇒ TermF₁ r → m (TermF₁ r)
-    noCapture (TVarF (Skip p))  =
-      -- a path longer than 'End' means the variable resolved to
-      -- a declaration outside the pattern match existential
-      throwError $ MatchCaptures (end p)
-    noCapture t =
-      return t
 
 checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
 checkBranch (Branch m c) = do

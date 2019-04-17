@@ -7,6 +7,7 @@ import Data.List as List
 import Data.List.Extras.Pair
 import Data.Functor.Fixedpoint
 import Data.HashMap.Strict as HM
+import Data.HashSet as HSet
 import Data.Hashable
 import Data.Set as Set
 
@@ -95,26 +96,35 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
 
 type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
 
-tmapc_ :: (t → s) → ConstraintF p ℓ t (Constraint p ℓ s) → Constraint p ℓ s
-tmapc_ f (CTrueF)         = CTrue
-tmapc_ f (CFalseF)        = CFalse
-tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
-tmapc_ f (CNewF n)        = CNew n
-tmapc_ f (CDataF l t)     = CData l (f t)
-tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ l n₂
-tmapc_ f (CAndF c d)      = CAnd c d
-tmapc_ f (CExF ns c)      = CEx ns c
-tmapc_ f (CQueryF x r y)  = CQuery x r y
-tmapc_ f (COneF x t)      = COne x (f t)
-tmapc_ f (CEveryF x (Branch m c)) = CEvery x (Branch (fmap f m) c)
-tmapc_ f (CMinF x p t)    = CMin x p t
-tmapc_ f (CFilterF x p t) = CFilter x (fmap f p) t
-tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
-tmapc_ f (CMatchF t br)   =
-  CMatch (f t) (fmap (\(Branch m c) → Branch (fmap f m) c) br)
-
 tmapc :: (t → s) → Constraint p ℓ t → Constraint p ℓ s
 tmapc f = cata (tmapc_ f)
+  where
+    tmapc_ :: (t → s) → ConstraintF p ℓ t (Constraint p ℓ s) → Constraint p ℓ s
+    tmapc_ f (CTrueF)         = CTrue
+    tmapc_ f (CFalseF)        = CFalse
+    tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
+    tmapc_ f (CNewF n)        = CNew n
+    tmapc_ f (CDataF l t)     = CData l (f t)
+    tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ l n₂
+    tmapc_ f (CAndF c d)      = CAnd c d
+    tmapc_ f (CExF ns c)      = CEx ns c
+    tmapc_ f (CQueryF x r y)  = CQuery x r y
+    tmapc_ f (COneF x t)      = COne x (f t)
+    tmapc_ f (CEveryF x (Branch m c)) = CEvery x (Branch (fmap f m) c)
+    tmapc_ f (CMinF x p t)    = CMin x p t
+    tmapc_ f (CFilterF x p t) = CFilter x (fmap f p) t
+    tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
+    tmapc_ f (CMatchF t br)   =
+      CMatch (f t) (fmap (\(Branch m c) → Branch (fmap f m) c) br)
+
+fv :: (Hashable ℓ, Eq ℓ) ⇒ Fix (TermF ℓ) → HashSet ℓ
+fv = cata fvF
+  where
+    fvF (TConF k ℓs)         = HSet.unions ℓs
+    fvF (TVarF ℓ)            = HSet.singleton ℓ
+    fvF (TPathConsF ℓ r₁ r₂) = HSet.singleton ℓ `HSet.union` r₁ `HSet.union` r₂
+    fvF (TPathEndF ℓ)        = HSet.singleton ℓ
+    fvF _                    = HSet.empty
 
 ------------------------------------------------------------------
 -- | Predicates and modules
