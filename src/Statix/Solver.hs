@@ -137,40 +137,42 @@ openExist ns c = do
       v ← freshVar name
       return (name, v)
 
+checkTerm ces n ls = do
+  t ← getSchema n
+  return $ case t of
+    (SNode n) →
+      case ces Map.!? n of
+        Nothing  → Set.empty
+        Just re  →
+          let critics = (\l →
+                           if not $ Re.empty $ match l re
+                           then Set.singleton (n, l)
+                           else Set.empty) <$> (Set.toList ls)
+          in Set.unions critics
+    _ → Set.empty
+
 checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → SolverM s (Set (SNode s, Label))
-checkCritical ces = cataM check
+checkCritical ces (CAnd l r) = do
+  lc ← checkCritical ces l
+  rc ← checkCritical ces r
+  return (lc `Set.union` rc)
+checkCritical ces (CEx xs c) = do
+  openExist xs $ checkCritical ces c
+checkCritical ces (CEdge x l y) = do
+  t₁ ← resolve x
+  checkTerm ces t₁ (Set.singleton l)
+checkCritical ces (CApply qn ts) = do
+  ts ← mapM toDag ts
+  -- get type information for p
+  formals  ← view (symbols . to (!!! qn) . to sig)
+  critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
+  return $ Set.unions critters
   where
-    checkTerm n ls = do
-      t ← getSchema n
-      return $ case t of
-        (SNode n) →
-          case ces Map.!? n of
-            Nothing  → Set.empty
-            Just re  →
-              let critics = (\l →
-                               if not $ Re.empty $ match l re
-                               then Set.singleton (n, l)
-                               else Set.empty) <$> (Set.toList ls)
-              in Set.unions critics
-        _ → Set.empty
-
     checkParam t ty
-      | TNode (In ls)    ← ty = checkTerm t ls
-      | TNode (InOut ls) ← ty = checkTerm t ls
+      | TNode (In ls)    ← ty = checkTerm ces t ls
+      | TNode (InOut ls) ← ty = checkTerm ces t ls
       | otherwise             = return Set.empty
-
-    check (CAndF l r) = return (l `Set.union` r)
-    check (CExF xs c) = return c
-    check (CEdgeF x l y) = do
-      t₁ ← resolve x
-      checkTerm t₁ (Set.singleton l)
-    check (CApplyF qn ts) = do
-      ts ← mapM toDag ts
-      -- get type information for p
-      formals  ← view (symbols . to (!!! qn) . to sig)
-      critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
-      return $ Set.unions critters
-    check _ = return Set.empty
+checkCritical _ _ = return Set.empty
 
 queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
 queryGuard ce = do
