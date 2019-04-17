@@ -12,12 +12,13 @@ $nl    = [\r\n]
 $digit = 0-9
 $alpha = [a-zA-Z]
 @name  = $alpha [$alpha $digit \_ ]*
+@qname = (@name [\.])+ @name
 
 tokens :-
 
   $white+                       ;
-  "//".*                        ;
   $nl+                          ;
+  "//".*                        ;
 
   true                          { const TokTrue }
   false                         { const TokFalse }
@@ -36,6 +37,7 @@ tokens :-
   import                        { const TokImport }
   lexico                        { const TokPathLT }
 
+  @qname                        { TokQName . Text.pack }
   @name                         { TokName . Text.pack }
 
   "<"                           { const TokLAngle }
@@ -68,7 +70,7 @@ tokens :-
 
 data Token
   = TokName Text.Text
-  | TokPath Text.Text
+  | TokQName Text.Text
   | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
   | TokIn | TokAs | TokWhere
   | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT

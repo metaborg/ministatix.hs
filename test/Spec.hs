@@ -185,3 +185,8 @@ importspec = describe "import" $ do
     [ "import x.y;"
     , "test() <- true."
     ]
+  
+  runMod True $ unlines
+    [ "import abc.def.ghi;"
+    , "test() <- {x} new x."
+    ]

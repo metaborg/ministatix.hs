@@ -26,7 +26,7 @@ import Statix.Syntax.Lexer
 
 %token
   NAME          { TokName $$ }
-  PATH          { TokPath $$ }
+  QNAME         { TokQName $$ }
   true          { TokTrue }
   false         { TokFalse }
   ','           { TokComma }
@@ -144,6 +144,7 @@ Predicate       :
   }
 
 Import          : import NAME Eol                       { $2 }
+                | import QNAME Eol                      { $2 }
 
 -- TODO: newline is lexed and ignored, make it explicit?
 Eol             : newline                               { $1 }
