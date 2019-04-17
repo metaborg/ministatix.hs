@@ -18,6 +18,7 @@ import Statix.Syntax.Lexer
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
 import Statix.Analysis.Namer
+import Statix.Analysis.Symboltable
 import Statix.Analysis
 import Statix.Solver
 
@@ -27,12 +28,26 @@ main = hspec $ do
   newspec
   queryspec
 
+specmod :: Text
+specmod = pack "spec"
+
+
+runMod :: Bool → RawModule → Text → Spec
+runMod o rawmod main = do
+  let mod      = runIdentity $ runExceptT $
+        evalStateT (analyze specmod HM.empty rawmod) (0 :: Integer)
+
+  it "analyzes" $ do
+    isRight mod `shouldBe` True
+
+  -- dynamic semantics
+  it "evaluates" $ do
+    check HM.empty (body $ (HM.! main) $ fromRight undefined mod) `shouldBe` o
+
 run :: Bool → String → Spec
 run o c = do
   let mark = if o then "[✓]" else "[×]"
   describe (mark ++ " " ++ c) $ do
-    let specmod = pack "spec"
-
     -- parsing
     let tokens = lexer c
     let parsed = tokens >>= runParser specmod . parseConstraint
@@ -44,16 +59,9 @@ run o c = do
     let rawbody  = fromRight undefined parsed
     let testpred = pack "test"
     let qn       = (specmod, testpred)
-    let rawmod   = (Mod [] [Pred qn [] rawbody])
-    let mod      = runIdentity $ runExceptT $
-          evalStateT (analyze specmod HM.empty rawmod) (0 :: Integer)
+    let rawmod   = Mod [] [Pred qn [] rawbody]
 
-    it "analyzes" $ do
-      isRight mod `shouldBe` True
-
-    -- dynamic semantics
-    it "evaluates" $ do
-      check HM.empty (body $ (HM.! testpred) $ fromRight undefined mod) `shouldBe` o
+    runMod o rawmod testpred
 
 corespec :: Spec
 corespec = do
@@ -110,9 +118,9 @@ queryspec = describe "query" $ do
     run False "{x,y,z,zt} new x, new y, query x `l* as z, x -[ l ]-> y, only(z, zt)"
 
   describe "every" $ do
-    run True  "{x, y, z} new x, query x `l+ as y, every y ({x} x -> false)"
-    run True  "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every z ({x} x -> true)"
-    run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every z ({x} x -> false)"    
+    run True  "{x, y, z} new x, query x `l+ as y, every y (x -> false)"
+    run True  "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every z (x -> true)"
+    run False "{x,y,yy,z,zt} new x, new y, new yy, x -[ l ]-> y, y -[ l ]-> yy, query x `l+ as z, every z (x -> false)"    
 
   describe "min" $ do
     run False $ unlines
@@ -144,5 +152,5 @@ queryspec = describe "query" $ do
     run True $ unlines
       [ "{x,y,z} new x, new y, new z, x -[ A ]-> y, x -[ A ]-> z"
       , ", y -> f(), z -> g()"
-      , ", {ans, ps, p} query x `A as ans, filter ans ({d} d where d = f()) ps, only(ps, p)"
+      , ", {ans, ps, p} query x `A as ans, filter ans (d where d = f()) ps, only(ps, p)"
       ]
