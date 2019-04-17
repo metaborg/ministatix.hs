@@ -57,6 +57,7 @@ import Statix.Syntax.Lexer
   filter        { TokFilter }
   leftarrow     { TokLeftArrow }
   colon         { TokColon }
+  semicolon     { TokSemicolon }
   period        { TokPeriod }
   rightarrow    { TokRightArrow }
   match         { TokMatch }
@@ -64,9 +65,13 @@ import Statix.Syntax.Lexer
   edge          { TokEdge }
   import        { TokImport }
   lexico        { TokPathLT }
-  newline       { TokNewline }
+  newline       { TokNL }
 
 %%
+
+many0(p)        :                                       { []      }
+                | p                                     { [$1]    }
+                | many0(p) p                            { $2 : $1 }
 
 Eq              : Term '=' Term                         { ($1, $3) }
 Eqs             :                                       { [] }
@@ -138,17 +143,13 @@ Predicate       :
       return (Pred (mod , $1) (reverse $ mkParams $3) $6)
   }
 
-Predicates      :                                       { []      }
-                | Predicate                             { [$1]    }
-                | Predicates Predicate                  { $2 : $1 }
+Import          : import NAME Eol                       { $2 }
 
-Import          : import NAME period                    { $2 }
+-- TODO: newline is lexed and ignored, make it explicit?
+Eol             : newline                               { $1 }
+                | semicolon                             { $1 }
 
-Imports         :                                       { []      }
-                | Import                                { [$1]    }
-                | Imports Import                        { $2 : $1 }
-
-Module          : Imports Predicates                    { Mod (reverse $1) (reverse $2) }
+Module          : many0(Import) many0(Predicate)        { Mod (reverse $1) (reverse $2) }
 
 {
 

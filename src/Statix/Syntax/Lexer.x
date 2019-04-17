@@ -7,6 +7,8 @@ import qualified Data.Text as Text
 
 %wrapper "basic"
 
+$white = [\ \t\f\v]
+$nl    = [\r\n]
 $digit = 0-9
 $alpha = [a-zA-Z]
 @name  = $alpha [$alpha $digit \_ ]*
@@ -15,6 +17,7 @@ tokens :-
 
   $white+                       ;
   "//".*                        ;
+  $nl+                          ;
 
   true                          { const TokTrue }
   false                         { const TokFalse }
@@ -42,6 +45,7 @@ tokens :-
   "<-"                          { const TokLeftArrow }
   "->"                          { const TokRightArrow }
   ":"                           { const TokColon }
+  ";"                           { const TokSemicolon }
   "-["                          { const TokOpenArr }
   "]->"                         { const TokCloseArr }
 
@@ -68,10 +72,10 @@ data Token
   | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
   | TokIn | TokAs | TokWhere
   | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
-  | TokRegexQuote | TokStar | TokPlus | TokTick | TokColon | TokPeriod
+  | TokRegexQuote | TokStar | TokPlus | TokTick | TokColon | TokSemicolon | TokPeriod
   | TokComma | TokOpenBr | TokCloseBr | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB
   | TokOpenArr | TokCloseArr | TokQuote | TokLeftArrow | TokRightArrow | TokBar
-  | TokRAngle | TokLAngle | TokImport | TokNewline
+  | TokRAngle | TokLAngle | TokImport | TokNL
   deriving Show
 
 lexer :: String -> Either String [Token]

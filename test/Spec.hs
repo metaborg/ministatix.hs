@@ -29,13 +29,15 @@ main = hspec $ do
   corespec
   newspec
   queryspec
+  importspec
 
 specmod :: Text
 specmod = pack "spec"
 
 
-runMod :: Bool → RawModule → Text → Spec
-runMod o rawmod main = do
+testMod :: Bool → RawModule → Text → Spec
+testMod o rawmod main = do
+  -- static analysis
   let mod      = runIdentity $ runExceptT $
         evalStateT (analyze specmod HM.empty rawmod) (0 :: Integer)
 
@@ -58,13 +60,27 @@ run o c = do
       isRight tokens `shouldBe` True
       isRight parsed `shouldBe` True
 
-    -- static analysis
     let rawbody  = fromRight undefined parsed
     let testpred = pack "test"
     let qn       = (specmod, testpred)
     let rawmod   = Mod [] [Pred qn [] rawbody]
+    testMod o rawmod testpred
 
-    runMod o rawmod testpred
+runMod :: Bool -> String -> Spec
+runMod o m = do
+  let mark = if o then "[✓]" else "[✗]"
+  describe (mark ++ " " ++ m) $ do
+    -- parsing
+    let tokens = lexer m
+    trace ("TOKENS MOD: " ++ show tokens) (return ())
+    let parsed = tokens >>= runParser specmod . parseModule
+    it "parses" $ do
+      isRight tokens `shouldBe` True
+      isRight parsed `shouldBe` True
+
+    let rawmod   = fromRight undefined parsed
+    let testpred = pack "test"
+    testMod o rawmod testpred
 
 corespec :: Spec
 corespec = do
@@ -157,3 +173,15 @@ queryspec = describe "query" $ do
       , ", y -> f(), z -> g()"
       , ", {ans, ps, p} query x `A as ans, filter ans (d where d = f()) ps, only(ps, p)"
       ]
+
+importspec :: Spec
+importspec = describe "import" $ do
+  runMod True $ unlines
+    [ "import x;"
+    , "test() <- true."
+    ]
+
+  runMod True $ unlines
+    [ "import x.y;"
+    , "test() <- true."
+    ]
