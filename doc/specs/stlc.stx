@@ -66,10 +66,37 @@ typeOf(s, e, ty) :- e match
 // ty is the type of *closed* lambda expression e
 typeClosed(e, ty) :- {top} new top, typeOf(top, e, ty).
 
+// letrec x = y; y = 0 in x
+// Type of the declarations are inferred from RHS.
 example(ty, tyx, tyy) :- typeClosed(
     letrec(
       cons(triple(x(), tyx, var(y())),
       cons(triple(y(), tyy, zero()),
+      nil())),
+      var(x())
+    ),
+    ty
+  ).
+
+// letrec x = 0; x = 0 in x
+// Ambiguous, does not type check. 
+// This is specified by the variable resolution rules in `lookup`.
+example1() :- {ty, tyx, tyy} typeClosed(
+    letrec(
+      cons(triple(x(), tyx, zero()),
+      cons(triple(x(), tyy, zero()),
+      nil())),
+      var(x())
+    ),
+    ty
+  ).
+
+// letrec x = y; z = 0 in x
+// Unbound occurence of y, does not type check.
+example2() :- {ty, tyx, tyy} typeClosed(
+    letrec(
+      cons(triple(x(), tyx, var(y())),
+      cons(triple(z(), tyy, zero()),
       nil())),
       var(x())
     ),
