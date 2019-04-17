@@ -1,7 +1,10 @@
+import Prelude hiding (readFile)
+
 import Test.Hspec
 import Text.Printf
 
 import Data.Text hiding (unlines)
+import Data.Text.IO (readFile)
 import Data.Default
 import Data.Either
 import Data.HashMap.Strict as HM
@@ -11,6 +14,7 @@ import Control.Monad.ST
 import Control.Monad.Identity
 import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Trans  (lift)
 
 import Statix.Syntax.Constraint
 import Statix.Syntax.Parser
@@ -31,6 +35,10 @@ main = hspec $ do
   queryspec
   importspec
 
+
+readTestInput :: String -> IO String
+readTestInput n = unpack <$> readFile ("test/" ++ n)
+  
 specmod :: Text
 specmod = pack "spec"
 
@@ -41,11 +49,11 @@ testMod o rawmod main = do
   let mod      = runIdentity $ runExceptT $
         evalStateT (analyze specmod HM.empty rawmod) (0 :: Integer)
 
-  it "analyzes" $ do
+  it "analyzes" $
     isRight mod `shouldBe` True
 
   -- dynamic semantics
-  it "evaluates" $ do
+  it "evaluates" $
     check HM.empty (body $ (HM.! main) $ fromRight undefined mod) `shouldBe` o
 
 run :: Bool → String → Spec
@@ -54,7 +62,6 @@ run o c = do
   describe (mark ++ " " ++ c) $ do
     -- parsing
     let tokens = lexer c
-    trace ("TOKENS: " ++ show tokens) (return ())
     let parsed = tokens >>= runParser specmod . parseConstraint
     it "parses" $ do
       isRight tokens `shouldBe` True
@@ -72,7 +79,6 @@ runMod o m = do
   describe (mark ++ " " ++ m) $ do
     -- parsing
     let tokens = lexer m
-    trace ("TOKENS MOD: " ++ show tokens) (return ())
     let parsed = tokens >>= runParser specmod . parseModule
     it "parses" $ do
       isRight tokens `shouldBe` True
@@ -190,3 +196,7 @@ importspec = describe "import" $ do
     [ "import abc.def.ghi;"
     , "test() <- {x} new x."
     ]
+
+  input <- runIO $ readTestInput "test1.stx"
+  runMod True input
+
