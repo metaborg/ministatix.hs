@@ -75,7 +75,7 @@ instance MonadLex (Ident, STmRef s) IPath (STmRef s) (SolverM s) where
       derefLocal (Skip p)     (fr : frs) = derefLocal p frs
       derefLocal (Lex.End id) (fr : frs) =
         case HM.lookup id fr of
-          Nothing → throwError $ Panic "Variable unbound at runtime"
+          Nothing → throwError $ Panic $ "Variable " ++ show id ++ " unbound at runtime"
           Just t  → return t
       derefLocal _ _                    =
         throwError $ Panic ":( Variable unbound at runtime"

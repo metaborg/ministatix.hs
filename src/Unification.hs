@@ -104,7 +104,7 @@ closure s t = do
 
 -- | Computes the unification semiclosure of two nodes in a term dag.
 -- Exactly like unification, except for the rigid-flex case.
--- The rhs is not refined
+-- The rhs is not refined.
 semiclosure :: (HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m n
 semiclosure s t = do
   (Rep st _, s) ← repr s
@@ -129,6 +129,31 @@ semiclosure s t = do
             Just tm₃ → do
               union s t
               σ ← mapM (uncurry semiclosure) tm₃
+              modifyDesc s (\_ → Rep (Tm σ) i) 
+              return s
+
+equiv :: (HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m n
+equiv s t = do
+  (Rep st _, s) ← repr s
+  (Rep tt i, t) ← repr t
+
+  if (s == t)
+    then return s
+    else do
+      case (st, tt) of
+        (Var _, Var _) → do
+          union s t
+          return s
+        (Var _, Tm tm) → do
+          throwError $ doesNotSubsume
+        (Tm tm, Var _) → do
+          throwError $ doesNotSubsume
+        (Tm tm₁, Tm tm₂) →
+          case zipMatch tm₁ tm₂ of
+            Nothing → throwError $ symbolClash (fmap (const ()) tm₁) (fmap (const ()) tm₂)
+            Just tm₃ → do
+              union s t
+              σ ← mapM (uncurry equiv) tm₃
               modifyDesc s (\_ → Rep (Tm σ) i) 
               return s
 

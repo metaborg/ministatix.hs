@@ -41,6 +41,21 @@ import Statix.Solver.Monad
 
 import Unification as U
 
+__trace__ = False
+
+tracer :: String → a → a
+tracer s a = if __trace__ then trace s a else a
+
+tracerWithQueue :: SolverM s a → SolverM s a
+tracerWithQueue c = do
+  q   ← use queue
+  let out = intercalate "\n" $ fmap format (Fold.toList q)
+  tracer out c
+
+  where
+    format :: Goal s → String
+    format (_, c, _) = show c
+
 -- TODO make Reifiable a typeclass again
 reifyPath :: SPath s → SolverM s (STmRef s)
 reifyPath (Graph.Via (n, l) p) = do
@@ -188,7 +203,7 @@ toDag _ = throwError (Panic "Not implemented")
 
 matches :: STmRef s → Matcher Term₁ → SolverM s a → SolverM s a
 matches t (Matcher ns g eqs) ma = 
-  openExist ns $ do
+  tracer ("branch: " ++ show g) $ openExist ns $ do
     g ← toDag g
     g `subsumes` t -- check if we have a match, will throw otherwise
 
@@ -196,7 +211,7 @@ matches t (Matcher ns g eqs) ma =
     forM eqs $ \(lhs, rhs) → do
       lhs ← toDag lhs
       rhs ← toDag rhs
-      lhs `subsumes` rhs
+      lhs `equiv` rhs
 
     ma
 
@@ -323,10 +338,10 @@ solveFocus (CApply p ts) = do
    -- bind the parameters
    enters (List.zip (fmap fst σ) ts') $ do
      -- solve the body
-     newGoal c
+     tracer ("unfold " ++ show p ++ " with " ++ show ts) $ newGoal c
 
 solveFocus (CMatch t bs) = do
-  t' ← toDag t
+  t' ← tracer ("matching " ++ show t) $ toDag t
   σ  ← getSchema t'
   case σ of
     (U.Var x) → throwError StuckError
@@ -334,7 +349,9 @@ solveFocus (CMatch t bs) = do
 
   where
     solveBranch :: STmRef s → [Branch₁] → SolverM s ()
-    solveBranch t' []                    = throwError $ Unsatisfiable "No match"
+    solveBranch t' []                    = do
+      t' ← toTree t'
+      throwError $ Unsatisfiable $ "No match for '" ++ show t' ++ "'"
     solveBranch t' ((Branch match c):br) = do
       -- determine if the matcher matches the term
       -- and schedule the body of the branch in that environment
@@ -404,16 +421,6 @@ formatUnifier fr =
   where
     formatBinding (k , t) = "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
 
-traceWithQueue :: SolverM s a → SolverM s a
-traceWithQueue c = do
-  q   ← use queue
-  let out = intercalate "\n" $ fmap format (Fold.toList q)
-  trace out c
-
-  where
-    format :: Goal s → String
-    format (_, c, _) = show c
-
 -- | Constraint scheduler
 -- | The solver loop just continuously checks the work queue,
 -- steals an item and focuses it down, until nothing remains.
@@ -428,7 +435,8 @@ schedule = do
         catchError (solveFocus c)
           (\case
             -- reschedule stuck goals
-            StuckError → local (const env) (delay c)
+            StuckError      → local (const env) (delay c)
+            Unsatisfiable s → throwError $ Unsatisfiable $ "constraint " ++ show c ++ " failed with: " ++ s
             e          → throwError e
           )
       schedule
