@@ -13,9 +13,9 @@ src(p,s) :- p match
 // d is the datum of the target of p
 datum(p,d) :- {s} tgt(p, s), s -> d.
 
-// declares (x:t) in scope s
-decl(s,x,t)   :- {sd} new sd, s -[ Decl   ]-> sd, sd -> pair(x,t).
-tydecl(s,X,Y) :- new Y, s -[ TyDecl ]-> Y, Y -> X.
+// declares term variable (x:t) in scope s
+decl(s,x,t)   :- {sd} new sd, s -[ Decl ]-> sd, sd -> pair(x,t).
+newTVar(s,X,Y) :- new Y, s -[ TyDecl ]-> Y, Y -> X.
 
 // (x:ty) is the only reachable declaration over `P*`Decl with name x from scope s
 lookup(s,x,ty) :- {dec, ans, ps, qs, p}
@@ -26,13 +26,19 @@ lookup(s,x,ty) :- {dec, ans, ps, qs, p}
   , datum(p, dec)
   , dec match { {y, typ} pair(y,typ) -> ty = typ }.
 
-// typeOf(s, e, e', A) = s ⊢ e ∼ e' : A 
-// i.e. e and e' are equivalent terms at type A in scope s
+lookupTVar(s,X,T) :- {tys, matches, closest, p, X'}
+        query s `P*`TyDecl as tys
+      , filter tys ({Z} Z where Z = X) matches
+      , min matches lexico(NewTVar < P) closest
+      , only(closest, p)
+      , tgt(p, X')
+      , T = TVar(X').
+
 typeOf(s, e, ty) :- e match
   // variables
   { {x} var(x) -> lookup(s, x, ty)
 
-  // lambda abstraction and application
+  // lambda abstraction
   | {x, ta, TA, body, sbody, TB} lam(x, ta, body) ->
           new sbody
 	, sbody -[ P ]-> s
@@ -40,17 +46,21 @@ typeOf(s, e, ty) :- e match
 	, typeOf(sbody, body, TB)
 	, interp(s, ta, TA)
 	, ty = Fun(TA, TB)
+
+  // lambda application
   | {f, e, ta} app(f, e) ->
           typeOf(s, f, Fun(ta, ty))
 	, typeOf(s, e, ta)
 
-  // type abstraction and application
+  // type abstraction
   | {X, body, sbody, TA, Q} Lam(X, body) ->
           new sbody
 	, sbody -[ P ]-> s
-	, tydecl(sbody, X, Q)
+	, newTVar(sbody, X, Q)
 	, typeOf(sbody, body, TA)
 	, ty = Forall(Q, TA)
+
+  // type application
   | {X, F, t, T, A} App(F, t) ->
           interp(s, t, T)
         , typeOf(s, F, Forall(X, A))
@@ -63,35 +73,31 @@ typeOf(s, e, ty) :- e match
 
 // interpret syntactic types
 interp(s,ty,ty') :- ty match 
-  { {X} tvar(X) -> {tys, matches, closest, p, X'}
-        query s `P*`TyDecl as tys
-      , filter tys ({Z} Z where Z = X) matches
-      , min matches lexico(TyDecl < P) closest
-      , only(closest, p)
-      , tgt(p, X')
-      , ty' = TVar(X')
-  | {a,b} fun(a, b) -> {a', b'}
-        interp(s, a, a')
-      , interp(s, b, b')
-      , ty' = Fun(a', b')
-  | {X,a} forall(X, a) -> {a', s', X'}
+  { {X} tvar(X) -> {tys, matches, closest, p}
+        lookupTVar(s, X, ty')
+  | {a,b} fun(a, b) -> {A, B}
+        interp(s, a, A)
+      , interp(s, b, B)
+      , ty' = Fun(A, B)
+  | {X,a} forall(X, a) -> {A, s', X'}
         new s'
       , s' -[ P ]-> s
-      , tydecl(s', X, X')
-      , interp(s', a, a')
-      , ty' = Forall(X', a')
+      , newTVar(s', X, X')
+      , interp(s', a, a)
+      , ty' = Forall(X', A)
   | {} nat() -> ty' = Nat()
   }.
 
-// substitute eagerly in a semantic type
+// Substitute eagerly in a semantic type.
+// Because we use semantic types this is trivally capture avoiding.
 subst(N, t, s, out) :- t match
   { {alpha, r, r'} Forall(alpha, r) ->
         subst(N, r, s, r')
       , out = Forall(alpha, r')
-  | {a, b, a', b'} Fun(a, b) ->
-        subst(N, a, s, a')
-      , subst(N, b, s, b')
-      , out = Fun(a', b')
+  | {a, b, A, B} Fun(a, b) ->
+        subst(N, a, s, A)
+      , subst(N, b, s, B)
+      , out = Fun(A, B)
   | {}  Nat() ->
         out = Nat()
   | {X} TVar(X) where X = N ->
@@ -102,6 +108,9 @@ subst(N, t, s, out) :- t match
 
 // ty is the type of *closed* lambda expression e
 typeClosed(e, ty) :- {top} new top, typeOf(top, e, ty).
+
+//---------------------------------------------------------------------
+// some unit tests
 
 // [] ⊢ (Λ X . λ x:X . zero) [ nat ] : nat → nat
 testApp1(ty) :- typeClosed(
