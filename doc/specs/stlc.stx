@@ -25,22 +25,53 @@ lookup(s,x,ty) :- {dec, ans, ps, qs, p}
   , datum(p, dec)
   , dec match { pair(y,typ) -> ty = typ }.
 
+typeBinders(s, bs) :- bs match
+  { cons(triple(x,ty,e), xs) ->
+       decl(s,x,ty)
+     , typeBinders(s, xs)
+     , typeOf(s, e, ty)
+  | nil()                    -> true
+  }.
+
 // ty is the type of lambda expression e in scope s
 //   e ::= lam(x, ty, body) | var(x()) | zero() | suc()
 typeOf(s, e, ty) :- e match
   { var(x) -> lookup(s, x, ty)
-  | app(f, e) -> {ta}
-          typeOf(s, f, fun(ta, ty))
-	, typeOf(s, e, ta)
+
+  // lambda abstraction
   | lam(x, ta, body) -> {sbody, tb}
           new sbody
 	, sbody -[ P ]-> s
 	, decl(sbody, x, ta)
 	, typeOf(sbody, body, tb)
 	, ty = fun(ta, tb)
+
+  // lambda application
+  | app(f, e) -> {ta}
+          typeOf(s, f, fun(ta, ty))
+	, typeOf(s, e, ta)
+
+  // letrec
+  | letrec(bs, e) -> {sletrec}
+          new sletrec
+	, sletrec -[ P ]-> s
+        , typeBinders(sletrec, bs)
+	, typeOf(sletrec, e, ty)
+
+  // natural numbers
   | zero() -> ty = nat()
   | suc(x) -> typeOf(s, x, nat()), ty = nat()
   }.
 
 // ty is the type of *closed* lambda expression e
 typeClosed(e, ty) :- {top} new top, typeOf(top, e, ty).
+
+example(ty, tyx, tyy) :- typeClosed(
+    letrec(
+      cons(triple(x(), tyx, var(y())),
+      cons(triple(y(), tyy, zero()),
+      nil())),
+      var(x())
+    ),
+    ty
+  ).
