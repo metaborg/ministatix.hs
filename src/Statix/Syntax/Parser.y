@@ -25,8 +25,8 @@ import Statix.Syntax.Lexer
 %error { parseError }
 
 %token
-  name          { TokVar $$ }
-  modpath       { TokModpath $$ }
+  NAME          { TokName $$ }
+  PATH          { TokPath $$ }
   true          { TokTrue }
   false         { TokFalse }
   ','           { TokComma }
@@ -96,19 +96,19 @@ Constraint      : '{' Names '}' Constraint              { CEx (reverse $2) $4 }
                 | Term '=' Term                         { CEq $1 $3 }
                 | true                                  { CTrue }
                 | false                                 { CFalse }
-                | new name                              { CNew $2 }
-                | name rightarrow Term                  { CData $1 $3 }
-                | name arrL name arrR name              { CEdge $1 (Lab $3) $5 }
-                | query name Regex as name              { CQuery $2 $3 $5 }
-                | one  '(' name ',' Term ')'            { COne $3 $5 }
-                | every name Lambda                     { CEvery $2 $3 }
-                | min name PathComp name                { CMin $2 $3 $4 }
-                | filter name '(' Matcher ')' name      { CFilter $2 (MatchDatum $4) $6 }
-                | name '(' Terms ')'                    { CApply $1 (reverse $3) }
+                | new NAME                              { CNew $2 }
+                | NAME rightarrow Term                  { CData $1 $3 }
+                | NAME arrL NAME arrR NAME              { CEdge $1 (Lab $3) $5 }
+                | query NAME Regex as NAME              { CQuery $2 $3 $5 }
+                | one  '(' NAME ',' Term ')'            { COne $3 $5 }
+                | every NAME Lambda                     { CEvery $2 $3 }
+                | min NAME PathComp NAME                { CMin $2 $3 $4 }
+                | filter NAME '(' Matcher ')' NAME      { CFilter $2 (MatchDatum $4) $6 }
+                | NAME '(' Terms ')'                    { CApply $1 (reverse $3) }
                 | '(' Constraint ')'                    { $2 }
                 | Term match '{' Branches '}'           { CMatch $1 (reverse $4) }
 
-RegexLit        : '`' name                              { RMatch (Lab $2) }
+RegexLit        : '`' NAME                              { RMatch (Lab $2) }
                 | RegexLit RegexLit                     { RSeq $1 $2 }
                 | RegexLit '*'                          { RStar $1 }
                 | RegexLit '+'                          { rplus $1 }
@@ -116,23 +116,23 @@ RegexLit        : '`' name                              { RMatch (Lab $2) }
 Regex           : RegexLit                              { $1 }
 
 Names           :                                       { [] }
-                | name                                  { [ $1 ] }
-                | Names ',' name                        { $3 : $1 }
+                | NAME                                  { [ $1 ] }
+                | Names ',' NAME                        { $3 : $1 }
 
-Label           : name                                  { Lab $1 }
+Label           : NAME                                  { Lab $1 }
 
 Term            : '`' Label                             { Label $2 }
-                | edge '(' name ',' Term ',' Term ')'   { PathCons $3 $5 $7 }
-                | end  '(' name ')'                     { PathEnd $3 }
-                | name '(' Terms ')'                    { Con $1 (reverse $3) }
-                | name                                  { Var $1 }
+                | edge '(' NAME ',' Term ',' Term ')'   { PathCons $3 $5 $7 }
+                | end  '(' NAME ')'                     { PathEnd $3 }
+                | NAME '(' Terms ')'                    { Con $1 (reverse $3) }
+                | NAME                                  { Var $1 }
 
 Terms           :                                       { []  }
                 | Term                                  { [$1] }
                 | Terms ',' Term                        { $3 : $1 }
 
 Predicate       :
-  name '(' Names ')' leftarrow Constraint period        {%
+  NAME '(' Names ')' leftarrow Constraint period        {%
     do
       mod ← ask
       return (Pred (mod , $1) (reverse $ mkParams $3) $6)
@@ -142,12 +142,13 @@ Predicates      :                                       { []      }
                 | Predicate                             { [$1]    }
                 | Predicates Predicate                  { $2 : $1 }
 
--- Import       : import modpath period                 { Text.pack $2 }
--- Imports      :                                       { []      }
---              | Import                                { [$1]    }
---              | Imports Import                        { $2 : $1 }
+Import          : import NAME period                    { $2 }
 
-Module          : Predicates                            { Mod [] $1 }
+Imports         :                                       { []      }
+                | Import                                { [$1]    }
+                | Imports Import                        { $2 : $1 }
+
+Module          : Imports Predicates                    { Mod (reverse $1) (reverse $2) }
 
 {
 
@@ -162,7 +163,7 @@ parseError :: [Token] -> ParserM a
 parseError toks = throwError $ "Parse error while parsing: " ++ show (take 5 toks)
 
 varName :: Token -> Text.Text
-varName (TokVar s) = s
+varName (TokName s) = s
 varName _ = error "Parser error: not a name"
 
 }

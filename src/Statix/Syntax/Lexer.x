@@ -9,6 +9,7 @@ import qualified Data.Text as Text
 
 $digit = 0-9
 $alpha = [a-zA-Z]
+@name  = $alpha [$alpha $digit \_ ]*
 
 tokens :-
 
@@ -29,9 +30,10 @@ tokens :-
   match                         { const TokMatch }
   edge                          { const TokEdge }
   end                           { const TokEnd }
+  import                        { const TokImport }
   lexico                        { const TokPathLT }
 
-  $alpha [$alpha $digit \_ ']*	{ TokVar . Text.pack }
+  @name                         { TokName . Text.pack }
 
   "<"                           { const TokLAngle }
   ">"                           { const TokRAngle }
@@ -61,7 +63,8 @@ tokens :-
 {
 
 data Token
-  = TokVar Text.Text
+  = TokName Text.Text
+  | TokPath Text.Text
   | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
   | TokIn | TokAs | TokWhere
   | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
@@ -69,7 +72,7 @@ data Token
   | TokComma | TokOpenBr | TokCloseBr | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB
   | TokOpenArr | TokCloseArr | TokQuote | TokLeftArrow | TokRightArrow | TokBar
   | TokRAngle | TokLAngle | TokImport | TokNewline
-  | TokModpath String deriving Show
+  deriving Show
 
 lexer :: String -> Either String [Token]
 lexer str = go ('\n',[],str)

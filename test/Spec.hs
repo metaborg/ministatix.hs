@@ -22,6 +22,8 @@ import Statix.Analysis.Symboltable
 import Statix.Analysis
 import Statix.Solver
 
+import Debug.Trace
+
 main :: IO ()
 main = hspec $ do
   corespec
@@ -46,10 +48,11 @@ runMod o rawmod main = do
 
 run :: Bool → String → Spec
 run o c = do
-  let mark = if o then "[✓]" else "[×]"
+  let mark = if o then "[✓]" else "[✗]"
   describe (mark ++ " " ++ c) $ do
     -- parsing
     let tokens = lexer c
+    trace ("TOKENS: " ++ show tokens) (return ())
     let parsed = tokens >>= runParser specmod . parseConstraint
     it "parses" $ do
       isRight tokens `shouldBe` True
