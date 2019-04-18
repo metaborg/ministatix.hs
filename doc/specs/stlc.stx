@@ -14,13 +14,13 @@ src(p,s) :- p match
 datum(p,d) :- {s} tgt(p, s), s -> d.
 
 // declares (x:t) in scope s
-decl(s,x,t) :- {sd} new sd, s -[ Decl ]-> sd, sd -> pair(x,t).
+decl(s,x,t) :- {sd} new sd, s -[ `Decl ]-> sd, sd -> pair(x,t).
 
 // (x:ty) is the only reachable declaration over `P*`Decl with name x from scope s
 lookup(s,x,ty) :- {dec, ans, ps, qs, p}
     query s `P*`Decl as ans
   , filter ans (pair(y, ty) where y = x) ps
-  , min ps lexico(Decl < P) qs
+  , min ps lexico(`Decl < `P) qs
   , only(qs, p)
   , datum(p, dec)
   , dec match { pair(y,typ) -> ty = typ }.
@@ -41,7 +41,7 @@ typeOf(s, e, ty) :- e match
   // lambda abstraction
   | lam(x, ta, body) -> {sbody, tb}
           new sbody
-	, sbody -[ P ]-> s
+	, sbody -[ `P ]-> s
 	, decl(sbody, x, ta)
 	, typeOf(sbody, body, tb)
 	, ty = fun(ta, tb)
@@ -54,7 +54,7 @@ typeOf(s, e, ty) :- e match
   // letrec
   | letrec(bs, e) -> {sletrec}
           new sletrec
-	, sletrec -[ P ]-> s
+	, sletrec -[ `P ]-> s
         , typeBinders(sletrec, bs)
 	, typeOf(sletrec, e, ty)
 
