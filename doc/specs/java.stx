@@ -1,0 +1,157 @@
+// s is the target scope of a path p
+tgt(p,s) :- p match
+  { end(x)       -> s = x
+  | edge(x,l,xs) -> tgt(xs,s)
+  }.
+
+// s is the source scope of a path p
+src(p,s) :- p match
+  { end(x)       -> s = x
+  | edge(x,l,xs) -> s = x
+  }.
+
+// d is the datum of the target of p
+datum(p,d) :- {s} tgt(p, s), s -> d.
+
+
+declare-generics(s_cls, gen) :- gen match
+  { Cons(X, gen') -> {X'}
+        new X'
+      , s_cls -[ GEN ]-> X'
+      , X' -> X
+      , declare-generics(s_cls, gen')
+  | Nil() -> true
+  }.
+
+declare-formals(s, formals) :- formals match
+  { Cons(param, formals') -> {F}
+        new F
+      , s -[ PARAM ]-> F
+      , F -> param
+      , declare-formals(s, formals')
+  | Nil() -> true
+  }.
+
+imports-parents(s_cls, parents) :- parents match
+  { Cons(parent, parents') ->
+      {s_P, classes, matches, closest, p_parent, s_parent} 
+        query s_cls `P`P*`CLASS as classes
+      , filter classes (name where name = parent) matches  // filter by class name
+      , min matches lexico(CLASS < P) closest                    // apply lexical scoping rules
+      , only(closest, p_parent)                            // ensure disambiguation is complete
+      , tgt(p_parent, s_parent)                            // get the parent class scope from the path
+      , s_cls -[ EXTENDS ]-> s_parent                      // extend the parent class scope
+  | Nil() -> true
+  }.
+
+formal-names(formals, names) :- formals match
+  { Cons(Pair(name, ty), tail) -> {names'}
+        formal-names(tail, names')
+      , names = Cons(name, names')
+  | Nil() -> names = Nil()
+  }.
+
+declare-method(s_cls, m) :- m match
+  { Method(name, formals, return) ->
+      {s_method, s_body, names, s_formals}
+        new s_method
+      , new s_body
+      , new s_formals
+
+      // declare the method in the class scope
+      , s_cls -[ METHOD ]-> s_method
+
+      // remember the name and return type of the method
+      , s_method -> pair(name, return)
+
+      // declare the formals
+      // remember there positions
+      , formal-names(formals, names)
+      , declare-formals(s_formals, formals)	
+      , s_formals -> names
+      , s_method -[ FORMALS ]-> s_formals
+  }.
+
+declare-methods(s_cls, ms) :- ms match
+  { Cons(m, ms') ->
+      declare-method(s_cls, m), 
+      declare-methods(s_cls, ms')
+  | Nil() -> true
+  }.
+
+class-ok(s_pkg, ce) :- ce match
+  { Cls(name, generics, parents, ms) -> {s_cls}
+       new s_cls
+     , s_cls -> name
+     , s_cls -[ P ]-> s_pkg
+     , s_pkg -[ CLASS ]-> s_cls
+     , declare-generics(s_cls, generics)
+     , imports-parents(s_cls, parents)
+     , declare-methods(s_cls, ms)
+  }.
+
+classes-ok(s_pkg, clss) :- clss match
+  { Cons(cls, clss') ->
+        class-ok(s_pkg, cls)
+      , classes-ok(s_pkg, clss')
+  | Nil() -> true
+  }.
+
+pkg-ok(clss) :- {s_pkg}
+  new s_pkg, classes-ok(s_pkg, clss).
+
+lookup-class(s, clsname, s_cls) :-
+  {classes, matches, closest, p}
+    query s `P*`CLASS as classes
+  , filter classes (name where name = clsname) matches
+  , min matches lexico(CLASS < P) closest
+  , only(closest, p)
+  , tgt(p, s_cls).
+
+
+lookup-method(s, mname, s_method, returns) :-
+  {methods, matches, closest, p, d}
+    query s `EXTENDS*`METHOD as methods 
+  , filter methods (pair(name, retty) where name = mname) matches
+  , min matches lexico(METHOD < EXTENDS) closest
+  , only(closest, p)
+  , tgt(p, s_method)
+  , datum(p, d)
+  , d match { pair(name, ty) -> returns = ty }.
+
+type-of(s_exp, e, ty) :- e match
+  { New(clsname) -> {s_cls}
+        lookup-class(s_exp, clsname, s_cls)
+      , ty = Obj(s_cls)
+  | Call(e, mname) -> {objty, s_method}
+        type-of(s_exp, e, objty)
+      , objty match { Obj(s_cls) -> lookup-method(s_cls, mname, s_method, ty) }
+  }.
+  
+// --
+// some tests
+
+test(pkg, ty) :-
+    new pkg
+    , classes-ok(pkg,
+	Cons(
+	  Cls(
+	    B(),
+	    Nil(),
+	    Nil(),
+	    Cons(Method(p(), Nil(), Obj(B())), Nil())
+	  ),
+	Cons(
+	  Cls(
+	    A(),              // name
+	    Cons(X(), Nil()), // generics
+	    Cons(B(), Nil()), // parents
+	    Cons(
+	      Method(m(), Nil(), Nat()),
+	    Cons(Method(n(), Nil(), Nat()),
+	      Nil())
+	    ) // methods
+	  ),
+	Nil()))
+    )
+    , type-of(pkg, Call(New(A()), p()), ty).
