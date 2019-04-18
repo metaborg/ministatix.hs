@@ -42,7 +42,7 @@ type IPath = Lexical.Path Ident
 
 data TermF ℓ r
   = TConF Ident [r]
-  | TLabelF Label
+  | TLabelF Label (Maybe r)
   | TVarF ℓ 
   | TPathConsF ℓ r r
   | TPathEndF ℓ
@@ -50,7 +50,7 @@ data TermF ℓ r
 
 instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
   show (TConF c ts)  = show c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
-  show (TLabelF l)   = "`" ++ show l
+  show (TLabelF l t) = "`" ++ show l ++ "(" ++ show t ++ ")"
   show (TVarF x)     = show x
   show (TPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
   show (TPathEndF l)      = show l ++ " ◅"
@@ -70,7 +70,7 @@ data PathFilter t = MatchDatum (Matcher t)
 data ConstraintF p ℓ t r
   = CTrueF | CFalseF
   | CAndF r r | CEqF t t | CExF [Ident] r
-  | CNewF ℓ | CDataF ℓ t | CEdgeF ℓ Label ℓ
+  | CNewF ℓ | CDataF ℓ t | CEdgeF ℓ t ℓ
   | CQueryF ℓ (Regex Label) ℓ
   | COneF ℓ t | CEveryF ℓ (Branch t r) | CMinF ℓ PathComp ℓ | CFilterF ℓ (PathFilter t) ℓ
   | CApplyF p [t] | CMatchF t [Branch t r]
@@ -105,7 +105,7 @@ tmapc f = cata (tmapc_ f)
     tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
     tmapc_ f (CNewF n)        = CNew n
     tmapc_ f (CDataF l t)     = CData l (f t)
-    tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ l n₂
+    tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ (f l) n₂
     tmapc_ f (CAndF c d)      = CAnd c d
     tmapc_ f (CExF ns c)      = CEx ns c
     tmapc_ f (CQueryF x r y)  = CQuery x r y
@@ -124,6 +124,7 @@ fv = cata fvF
     fvF (TVarF ℓ)            = HSet.singleton ℓ
     fvF (TPathConsF ℓ r₁ r₂) = HSet.singleton ℓ `HSet.union` r₁ `HSet.union` r₂
     fvF (TPathEndF ℓ)        = HSet.singleton ℓ
+    fvF (TLabelF l (Just r)) = r
     fvF _                    = HSet.empty
 
 ------------------------------------------------------------------
@@ -191,7 +192,7 @@ type Term₀            = Fix (TermF Ident)
 type Term₁            = Fix (TermF IPath)
 
 pattern Con c ts      = Fix (TConF c ts)
-pattern Label l       = Fix (TLabelF l)
+pattern Label l t     = Fix (TLabelF l t)
 pattern Var x         = Fix (TVarF x)
 pattern PathCons t l t'   = Fix (TPathConsF t l t')
 pattern PathEnd l         = Fix (TPathEndF l)

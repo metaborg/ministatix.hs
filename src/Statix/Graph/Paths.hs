@@ -11,21 +11,21 @@ import Control.Monad.Trans
 import Statix.Regex as Re
 import Statix.Graph.Types
 
-toList :: Path n l → ([(n, l)], n)
+toList :: Path n l t → ([(n, l, Maybe t)], n)
 toList (End n)   = ([], n)
 toList (Via e p) = let (es, end) = toList p in (e:es, end)
 
-labels :: Path n l → [l]
-labels = fmap snd . fst . toList
+labels :: Path n l t → [l]
+labels = fmap (\(n, l, t) → l) . fst . toList
 
-target :: Path n l → n
+target :: Path n l t → n
 target (End n)   = n
 target (Via _ p) = target p
 
-instance (Show n, Show l) ⇒ Show (Path n l) where
+instance (Show n, Show l, Show t) ⇒ Show (Path n l t) where
 
   show (End n) = show n
-  show (Via (n,l) p) = show n ++ " ─⟨ " ++ show l ++ " ⟩⟶ " ++ show p
+  show (Via (n,l,t) p) = show n ++ " ─⟨ " ++ show l ++ "(" ++ show t ++ ") ⟩⟶ " ++ show p
 
 pathLT :: Rel a a → Rel [a] [a]
 pathLT lt (a:as) (b:bs) =
@@ -61,11 +61,11 @@ findReachable n re = _find n re Set.empty
            let vis' = Set.insert n vis
            -- get the edges out of here
            es ← getOutEdges n
-           reachables ← Map.unionsWith RAlt <$> mapM (\(l, m) → _find m (Re.match l re) vis') es
+           reachables ← Map.unionsWith RAlt <$> mapM (\(l, t, m) → _find m (Re.match l re) vis') es
            return (Map.insertWith RAlt n re reachables)
 
 -- | Find regular paths in the graph
-runQuery :: (MonadGraph n l d m) ⇒ n → Regex l → m [Path n l]
+runQuery :: (MonadGraph n l d m) ⇒ n → Regex l → m [Path n l d]
 runQuery n re = _resolve n re Set.empty
   where
     _resolve n re vis
@@ -78,9 +78,9 @@ runQuery n re = _resolve n re Set.empty
            -- get the edges out of here
            es ← getOutEdges n
            -- calculate the paths out of here
-           pss ← mapM (\ (l , tgt) → do
+           pss ← mapM (\ (l , t, tgt) → do
                      ps ← _resolve tgt (Re.match l re) (Set.insert n vis)
-                     return (fmap (Via (n , l)) ps)
+                     return (fmap (Via (n, l, t)) ps)
                    ) es
            let ps = concat pss
            -- add the loop if it exists

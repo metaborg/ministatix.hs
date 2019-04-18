@@ -23,19 +23,20 @@ import Statix.Syntax.Constraint
 import Debug.Trace
 
 {- Int Graphs without safety guarantees -}
-data IntGraphEdge l = IntEdge l Int
+data IntGraphEdge l d = IntEdge l (Maybe d) Int
+  deriving (Functor, Foldable, Traversable)
 
 data IntGraphNode l d = IntNode
   { id    :: Int
-  , edges :: [IntGraphEdge l]
+  , edges :: [IntGraphEdge l d]
   , datum :: Maybe d
-  } deriving (Foldable, Traversable)
+  } deriving (Functor, Foldable, Traversable)
 
 newtype IntGraph l d = IntGraph (IntMap (IntGraphNode l d))
   deriving (Functor, Foldable, Traversable)
 
-instance (Show l) ⇒ Show (IntGraphEdge l) where
-  show (IntEdge l i) = "─⟨ " ++ show l ++ " ⟩⟶ " ++ show i
+instance (Show l, Show d) ⇒ Show (IntGraphEdge l d) where
+  show (IntEdge l d i) = "─⟨ " ++ show l ++ "(" ++ show d ++ ") ⟩⟶ " ++ show i
 
 instance (Show d, Show l) ⇒ Show (IntGraphNode l d) where
   show (IntNode i es d) =
@@ -46,11 +47,8 @@ instance (Show l, Show d) ⇒ Show (IntGraph l d) where
   show (IntGraph g) =
     concatMap (\ n → "  " ++ show n ++ "\n") g
 
-instance Functor (IntGraphNode l) where
-  fmap f (IntNode i es d) = IntNode i es (fmap f d)
-
 {- Graph node/data types for graph in ST -} 
-type STEdge s l d = (l , STNodeRef s l d)
+type STEdge s l d = (l , Maybe d, STNodeRef s l d)
 data STNodeData s l d = STNData [STEdge s l d] (Maybe d)
 data STNodeRef  s l d = STNRef !Int !(STRef s (STNodeData s l d))
 
@@ -70,8 +68,8 @@ toIntGraph stg = do
   ns ← (mapM _groundN stg)
   return $ coerce $ (IM.fromList ns)
   where
-    _groundE :: STEdge s l d → IntGraphEdge l
-    _groundE (l , STNRef i r) = IntEdge l i
+    _groundE :: STEdge s l d → IntGraphEdge l d
+    _groundE (l , d, STNRef i r) = IntEdge l d i
 
     _groundN :: STNodeRef s l d → ST s (Int, IntGraphNode l d)
     _groundN (STNRef i r) = do

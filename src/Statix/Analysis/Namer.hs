@@ -36,7 +36,8 @@ qualify n = do
 
 checkTermF :: (MonadNamer m) ⇒ TermF₀ r → m (TermF₁ r)
 checkTermF (TConF s ts)   = return $ TConF s ts
-checkTermF (TLabelF l)    = return $ TLabelF l
+checkTermF (TLabelF l t)  = do
+  return $ TLabelF l t
 checkTermF (TPathConsF n l p) = do
   n ← resolve n
   return $ TPathConsF n l p
@@ -99,6 +100,7 @@ checkConstraint (CData x t) = do
 checkConstraint (CEdge x l y) = do
   p ← resolve x
   q ← resolve y
+  l ← checkTerm l
   return (CEdge p l q)
 checkConstraint (CQuery x re y) = do
   p ← resolve x

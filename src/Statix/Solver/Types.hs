@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 module Statix.Solver.Types where
 
 import Prelude hiding (lookup, null)
@@ -34,6 +35,11 @@ type SNode s = STNodeRef s Label (STmRef s)
 -- | Graph paths in ST
 type SPath s = Graph.Path (SNode s) Label
 
+-- functorial in the edge term
+deriving instance Functor (SPath s)
+deriving instance Foldable (SPath s)
+deriving instance Traversable (SPath s)
+
 -- | Some information about the source of variables
 type VarInfo = Text
 
@@ -49,22 +55,22 @@ type SGen = Int
 -- | The constructors of the term language
 data STermF s c =
     SNodeF (SNode s)
-  | SLabelF Label
+  | SLabelF Label (Maybe c)
   | SConF Ident [c]
-  | SAnsF [SPath s]
+  | SAnsF [SPath s c]
   | SPathEndF c
   | SPathConsF c c c deriving (Functor, Foldable, Traversable)
 
 instance (Show c) ⇒ Show (STermF s c) where
   show (SNodeF n)         = "new " ++ show n
-  show (SLabelF l)        = show l
+  show (SLabelF l t)      = show l ++ "(" ++ show t ++ ")"
   show (SConF k ts)       = unpack k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
   show (SAnsF _)          = "{...}"
   show (SPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
   show (SPathEndF n)      = show n ++ " ◅ "
  
 pattern SNode n         = Tm (SNodeF n)
-pattern SLabel l        = Tm (SLabelF l)
+pattern SLabel l t      = Tm (SLabelF l t)
 pattern SCon id ts      = Tm (SConF id ts)
 pattern SAns ps         = Tm (SAnsF ps)
 pattern SPathCons s l p = Tm (SPathConsF s l p)
@@ -83,8 +89,12 @@ instance Unifiable (STermF s) where
         else Nothing
     | otherwise = Nothing
 
-  zipMatch (SLabelF l₁) (SLabelF l₂)
-    | l₁ == l₂  = Just (SLabelF l₁)
+  zipMatch (SLabelF l₁ t₁) (SLabelF l₂ t₂)
+    | l₁ == l₂  =
+        case (t₁, t₂) of
+          (Just t₁ , Just t₂) → Just (SLabelF l₁ (Just (t₁ , t₂)))
+          (Nothing , Nothing) → Just (SLabelF l₁ Nothing)
+          _                   → Nothing
     | otherwise = Nothing
 
   -- paths
@@ -155,12 +165,12 @@ instance Default (Solver s) where
     }
 
 -- | The monad that we use to solve Statix constraints
-type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s)))
+type SolverM s = ReaderT (Env s) (ExceptT StatixError (StateT (Solver s) (ST s)))
 
 -- | Constraint closure
 type Goal s    = (Env s, Constraint₁, SGen)
 
 -- | (ST-less) solution to a constraint program
-type Solution = Either StatixError (String, IntGraph Label String)
+type Solution = ((Either StatixError String), IntGraph Label String)
 
 makeLenses ''Solver

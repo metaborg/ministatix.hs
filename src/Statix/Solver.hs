@@ -41,7 +41,7 @@ import Statix.Solver.Monad
 
 import Unification as U
 
-__trace__ = False
+__trace__ = True
 
 tracer :: String → a → a
 tracer s a = if __trace__ then trace s a else a
@@ -57,10 +57,10 @@ tracerWithQueue c = do
     format (_, c, _) = show c
 
 -- TODO make Reifiable a typeclass again
-reifyPath :: SPath s → SolverM s (STmRef s)
-reifyPath (Graph.Via (n, l) p) = do
+reifyPath :: SPath s (STmRef s) → SolverM s (STmRef s)
+reifyPath (Graph.Via (n, l, t) p) = do
   n  ← construct (Tm (SNodeF n))
-  l  ← construct (Tm (SLabelF l))
+  l  ← construct (Tm (SLabelF l t))
   pr ← reifyPath p
   construct (Tm (SPathConsF n l pr))
 reifyPath (Graph.End n) = do
@@ -158,9 +158,11 @@ checkCritical ces (CAnd l r) = do
   return (lc `Set.union` rc)
 checkCritical ces (CEx xs c) = do
   openExist xs $ checkCritical ces c
-checkCritical ces (CEdge x l y) = do
-  t₁ ← resolve x
-  checkTerm ces t₁ (Set.singleton l)
+checkCritical ces (CEdge x e y)
+  | (Label l _) ← e = do
+      t₁ ← resolve x
+      checkTerm ces t₁ (Set.singleton l)
+  | otherwise = throwError TypeError
 checkCritical ces (CApply qn ts) = do
   ts ← mapM toDag ts
   -- get type information for p
@@ -187,9 +189,10 @@ toDag (Con c ts) = do
   id  ← fresh
   ts' ← mapM toDag ts
   newClass (Rep (SCon c ts') id)
-toDag (Label l) = do
+toDag (Label l t) = do
   id ← fresh
-  newClass (Rep (SLabel l) id)
+  t ← mapM toDag t
+  newClass (Rep (SLabel l t) id)
 toDag (PathCons x l t₂) = do
   id ← fresh
   n  ← resolve x
@@ -246,12 +249,13 @@ solveFocus (CNew x) = do
     (\ err → throwError (Unsatisfiable "Not fresh!"))
   next
 
-solveFocus (CEdge x l y) = do
+solveFocus (CEdge x (Label l t) y) = do
   t₁ ← resolve x >>= getSchema
   t₂ ← resolve y >>= getSchema
   case (t₁ , t₂) of
     (SNode n, SNode m) → do
-      newEdge (n, l, m)
+      t ← mapM toDag t
+      newEdge (n, l, t, m)
       next
     (U.Var _, _)  → throwError StuckError
     (_ , U.Var _) → throwError StuckError
@@ -293,7 +297,7 @@ solveFocus c@(COne x t) = do
     (SAns []) →
       throwError (Unsatisfiable $ show c ++ " (No paths)")
     (SAns ps) →
-      throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
+      throwError (Unsatisfiable $ show c ++ " (More than one path: ") -- TODO  ++ show ps ++ ")")
     t →
       throwError TypeError
 
@@ -375,7 +379,7 @@ solveFocus (CMin x lt z) = do
       next
     _          → throwError TypeError
   where
-    comp :: PathComp → Rel (SPath s) (SPath s)
+    comp :: PathComp → Rel (SPath s t) (SPath s t)
     comp (Lex lt) p q =
       reflexiveClosure
         (pathLT (transitiveClosure (finite lt)))
@@ -394,7 +398,7 @@ solveFocus (CFilter x m z) = do
       next
     _          → throwError TypeError
   where
-    filt :: PathFilter Term₁ → SPath s → SolverM s Bool
+    filt :: PathFilter Term₁ → SPath s t → SolverM s Bool
     filt (MatchDatum m) p = do
       let tgt = target p
       t ← getDatum tgt

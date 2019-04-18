@@ -102,7 +102,7 @@ solution = do
 
 termTypeAnalysis :: MonadTyper n m ⇒ Term₁ → m n
 termTypeAnalysis (Term.Var x) = resolve x
-termTypeAnalysis (Label _)    = construct (Tm (Const TLabel))
+termTypeAnalysis (Label _ _)  = construct (Tm (Const TLabel))
 termTypeAnalysis (PathCons _ _ _) = construct (Tm (Const TPath))
 termTypeAnalysis (PathEnd _)  = construct (Tm (Const TPath))
 termTypeAnalysis _            = construct (Tm (Const TBot))
@@ -133,13 +133,15 @@ typeAnalysis (CAnd c d) = do
   typeAnalysis d
 typeAnalysis (CEq t s) =
   return ()
-typeAnalysis (CEdge n l m)  = do
-  n  ← resolve n
-  n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
-  m  ← resolve m
-  m' ← construct (Tm (Const (TNode None)))
-  unify n n'
-  void $ unify m m'
+typeAnalysis (CEdge n e m)
+  | Label l t ← e = do
+      n  ← resolve n
+      n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
+      m  ← resolve m
+      m' ← construct (Tm (Const (TNode None)))
+      unify n n'
+      void $ unify m m'
+  | otherwise = throwError $ TypeError "Expected label"
 typeAnalysis (CNew n)       = do
   n  ← resolve n
   m  ← construct (Tm (Const (TNode Out)))

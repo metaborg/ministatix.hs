@@ -42,8 +42,8 @@ instance MonadGraph (SNode s) Label (STmRef s) (SolverM s) where
     graph %= (node:)
     return node
 
-  newEdge (STNRef i r, l, y) =
-    liftST $ modifySTRef r (\case STNData es d → STNData ((l , y) : es) d)
+  newEdge (STNRef i r, l, t, y) =
+    liftST $ modifySTRef r (\case STNData es d → STNData ((l, t, y) : es) d)
     
   getDatum (STNRef i r) = do
     STNData _ d ← liftST (readSTRef r)

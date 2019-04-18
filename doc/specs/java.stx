@@ -13,36 +13,107 @@ src(p,s) :- p match
 // d is the datum of the target of p
 datum(p,d) :- {s} tgt(p, s), s -> d.
 
+lookup-generic(s, gen, s_gen) :-
+  {generics, matches, p}
+    query s `GEN as generics 
+  , filter generics (name where name = gen) matches
+  , only(matches, p)
+  , tgt(p, s_gen).
+
+lookup-class(s, clsname, s_cls) :-
+  {classes, matches, closest, p}
+    query s `P*`CLASS as classes
+  , filter classes (name where name = clsname) matches
+  , min matches lexico(`CLASS < `P) closest
+  , only(closest, p)
+  , tgt(p, s_cls).
+
+lookup-method(s, mname, s_method, path) :-
+  {methods, matches, closest}
+    query s `EXTENDS*`METHOD as methods 
+  , filter methods (Pair(name, retty) where name = mname) matches
+  , min matches lexico(`METHOD < `EXTENDS) closest
+  , only(closest, path).
+
+lookup-formal-generics(s_cls, formals) :- {xs, s_gen, p}
+    query s_cls `GEN_FORMALS as xs
+  , only(xs, p)
+  , datum(p, formals).
 
 declare-generics(s_cls, gen) :- gen match
   { Cons(X, gen') -> {X'}
         new X'
-      , s_cls -[ GEN ]-> X'
+      , s_cls -[ `GEN ]-> X'
       , X' -> X
       , declare-generics(s_cls, gen')
   | Nil() -> true
   }.
 
-declare-formals(s, formals) :- formals match
-  { Cons(param, formals') -> {F}
+// subst T for X  in S
+subst(T, X, S, out) :- S match
+  { Object() -> out     -> Object()
+  | Obj(clsname, TYS)   -> {TYS'}
+        subst-list(T, X, TYS, TYS')
+      , out = Obj(clsname, TYS')
+  | TVar(Y) where X = Y -> out = T
+  | TVar(Y) -> out = TVar(Y)
+  }.
+
+subst-all(TYS, XS, S, out) :- TYS match
+  { Cons(TY, TYS') -> {X, XS', middle}
+        XS = Cons(X, XS')
+      , subst(TY, X, S, middle)
+      , subst-all(TYS', XS', S, out)
+  | Nil() -> out = S
+  }.
+
+subst-list(T, X, TYS, TYS') :- TYS match
+  { Cons(TY, Tail) -> {TY', Tail, Tail'}
+        subst(T, X, TY, TY')
+      , subst-list(T, X, Tail, Tail')
+      , TYS' = Cons(TY', Tail')
+  | Nil() -> TYS' = Nil()
+  }.
+
+interp(s, ty, TY) :- ty match
+  { Obj(clsname, tys) -> {s_cls, TYS}
+       lookup-class(s, clsname, s_cls)
+     , interp-all(s, tys, TYS)
+     , TY = Obj(s_cls, TYS)
+  | TVar(x)  -> {X}
+       lookup-generic(s, x, X)
+     , TY = TVar(X)
+  | Object() -> TY = Object()
+  }.
+
+interp-all(s, tys, TYS) :- tys match
+  { Cons(ty, tys') -> {TY, TYS'}
+        interp(s, ty, TY)
+      , interp-all(s, tys', TYS')
+      , TYS = Cons(TY, TYS')
+  | Nil() -> TYS = NIL()
+  }.
+
+declare-formals(s_formals, formals) :- formals match
+  { Cons(Pair(name, type), formals') -> {F, TY}
         new F
-      , s -[ PARAM ]-> F
-      , F -> param
-      , declare-formals(s, formals')
+      , s_formals -[ `PARAM ]-> F
+      , interp(s_formals, type, TY)
+      , F -> Pair(name, TY)
+      , declare-formals(s_formals, formals')
   | Nil() -> true
   }.
 
-imports-parents(s_cls, parents) :- parents match
-  { Cons(parent, parents') ->
-      {s_P, classes, matches, closest, p_parent, s_parent} 
-        query s_cls `P`P*`CLASS as classes
-      , filter classes (name where name = parent) matches  // filter by class name
-      , min matches lexico(CLASS < P) closest                    // apply lexical scoping rules
-      , only(closest, p_parent)                            // ensure disambiguation is complete
-      , tgt(p_parent, s_parent)                            // get the parent class scope from the path
-      , s_cls -[ EXTENDS ]-> s_parent                      // extend the parent class scope
+extends-parents(s_cls, parents) :- parents match
+  { Cons(Parent(parent, tys), parents') -> {s_parent, formals, TYS} 
+        lookup-class(s_cls, parent, s_parent)     // find the parent class scope
+      , lookup-formal-generics(s_parent, formals) // check generics against formals
+      , interp-all(s_cls, tys, TYS)
+      , list-length-matches(formals, TYS)
+      , s_cls -[ `EXTENDS(TYS) ]-> s_parent        // extend the parent class scope
   | Nil() -> true
   }.
+
 
 formal-names(formals, names) :- formals match
   { Cons(Pair(name, ty), tail) -> {names'}
@@ -53,23 +124,26 @@ formal-names(formals, names) :- formals match
 
 declare-method(s_cls, m) :- m match
   { Method(name, formals, return) ->
-      {s_method, s_body, names, s_formals}
+      {s_method, s_body, names, s_formals, TY}
         new s_method
       , new s_body
       , new s_formals
 
       // declare the method in the class scope
-      , s_cls -[ METHOD ]-> s_method
+      , s_cls -[ `METHOD ]-> s_method
+      , s_method -[ `P ]-> s_cls
 
       // remember the name and return type of the method
-      , s_method -> pair(name, return)
+      , interp(s_cls, return, TY)
+      , s_method -> Pair(name, TY)
 
       // declare the formals
       // remember there positions
       , formal-names(formals, names)
       , declare-formals(s_formals, formals)	
       , s_formals -> names
-      , s_method -[ FORMALS ]-> s_formals
+      , s_method  -[ `FORMALS ]-> s_formals
+      , s_formals -[ `P ]-> s_cls
   }.
 
 declare-methods(s_cls, ms) :- ms match
@@ -80,13 +154,16 @@ declare-methods(s_cls, ms) :- ms match
   }.
 
 class-ok(s_pkg, ce) :- ce match
-  { Cls(name, generics, parents, ms) -> {s_cls}
+  { Cls(name, generics, parents, ms) -> {s_cls, s_gen}
        new s_cls
+     , new s_gen
      , s_cls -> name
-     , s_cls -[ P ]-> s_pkg
-     , s_pkg -[ CLASS ]-> s_cls
+     , s_cls -[ `P ]-> s_pkg
+     , s_cls -[ `GEN_FORMALS ]-> s_gen
+     , s_pkg -[ `CLASS ]-> s_cls
+     , s_gen -> generics
      , declare-generics(s_cls, generics)
-     , imports-parents(s_cls, parents)
+     , extends-parents(s_cls, parents)
      , declare-methods(s_cls, ms)
   }.
 
@@ -100,32 +177,37 @@ classes-ok(s_pkg, clss) :- clss match
 pkg-ok(clss) :- {s_pkg}
   new s_pkg, classes-ok(s_pkg, clss).
 
-lookup-class(s, clsname, s_cls) :-
-  {classes, matches, closest, p}
-    query s `P*`CLASS as classes
-  , filter classes (name where name = clsname) matches
-  , min matches lexico(CLASS < P) closest
-  , only(closest, p)
-  , tgt(p, s_cls).
+list-length-matches(xs, ys) :- xs match
+  { Cons(x, xs') -> {y, ys'} ys = Cons(y, ys'), list-length-matches(xs', ys')
+  | Nil() -> ys = Nil()
+  }.
 
+type-params-ok(s_exp, s_cls, tys) :- {generics}
+    lookup-formal-generics(s_cls, generics)
+  , list-length-matches(tys, generics).
 
-lookup-method(s, mname, s_method, returns) :-
-  {methods, matches, closest, p, d}
-    query s `EXTENDS*`METHOD as methods 
-  , filter methods (pair(name, retty) where name = mname) matches
-  , min matches lexico(METHOD < EXTENDS) closest
-  , only(closest, p)
-  , tgt(p, s_method)
-  , datum(p, d)
-  , d match { pair(name, ty) -> returns = ty }.
+normalize-method-type(p_method, TYS, TY) :- p_method match
+  { edge(s_cls, `EXTENDS(PTYS), p) -> {gens, TY'}
+        lookup-formal-generics(s_cls, gens)
+      , normalize-method-type(p, PTYS, TY')
+      , subst-all(gens, TYS, TY', TY)
+  | edge(s_cls, `METHOD, p)  -> {name, gens, TY'}
+        datum(p) = Pair(name, TY')
+      , lookup-formal-generics(s_cls, gens)
+      , subst-all(gens, TYS, TY', TY)
+  }.
 
-type-of(s_exp, e, ty) :- e match
-  { New(clsname) -> {s_cls}
+type-of(s_exp, e, TY) :- e match
+  { New(clsname, tys) -> {s_cls, TYS}
         lookup-class(s_exp, clsname, s_cls)
-      , ty = Obj(s_cls)
-  | Call(e, mname) -> {objty, s_method}
-        type-of(s_exp, e, objty)
-      , objty match { Obj(s_cls) -> lookup-method(s_cls, mname, s_method, ty) }
+	// check the type parameters against the formal generics	
+      , type-params-ok(s_exp, s_cls, tys)
+      , interp-all(s_exp, tys, TYS)
+      , TY = Obj(s_cls, TYS)
+  | Call(e, mname) -> {s_method, s_cls, TYS, p_method}
+        type-of(s_exp, e, Obj(s_cls, TYS))
+      , lookup-method(s_cls, mname, s_method, p_method)
+      , normalize-method-type(p_method, TYS, TY)
   }.
   
 // --
@@ -139,19 +221,39 @@ test(pkg, ty) :-
 	    B(),
 	    Nil(),
 	    Nil(),
-	    Cons(Method(p(), Nil(), Obj(B())), Nil())
+	    Cons(Method(p(), Nil(), Obj(B(), Nil())), Nil())
 	  ),
 	Cons(
 	  Cls(
-	    A(),              // name
-	    Cons(X(), Nil()), // generics
-	    Cons(B(), Nil()), // parents
+	    // name
+	    A(),
+	    // generics
+	    Cons(X(), Nil()),
+ 	    // parents
 	    Cons(
-	      Method(m(), Nil(), Nat()),
-	    Cons(Method(n(), Nil(), Nat()),
+	      Parent(B(), Nil()),
+	      Nil()),
+	    // methods
+	    Cons(
+	      Method(m(), Cons(Pair(x(), TVar(X())), Nil()), Obj(B(), Nil())),
+	    Cons(Method(n(), Nil(), Object()),
 	      Nil())
-	    ) // methods
+	    )
 	  ),
 	Nil()))
     )
-    , type-of(pkg, Call(New(A()), p()), ty).
+    , type-of(pkg, Call(New(A(), Cons(Obj(B(), Nil()), Nil())), p()), ty).
+
+test2(pkg, ty) :-
+    new pkg
+    , classes-ok(pkg,
+	Cons(
+	  Cls(
+	    A(),
+	    Nil(),
+	    Nil(),
+	    Cons(Method(p(), Nil(), Obj(A(), Nil())), Nil())
+	  ),
+	Nil())
+    )
+    , type-of(pkg, New(A(), Nil()), ty).

@@ -98,7 +98,7 @@ Constraint      : '{' Names '}' Constraint              { CEx (reverse $2) $4 }
                 | false                                 { CFalse }
                 | new name                              { CNew $2 }
                 | name rightarrow Term                  { CData $1 $3 }
-                | name arrL name arrR name              { CEdge $1 (Lab $3) $5 }
+                | name arrL Term arrR name              { CEdge $1 $3 $5 }
                 | query name Regex as name              { CQuery $2 $3 $5 }
                 | one  '(' name ',' Term ')'            { COne $3 $5 }
                 | every name Lambda                     { CEvery $2 $3 }
@@ -108,7 +108,7 @@ Constraint      : '{' Names '}' Constraint              { CEx (reverse $2) $4 }
                 | '(' Constraint ')'                    { $2 }
                 | Term match '{' Branches '}'           { CMatch $1 (reverse $4) }
 
-RegexLit        : '`' name                              { RMatch (Lab $2) }
+RegexLit        : Label                                 { RMatch $1 }
                 | RegexLit RegexLit                     { RSeq $1 $2 }
                 | RegexLit '*'                          { RStar $1 }
                 | RegexLit '+'                          { rplus $1 }
@@ -119,9 +119,10 @@ Names           :                                       { [] }
                 | name                                  { [ $1 ] }
                 | Names ',' name                        { $3 : $1 }
 
-Label           : name                                  { Lab $1 }
+Label           : '`' name                              { Lab $2 }
 
-Term            : '`' Label                             { Label $2 }
+Term            : Label                                 { Label $1 Nothing }
+                | Label '(' Term ')'                    { Label $1 (Just $3) }
                 | edge '(' name ',' Term ',' Term ')'   { PathCons $3 $5 $7 }
                 | end  '(' name ')'                     { PathEnd $3 }
                 | name '(' Terms ')'                    { Con $1 (reverse $3) }
