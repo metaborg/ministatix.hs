@@ -40,4 +40,5 @@ readCmd "h"      = readCmd "help"
 readCmd "quit"   = Just <$> const Quit
 readCmd "q"      = readCmd "quit"
 readCmd "type"   = Just <$> Type . strip . pack
+readCmd "t"      = readCmd "type"
 readCmd _        = const Nothing

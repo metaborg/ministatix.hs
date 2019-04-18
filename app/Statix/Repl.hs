@@ -86,7 +86,7 @@ printSolution solution =
   case solution of
     Left e → do
       setSGR [SetColor Foreground Vivid Red]
-      putStrLn $ "  ⟨×⟩ - " ++ show e
+      putStrLn $ "  ⟨✗⟩ - " ++ show e
       putStrLn ""
       setSGR [Reset]
     Right (φ, g) → do
