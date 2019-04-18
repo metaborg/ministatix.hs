@@ -168,11 +168,11 @@ handler κ (Define p) = do
   -- rinse and repeat
   κ
 
-handler κ (Import file) = do
+handler κ (Import path) = do
   here     ← liftIO getCurrentDirectory
-  let path = here </> file
+  let path = here </> path
   content  ← liftIO $ readFile path
-  let modname = Text.pack file
+  let modname = Text.pack path
 
   symtab ← use globals
 

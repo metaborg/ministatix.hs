@@ -183,20 +183,29 @@ queryspec = describe "query" $ do
 importspec :: Spec
 importspec = describe "import" $ do
   runMod True $ unlines
-    [ "import x;"
+    [ "import common;"
     , "test() <- true."
     ]
 
   runMod True $ unlines
-    [ "import x.y;"
+    [ "import utils.common;"
     , "test() <- true."
     ]
   
   runMod True $ unlines
-    [ "import abc.def.ghi;"
+    [ "import utils.extra.numbers;"
     , "test() <- {x} new x."
     ]
 
+  runMod True $ unlines
+    [ "import .common;"
+    , "test() <- {x} new x."
+    ]
+  
+  runMod True $ unlines
+    [ "import ..utils.common;"
+    , "test() <- {x} new x."
+    ]
   input <- runIO $ readTestInput "test1.stx"
   runMod True input
 

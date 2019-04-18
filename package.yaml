@@ -33,35 +33,35 @@ build-tools:
 - happy
 
 default-extensions:
-- UnicodeSyntax
-- PatternSynonyms
-- LambdaCase
-- FunctionalDependencies
-- FlexibleInstances
-- DuplicateRecordFields
-- LambdaCase
-- TypeFamilies
-- FlexibleContexts
-- TypeApplications
-- MultiParamTypeClasses
-- RankNTypes
-- TemplateHaskell
-- ScopedTypeVariables
 - DeriveTraversable
 - DeriveFunctor
 - DeriveFoldable
+- DuplicateRecordFields
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- LambdaCase
+- MultiParamTypeClasses
+- OverloadedStrings
+- PatternSynonyms
+- RankNTypes
+- ScopedTypeVariables
+- TemplateHaskell
+- TypeApplications
+- TypeFamilies
+- UnicodeSyntax
 
 library:
   source-dirs: src
-  ghc-options:        
+  ghc-options:
   - -fwarn-tabs
   - -fwarn-incomplete-patterns
   - -fwarn-incomplete-uni-patterns
 
 executables:
   statix-exe:
-    main:                Main.hs
-    source-dirs:         app
+    main: Main.hs
+    source-dirs: app
     ghc-options:
     - -threaded
     - -rtsopts
@@ -74,8 +74,8 @@ executables:
 
 tests:
   statix-test:
-    main:                Spec.hs
-    source-dirs:         test
+    main: Spec.hs
+    source-dirs: test
     ghc-options:
     - -threaded
     - -rtsopts

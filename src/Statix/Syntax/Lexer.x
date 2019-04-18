@@ -13,6 +13,7 @@ $digit = 0-9
 $alpha = [a-zA-Z]
 @name  = $alpha [$alpha $digit \_ ]*
 @qname = (@name [\.])+ @name
+@rpath = [\.]+ (@name [\.])* @name
 
 tokens :-
 
@@ -37,6 +38,7 @@ tokens :-
   import                        { const TokImport }
   lexico                        { const TokPathLT }
 
+  @rpath                        { TokRPath . Text.pack }
   @qname                        { TokQName . Text.pack }
   @name                         { TokName . Text.pack }
 
@@ -71,6 +73,7 @@ tokens :-
 data Token
   = TokName Text.Text
   | TokQName Text.Text
+  | TokRPath Text.Text
   | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
   | TokIn | TokAs | TokWhere
   | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
