@@ -103,13 +103,17 @@ getPredicate :: (MonadReader (Env s) m) ⇒ QName → m Predicate₁
 getPredicate qn = view (symbols . to (!!! qn))
 
 -- | Run Solver computations
-runSolver :: (forall s. SolverM s a) → Either StatixError a
-runSolver c = runST (runExceptT (evalStateT (runReaderT c def) def))
+runSolver :: (forall s. SolverM s a) → (Either StatixError a, IntGraph Label String)
+runSolver c = runST $ do
+  (c, s) ← runStateT (runExceptT (runReaderT c def)) def
+  graph ← toIntGraph (_graph s)
+  graph ← forM graph (\n → show <$> toTree n)
+  return (c, graph)
 
 -- | Lift ST computations into Solver
 liftST :: ST s a → SolverM s a
 liftST = lift . lift . lift
 
 -- | Lift State computations into Solver
-liftState :: StateT (Solver s) (ExceptT StatixError (ST s)) a → SolverM s a
-liftState = lift
+-- liftState :: StateT (Solver s) (ST s) a → SolverM s a
+-- liftState = lift

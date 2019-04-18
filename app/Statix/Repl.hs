@@ -82,25 +82,26 @@ prompt = do
     Just cmd → handleErrors (readEither cmd)
 
 printSolution :: Solution → IO ()
-printSolution solution =
-  case solution of
+printSolution (res , graph) = do
+  case res of
     Left e → do
       setSGR [SetColor Foreground Vivid Red]
       putStrLn $ "  ⟨×⟩ - " ++ show e
       putStrLn ""
       setSGR [Reset]
-    Right (φ, g) → do
+    Right φ → do
       setSGR [SetColor Foreground Dull Green]
       putStrLn "  ⟨✓⟩ Satisfiable"
       setSGR [SetColor Foreground Vivid White]
       putStrLn "  ⟪ Unifier ⟫"
       setSGR [Reset]
       putStrLn φ
-      setSGR [SetColor Foreground Vivid White]
-      putStrLn "  ⟪ Graph ⟫"
-      setSGR [Reset]
-      print g
-      setSGR [Reset]
+
+  setSGR [SetColor Foreground Vivid White]
+  putStrLn "  ⟪ Graph ⟫"
+  setSGR [Reset]
+  print graph
+  setSGR [Reset]
 
 withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a
 withErrors c = do

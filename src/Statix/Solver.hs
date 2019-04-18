@@ -427,7 +427,7 @@ formatUnifier fr =
 -- | The solver loop just continuously checks the work queue,
 -- steals an item and focuses it down, until nothing remains.
 -- When the work is done it grounds the solution and returns it.
-schedule :: SolverM s (String, IntGraph Label String)
+schedule :: SolverM s String
 schedule = do
   st ← get
   c  ← popGoal
@@ -445,14 +445,11 @@ schedule = do
 
     -- done, gather up the solution (graph and top-level unifier)
     Nothing → do
-      graph ← use graph
-      graph ← liftST $ toIntGraph graph
-      graph ← forM graph (\n → show <$> toTree n)
       φ     ← unifier
-      return (formatUnifier φ, graph)
+      return $ formatUnifier φ
 
 -- | Construct a solver for a raw constraint
-kick :: SymbolTable → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))
+kick :: SymbolTable → Constraint₁ → (forall s. SolverM s String)
 kick sym c =
   -- convert the raw constraint to the internal representatio
   local (\_ → set symbols sym def) $ do
@@ -472,4 +469,4 @@ solve p c = runSolver (kick p c)
 
 -- | Check satisfiability of a program
 check :: SymbolTable → Constraint₁ → Bool
-check p c = isRight $ solve p c
+check p c = let (ei, _) = solve p c in isRight ei
