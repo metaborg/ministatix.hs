@@ -31,7 +31,7 @@ tokens :-
   end                           { const TokEnd }
   lexico                        { const TokPathLT }
 
-  $alpha [$alpha $digit \_ ']*	{ TokVar . Text.pack }
+  $alpha [$alpha $digit \_ \- ']* { TokVar . Text.pack }
 
   "<"                           { const TokLAngle }
   ">"                           { const TokRAngle }
