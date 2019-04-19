@@ -31,7 +31,7 @@ lookup-class(s, clsname, s_cls) :-
 lookup-method(s, mname, s_method, path) :-
   {methods, matches, closest}
     query s `EXTENDS*`METHOD as methods 
-  , filter methods (Pair(name, retty) where name = mname) matches
+  , filter methods (Signature(name, fms, retty) where name = mname) matches
   , min matches lexico(`METHOD < `EXTENDS) closest
   , only(closest, path).
 
@@ -50,7 +50,7 @@ declare-generics(s_cls, gen, GENS) :- gen match
   | Nil() -> GENS = Nil()
   }.
 
-// subst T for X  in S
+// subst T for X in S
 subst(T, X, S, out) :- S match
   { Object() -> out     -> Object()
   | Obj(clsname, TYS)   -> {TYS'}
@@ -95,14 +95,15 @@ interp-all(s, tys, TYS) :- tys match
   | Nil() -> TYS = Nil()
   }.
 
-declare-formals(s_formals, formals) :- formals match
-  { Cons(Pair(name, type), formals') -> {F, TY}
+declare-formals(s_formals, formals, FMS) :- formals match
+  { Cons(Pair(name, type), formals') -> {F, TY, FMS'}
         new F
       , s_formals -[ `PARAM ]-> F
       , interp(s_formals, type, TY)
       , F -> Pair(name, TY)
-      , declare-formals(s_formals, formals')
-  | Nil() -> true
+      , declare-formals(s_formals, formals', FMS')
+      , FMS = Cons(Pair(name, TY), FMS')
+  | Nil() -> FMS = Nil()
   }.
 
 extends-parents(s_cls, parents) :- parents match
@@ -125,10 +126,9 @@ formal-names(formals, names) :- formals match
 
 declare-method(s_cls, m) :- m match
   { Method(name, formals, return) ->
-      {s_method, s_body, names, s_formals, TY}
+      {s_method, s_body, names, s_formals, FMS, TY}
         new s_method
       , new s_body
-      , new s_formals
 
       // declare the method in the class scope
       , s_cls -[ `METHOD ]-> s_method
@@ -136,15 +136,12 @@ declare-method(s_cls, m) :- m match
 
       // remember the name and return type of the method
       , interp(s_cls, return, TY)
-      , s_method -> Pair(name, TY)
+      , s_method -> Signature(name, FMS, TY)
 
       // declare the formals
       // remember there positions
       , formal-names(formals, names)
-      , declare-formals(s_formals, formals)	
-      , s_formals -> names
-      , s_method  -[ `FORMALS ]-> s_formals
-      , s_formals -[ `P ]-> s_cls
+      , declare-formals(s_method, formals, FMS)	
   }.
 
 declare-methods(s_cls, ms) :- ms match
@@ -192,8 +189,8 @@ normalize-method-type(p_method, TYS, TY) :- p_method match
         lookup-formal-generics(s_cls, gens)
       , normalize-method-type(p, PTYS, TY')
       , subst-all(TYS, gens, TY', TY)
-  | edge(s_cls, `METHOD, p)  -> {name, gens, TY'}
-        datum(p, Pair(name, TY'))
+  | edge(s_cls, `METHOD, p)  -> {name, gens, FMS, TY'}
+        datum(p, Signature(name, FMS, TY'))
       , lookup-formal-generics(s_cls, gens)
       , subst-all(TYS, gens, TY', TY)
   }.
