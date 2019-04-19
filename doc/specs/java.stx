@@ -40,13 +40,14 @@ lookup-formal-generics(s_cls, formals) :- {xs, s_gen, p}
   , only(xs, p)
   , datum(p, formals).
 
-declare-generics(s_cls, gen) :- gen match
-  { Cons(X, gen') -> {X'}
+declare-generics(s_cls, gen, GENS) :- gen match
+  { Cons(X, gen') -> {X', GENS'}
         new X'
       , s_cls -[ `GEN ]-> X'
       , X' -> X
-      , declare-generics(s_cls, gen')
-  | Nil() -> true
+      , declare-generics(s_cls, gen', GENS')
+      , GENS = Cons(X', GENS')
+  | Nil() -> GENS = Nil()
   }.
 
 // subst T for X  in S
@@ -55,7 +56,7 @@ subst(T, X, S, out) :- S match
   | Obj(clsname, TYS)   -> {TYS'}
         subst-list(T, X, TYS, TYS')
       , out = Obj(clsname, TYS')
-  | TVar(Y) where X = Y -> out = T
+  | TVar(Y) where Y = X -> out = T
   | TVar(Y) -> out = TVar(Y)
   }.
 
@@ -63,7 +64,7 @@ subst-all(TYS, XS, S, out) :- TYS match
   { Cons(TY, TYS') -> {X, XS', middle}
         XS = Cons(X, XS')
       , subst(TY, X, S, middle)
-      , subst-all(TYS', XS', S, out)
+      , subst-all(TYS', XS', middle, out)
   | Nil() -> out = S
   }.
 
@@ -154,15 +155,15 @@ declare-methods(s_cls, ms) :- ms match
   }.
 
 class-ok(s_pkg, ce) :- ce match
-  { Cls(name, generics, parents, ms) -> {s_cls, s_gen}
+  { Cls(name, generics, parents, ms) -> {s_cls, s_gen, GENS}
        new s_cls
      , new s_gen
      , s_cls -> name
      , s_cls -[ `P ]-> s_pkg
      , s_cls -[ `GEN_FORMALS ]-> s_gen
      , s_pkg -[ `CLASS ]-> s_cls
-     , s_gen -> generics
-     , declare-generics(s_cls, generics)
+     , s_gen -> GENS
+     , declare-generics(s_cls, generics, GENS)
      , extends-parents(s_cls, parents)
      , declare-methods(s_cls, ms)
   }.
@@ -190,11 +191,11 @@ normalize-method-type(p_method, TYS, TY) :- p_method match
   { edge(s_cls, `EXTENDS(PTYS), p) -> {gens, TY'}
         lookup-formal-generics(s_cls, gens)
       , normalize-method-type(p, PTYS, TY')
-      , subst-all(gens, TYS, TY', TY)
+      , subst-all(TYS, gens, TY', TY)
   | edge(s_cls, `METHOD, p)  -> {name, gens, TY'}
         datum(p, Pair(name, TY'))
       , lookup-formal-generics(s_cls, gens)
-      , subst-all(gens, TYS, TY', TY)
+      , subst-all(TYS, gens, TY', TY)
   }.
 
 type-of(s_exp, e, TY) :- e match
@@ -213,7 +214,7 @@ type-of(s_exp, e, TY) :- e match
 // --
 // some tests
 
-test(pkg, ty) :-
+test(pkg, typ, tym) :-
     new pkg
     , classes-ok(pkg,
 	Cons(
@@ -242,25 +243,38 @@ test(pkg, ty) :-
 	  ),
 	Nil()))
     )
-    , type-of(pkg, Call(New(A(), Cons(Obj(B(), Nil()), Nil())), p()), ty).
+    , type-of(pkg, Call(New(A(), Cons(Obj(B(), Nil()), Nil())), p()), typ)
+    , type-of(pkg, Call(New(A(), Cons(Obj(B(), Nil()), Nil())), m()), tym)
+    .
 
 test2(pkg, ty) :-
     new pkg
     , classes-ok(pkg,
 	Cons(
 	  Cls(
-	    A(),
+	    B(),
+	    Cons(Y(), Nil()),
 	    Nil(),
-	    Nil(),
-	    Cons(Method(p(), Nil(), Obj(A(), Nil())), Nil())
+	    Cons(Method(p(), Nil(), TVar(Y())),
+	    Nil())
 	  ),
 	Cons(
 	  Cls(
-	    B(),
-	    Nil(),
-	    Nil(),
-	    Nil()
+	    // name
+	    A(),
+	    // generics
+	    Cons(X(), Nil()),
+ 	    // parents
+	    Cons(
+	      Parent(B(), Cons(TVar(X()), Nil())),
+	      Nil()),
+	    // methods
+	    Cons(
+	      Method(m(), Cons(Pair(x(), TVar(X())), Nil()), TVar(X())),
+	    Cons(Method(n(), Nil(), Object()),
+	      Nil())
+	    )
 	  ),
 	Nil()))
     )
-    , type-of(pkg, New(A(), Nil()), ty).
+    , type-of(pkg, Call(New(A(), Cons(Obj(B(), Nil()), Nil())), p()), ty).
