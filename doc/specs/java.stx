@@ -154,7 +154,7 @@ declare-methods(s_cls, ms) :- ms match
   | Nil() -> true
   }.
 
-class-ok(s_pkg, ce) :- ce match
+declare-class(s_pkg, ce) :- ce match
   { Cls(name, generics, parents, ms) -> {s_cls, s_gen, GENS}
        new s_cls
      , new s_gen
@@ -168,15 +168,15 @@ class-ok(s_pkg, ce) :- ce match
      , declare-methods(s_cls, ms)
   }.
 
-classes-ok(s_pkg, clss) :- clss match
+declare-classes(s_pkg, clss) :- clss match
   { Cons(cls, clss') ->
-        class-ok(s_pkg, cls)
-      , classes-ok(s_pkg, clss')
+        declare-class(s_pkg, cls)
+      , declare-classes(s_pkg, clss')
   | Nil() -> true
   }.
 
-pkg-ok(clss) :- {s_pkg}
-  new s_pkg, classes-ok(s_pkg, clss).
+declare-pkg(clss) :- {s_pkg}
+  new s_pkg, declare-classes(s_pkg, clss).
 
 list-length-matches(xs, ys) :- xs match
   { Cons(x, xs') -> {y, ys'} ys = Cons(y, ys'), list-length-matches(xs', ys')
@@ -216,7 +216,7 @@ type-of(s_exp, e, TY) :- e match
 
 test(pkg, typ, tym) :-
     new pkg
-    , classes-ok(pkg,
+    , declare-classes(pkg,
 	Cons(
 	  Cls(
 	    B(),
@@ -249,7 +249,7 @@ test(pkg, typ, tym) :-
 
 test2(pkg, ty) :-
     new pkg
-    , classes-ok(pkg,
+    , declare-classes(pkg,
 	Cons(
 	  Cls(
 	    B(),
