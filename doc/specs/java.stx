@@ -15,7 +15,7 @@ datum(p,d) :- {s} tgt(p, s), s -> d.
 
 lookup-generic(s, gen, s_gen) :-
   {generics, matches, p}
-    query s `GEN as generics 
+    query s `P*`GEN as generics 
   , filter generics (name where name = gen) matches
   , only(matches, p)
   , tgt(p, s_gen).
@@ -91,7 +91,7 @@ interp-all(s, tys, TYS) :- tys match
         interp(s, ty, TY)
       , interp-all(s, tys', TYS')
       , TYS = Cons(TY, TYS')
-  | Nil() -> TYS = NIL()
+  | Nil() -> TYS = Nil()
   }.
 
 declare-formals(s_formals, formals) :- formals match
@@ -192,7 +192,7 @@ normalize-method-type(p_method, TYS, TY) :- p_method match
       , normalize-method-type(p, PTYS, TY')
       , subst-all(gens, TYS, TY', TY)
   | edge(s_cls, `METHOD, p)  -> {name, gens, TY'}
-        datum(p) = Pair(name, TY')
+        datum(p, Pair(name, TY'))
       , lookup-formal-generics(s_cls, gens)
       , subst-all(gens, TYS, TY', TY)
   }.
@@ -235,7 +235,7 @@ test(pkg, ty) :-
 	      Nil()),
 	    // methods
 	    Cons(
-	      Method(m(), Cons(Pair(x(), TVar(X())), Nil()), Obj(B(), Nil())),
+	      Method(m(), Cons(Pair(x(), TVar(X())), Nil()), TVar(X())),
 	    Cons(Method(n(), Nil(), Object()),
 	      Nil())
 	    )
@@ -254,6 +254,13 @@ test2(pkg, ty) :-
 	    Nil(),
 	    Cons(Method(p(), Nil(), Obj(A(), Nil())), Nil())
 	  ),
-	Nil())
+	Cons(
+	  Cls(
+	    B(),
+	    Nil(),
+	    Nil(),
+	    Nil()
+	  ),
+	Nil()))
     )
     , type-of(pkg, New(A(), Nil()), ty).

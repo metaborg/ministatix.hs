@@ -41,7 +41,7 @@ import Statix.Solver.Monad
 
 import Unification as U
 
-__trace__ = True
+__trace__ = False
 
 tracer :: String → a → a
 tracer s a = if __trace__ then trace s a else a

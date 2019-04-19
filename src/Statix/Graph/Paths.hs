@@ -73,7 +73,7 @@ runQuery n re = _resolve n re Set.empty
       | otherwise   = do
        -- check if we visited this node yet on the path here
        if Set.member n vis
-         then return []
+         then return (if Re.matchε re then [End n] else [] )
          else do
            -- get the edges out of here
            es ← getOutEdges n
