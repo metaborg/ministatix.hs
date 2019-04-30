@@ -5,7 +5,7 @@ import qualified Data.Graph as G
 import Data.Map.Strict as Map hiding (map, null)
 import qualified Data.HashMap.Strict as HM
 import Debug.Trace
-import Data.Text hiding (unlines, map, concatMap)
+import Data.Text hiding (unlines, map, concatMap, reverse)
 
 -- Converts an imported name into a tuple
 -- of a module name, module path,
@@ -74,14 +74,14 @@ data Import = Import Ident ModPath Bool deriving (Show)
 
 -- vertexToMod :: 
 
+-- Produces a topological sort of a list of modules
+-- according to their import dependencies.
+-- The returned list is from dependee to depender.
 moduleTopSort :: [RawModule] -> [RawModule]
 moduleTopSort modules =
-  -- Create a map from module names to modules
-  let moduleMap = HM.fromList $ map (\m@(Mod name _ _) -> (name, m)) modules in
-  let edges = map (\m@(Mod name imports _) -> (m, name, map getModuleName imports)) modules in
-  -- TODO: Cycles should not be allowed, as they do not result in a unique topological sort
-  let (graph, vertexToNode, keyToVertex) = G.graphFromEdges edges in
-  let sorted = (G.topSort . G.transposeG) graph in
-    map ((\(x, _, _) -> x) . vertexToNode) sorted
+  let edges = [(mod, name, map getModuleName imports) | mod@(Mod name imports _) <- modules ] in
+  let (graph, vertexToNode, _) = G.graphFromEdges edges in
+  let sorted = (reverse . G.topSort) graph in
+    [mod | (mod, _, _) <- map vertexToNode sorted]
   
   
