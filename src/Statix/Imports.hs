@@ -79,6 +79,7 @@ moduleTopSort modules =
   -- Create a map from module names to modules
   let moduleMap = HM.fromList $ map (\m@(Mod name _ _) -> (name, m)) modules in
   let edges = map (\m@(Mod name imports _) -> (m, name, map getModuleName imports)) modules in
+  -- TODO: Cycles should not be allowed, as they do not result in a unique topological sort
   let (graph, vertexToNode, keyToVertex) = G.graphFromEdges edges in
   let sorted = (G.topSort . G.transposeG) graph in
     map ((\(x, _, _) -> x) . vertexToNode) sorted
