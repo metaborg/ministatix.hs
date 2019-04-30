@@ -71,8 +71,8 @@ instance MonadUnique Integer REPL where
 
   updateSeed i = modify (set freshId i)
 
-liftParser :: Text.Text → ParserM a → REPL a
-liftParser mod c = handleErrors $ runParser mod c
+liftParser :: Ident → ParserM a → REPL a
+liftParser modName c = handleErrors $ runParser modName c
 
 prompt :: REPL Cmd
 prompt = do
@@ -172,19 +172,19 @@ handler κ (Import path) = do
   here     ← liftIO getCurrentDirectory
   let path = here </> path
   content  ← liftIO $ readFile path
-  let modname = Text.pack path
+  let modName = Text.pack path
 
   symtab ← use globals
 
   -- parse the module
   toks   ← handleErrors $ lexer content
-  rawmod ← liftParser modname $ parseModule $ toks
+  rawmod ← liftParser modName $ parseModule $ toks
 
   -- Typecheck the module
   mod ← withErrors $ analyze symtab rawmod
 
   -- Import the typechecked module into the symboltable
-  importMod modname mod
+  importMod modName mod
 
   -- rinse and repeat
   κ

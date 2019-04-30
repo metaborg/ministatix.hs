@@ -1,11 +1,16 @@
 module Statix.Imports where
 
+import System.IO hiding (liftIO)
+import System.Directory
+import System.FilePath
 import Statix.Syntax.Constraint -- (RawModule(..), ModPath)
 import qualified Data.Graph as G
 import Data.Map.Strict as Map hiding (map, null)
 import qualified Data.HashMap.Strict as HM
 import Debug.Trace
 import Data.Text hiding (unlines, map, concatMap, reverse)
+import Statix.Syntax.Parser
+import Statix.Syntax.Lexer
 
 -- Converts an imported name into a tuple
 -- of a module name, module path,
@@ -15,20 +20,22 @@ import Data.Text hiding (unlines, map, concatMap, reverse)
 --   ".common.utils"  -> Import "common.utils"    "common/utils.stx" True
 --   "..common.utils" -> Import "common.utils" "../common/utils.stx" True
 -- NOTE: It is possible for two paths to refer to the same module
--- without Ministatix being able to dedice this. For example,
+-- without Ministatix being able to deduce this. For example,
 -- if the base directory is "/home/user/common/" the following two
 -- imports resolve to the same file: ".utils" and "..common.utils"
 -- whereas they do not in the base directory "/home/user/extra/".
 -- However, Ministatix will deduce that the first module's name is "utils"
 -- and find the exact duplicate module with the name "common.utils".
--- In other words, prefer absolute paths.
+-- Similarly, two different relative imports ".utils" will resolve to the same module.
+-- The fix is to use the base path to determine the absolute module name (TBD).
 
-toModulePath :: ModPath -> Import
+
+toModulePath :: ModPath -> (Ident, ModPath, Bool)
 toModulePath = toModulePath_ . unpack
 
-toModulePath_ :: String -> Import
-toModulePath_ ('.':p) = Import ((pack . getModuleName_) p) ((pack . getModulePath_) p) True
-toModulePath_ p       = Import ((pack . getModuleName_) p) ((pack . getModulePath_) p) False
+toModulePath_ :: String -> (Ident, ModPath, Bool)
+toModulePath_ ('.':p) = (((pack . getModuleName_) p), ((pack . getModulePath_) p),  True)
+toModulePath_ p       = (((pack . getModuleName_) p), ((pack . getModulePath_) p), False)
 
 getModuleName :: ModPath -> Ident
 getModuleName = pack . getModuleName_ . unpack
@@ -52,7 +59,7 @@ replaceModulePathChar x   = x
 -- * name
 -- * path
 -- * whether the path is relative (True) or absolute (False)
-data Import = Import Ident ModPath Bool deriving (Show)
+-- data Import = Import Ident ModPath Bool deriving (Show)
 
 -- Import algorithm
 -- We have a worklist with modules
@@ -72,7 +79,33 @@ data Import = Import Ident ModPath Bool deriving (Show)
 -- 2) Get the topological sort of the graph (see Data.Graph.topSort)
 -- 3) Load modules in topological order.
 
--- vertexToMod :: 
+-- Turns a module import path into a module name and absolute file path
+-- This takes the base directory, current directory, and module import.
+getModuleInfo :: FilePath -> FilePath -> ModPath -> (Ident, FilePath)
+getModuleInfo absp relp modp = case toModulePath modp of
+  (modName, modPath,  True) -> (modName, relp </> unpack modPath)
+  (modName, modPath, False) -> (modName, absp </> unpack modPath)
+
+
+-- Reads a module with the specified name from the specified path
+readModuleIO :: Ident -> FilePath -> IO (Either String RawModule)
+readModuleIO modName modPath = do
+  content <- readFile modPath
+  return $ readModule modName content
+
+-- Reads a module with the specified name and content
+readModule :: Ident -> String -> Either String RawModule
+readModule modName content =
+  let tokens = lexer content in
+  (tokens >>= runParser modName . parseModule)
+
+-- importModule :: SymbolTable -> RawModule -> ()
+-- importModule symtab rawmod =
+--   -- Typecheck the module
+--   let mod = analyze symtab rawmod
+
+--   -- Import the typechecked module into the symboltable
+--   importMod modName mod
 
 -- Produces a topological sort of a list of modules
 -- according to their import dependencies.
