@@ -5,6 +5,7 @@ EXEC_ARGS  ?=
 TEST_ARGS  ?=
 DOC_ARGS   ?= --keep-going --open
 CLEAN_ARGS ?= --full
+GHCI_ARGS  ?=
 ARGS       ?= --verbosity=warn
 
 all: build
@@ -27,6 +28,9 @@ doc:
 clean:
 	$(STACK) clean $(CLEAN_ARGS) $(ARGS)
 	-rm statix.cabal
+
+ghci:
+	$(STACK) ghci $(GHCI_ARGS) $(ARGS)
 
 .PHONY: all setup build run exe test doc clean
 .SILENT:
