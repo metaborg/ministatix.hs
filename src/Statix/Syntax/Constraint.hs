@@ -229,3 +229,4 @@ data RawModule = Mod
   { moduleName    :: Ident
   , moduleImports :: [ModPath]
   , definitions   :: [Predicate₀] }
+  deriving (Show)
