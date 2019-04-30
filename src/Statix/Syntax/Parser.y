@@ -140,7 +140,11 @@ Imports         : list(Import)                          { $1 }
 Eol             : nl                                    { $1 }
                 | semicolon                             { $1 }
 
-Module          : Imports Predicates                    { Mod $1 $2 }
+Module          : Imports Predicates                    {%
+    do
+      mod <- ask
+      return (Mod mod $1 $2)
+  }
 
 
 -- Common Rule Patterns --------------------------------------------------------

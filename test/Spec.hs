@@ -47,7 +47,7 @@ testMod :: Bool → RawModule → Text → Spec
 testMod o rawmod main = do
   -- static analysis
   let mod      = runIdentity $ runExceptT $
-        evalStateT (analyze specmod HM.empty rawmod) (0 :: Integer)
+        evalStateT (analyze HM.empty rawmod) (0 :: Integer)
 
   it "analyzes" $
     isRight mod `shouldBe` True
@@ -70,7 +70,7 @@ run o c = do
     let rawbody  = fromRight undefined parsed
     let testpred = pack "test"
     let qn       = (specmod, testpred)
-    let rawmod   = Mod [] [Pred qn [] rawbody]
+    let rawmod   = Mod specmod [] [Pred qn [] rawbody]
     testMod o rawmod testpred
 
 runMod :: Bool -> String -> Spec

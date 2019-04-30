@@ -226,5 +226,6 @@ type Predicate₁       = Predicate QName   IPath   Term₁ -- named & optionall
 
 type ModPath   = Text
 data RawModule = Mod 
-  { moduleImports :: [ModPath]
+  { moduleName    :: Ident
+  , moduleImports :: [ModPath]
   , definitions   :: [Predicate₀] }

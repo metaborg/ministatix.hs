@@ -137,7 +137,7 @@ handler κ (Main rawc) = do
   -- parse and analyze the constraint as a singleton module
   toks     ← handleErrors $ lexer rawc
   c        ← liftParser this $ (parseConstraint toks) 
-  mod      ← withErrors $ analyze this symtab (Mod imps [Pred (this, main) [] c])
+  mod      ← withErrors $ analyze symtab (Mod this imps [Pred (this, main) [] c])
 
   -- import the module
   importMod this mod
@@ -159,7 +159,7 @@ handler κ (Define p) = do
 
   toks  ← handleErrors $ lexer p
   pr    ← liftParser this (parsePredicate toks)
-  mod   ← withErrors $ analyze this symtab (Mod imps [pr])
+  mod   ← withErrors $ analyze symtab (Mod this imps [pr])
 
   -- import the predicate into the symboltable
   importMod this mod
@@ -181,7 +181,7 @@ handler κ (Import path) = do
   rawmod ← liftParser modname $ parseModule $ toks
 
   -- Typecheck the module
-  mod ← withErrors $ analyze modname symtab rawmod
+  mod ← withErrors $ analyze symtab rawmod
 
   -- Import the typechecked module into the symboltable
   importMod modname mod
