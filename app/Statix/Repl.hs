@@ -211,8 +211,7 @@ handler κ Help = do
   κ
 
 handler κ Quit = do
-  liftIO $ exitSuccess
-  κ
+  liftIO exitSuccess
  
 handler κ Nop = κ
 
