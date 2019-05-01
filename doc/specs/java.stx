@@ -190,8 +190,11 @@ declare-pkg(clss) :- {s_pkg}
   new s_pkg, declare-classes(s_pkg, clss).
 
 list-length-matches(xs, ys) :- xs match
-  { Cons(x, xs') -> {y, ys'} ys = Cons(y, ys'), list-length-matches(xs', ys')
-  | Nil() -> ys = Nil()
+  { Cons(x, xs') -> {y, ys'}
+        ys = Cons(y, ys')
+      , list-length-matches(xs', ys')
+  | Nil() ->
+        ys = Nil()
   }.
 
 type-le(l, r) :- l = r.
