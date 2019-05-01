@@ -3,14 +3,16 @@ module Statix.Imports where
 import System.IO hiding (liftIO)
 import System.Directory
 import System.FilePath
+import Data.List
 import Statix.Syntax.Constraint -- (RawModule(..), ModPath)
 import qualified Data.Graph as G
 import Data.Map.Strict as Map hiding (map, null)
 import qualified Data.HashMap.Strict as HM
 import Debug.Trace
-import Data.Text hiding (unlines, map, concatMap, reverse)
+import Data.Text (pack, unpack, stripSuffix)
 import Statix.Syntax.Parser
 import Statix.Syntax.Lexer
+import Data.Maybe (fromJust)
 
 -- Converts an imported name into a tuple
 -- of a module name, module path,
@@ -81,11 +83,39 @@ replaceModulePathChar x   = x
 
 -- Turns a module import path into a module name and absolute file path
 -- This takes the base directory, current directory, and module import.
-getModuleInfo :: FilePath -> FilePath -> ModPath -> (Ident, FilePath)
-getModuleInfo absp relp modp = case toModulePath modp of
+resolveModule :: FilePath -> FilePath -> ModPath -> (Ident, FilePath)
+resolveModule absp relp modp = case toModulePath modp of
+  -- FIXME: Determine the module name from the resulting path relative to the base path
   (modName, modPath,  True) -> (modName, relp </> unpack modPath)
   (modName, modPath, False) -> (modName, absp </> unpack modPath)
 
+
+modnameFromPath :: FilePath -> FilePath -> Either String Ident
+modnameFromPath basepath modpath = do
+  relpath <- ensureRelative $ makeRelative basepath modpath
+  return $ pack . concat $ intersperse "." $ onLast stripStxSuffix $ splitDirectories relpath
+
+stripStxSuffix :: FilePath -> FilePath
+stripStxSuffix s = unpack (fromJust $ stripSuffix ".stx" $ pack s)
+
+ensureRelative :: FilePath -> Either String FilePath
+ensureRelative p = case isRelative p of
+  True  -> Right p
+  False -> Left ("Path '" ++ p ++ "' points to a location outside the base directory.")
+
+onLast :: (a -> a) -> [a] -> [a]
+onLast f (x:y:xs) = (x : onLast f (y:xs))
+onLast f [x]      = [f x]
+onLast _ []       = []
+
+-- modnameFromPath :: FilePath -> FilePath -> Either String Ident
+-- modnameFromPath basepath modpath =
+--   let relpath = makeRelative basepath modpath in
+--     case isRelative relpath of
+--       -- TODO: stripSuffix ".stx" from the last element
+--       -- returns nothing if suffix is not present (error)
+--       True  -> Right $ pack . concat $ intersperse "." $ splitDirectories relpath
+--       False -> Left ("Path '" ++ relpath ++ "' points to a location outside the base directory.")
 
 -- Reads a module with the specified name from the specified path
 readModuleIO :: Ident -> FilePath -> IO (Either String RawModule)
@@ -116,5 +146,4 @@ moduleTopSort modules =
   let (graph, vertexToNode, _) = G.graphFromEdges edges in
   let sorted = (reverse . G.topSort) graph in
     [mod | (mod, _, _) <- map vertexToNode sorted]
-  
-  
+
