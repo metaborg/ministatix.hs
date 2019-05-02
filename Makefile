@@ -14,6 +14,8 @@ setup:
 
 build: setup
 	$(STACK) build $(BUILD_ARGS) $(ARGS)
+	mkdir -p build
+	ln -sfr ./.stack-work/dist/x86_64-linux-tinfo6/Cabal-2.4.0.1/build/statix/statix build/statix
 
 run: build
 	$(STACK) exec statix-exe $(EXEC_ARGS) $(ARGS)
