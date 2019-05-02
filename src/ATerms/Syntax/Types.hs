@@ -11,7 +11,7 @@ import Codec.Binary.UTF8.String (encode)
 
 data AToken
   = TokSymbol Text.Text | TokString Text.Text
-  | TokComma | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB | TokQuote
+  | TokColon | TokComma | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB | TokQuote
   | TokEOF
   deriving Show
 

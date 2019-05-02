@@ -127,6 +127,8 @@ Term            : Label                                 { Label $1 Nothing }
                 | end  '(' name ')'                     { PathEnd $3 }
                 | name '(' Terms ')'                    { funcTm $1 (reverse $3) }
                 | name                                  { Var $1 }
+                | Term colon Term                       { consTm $1 $3 }
+                | '[' ']'                               { nilTm }
 
 Terms           :                                       { []  }
                 | Term                                  { [$1] }

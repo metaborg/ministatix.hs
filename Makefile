@@ -18,7 +18,7 @@ build: setup
 	ln -sfr ./.stack-work/dist/x86_64-linux-tinfo6/Cabal-2.4.0.1/build/statix/statix build/statix
 
 run: build
-	$(STACK) exec statix-exe $(EXEC_ARGS) $(ARGS)
+	$(STACK) exec statix $(EXEC_ARGS) $(ARGS)
 
 test: build
 	$(STACK) test $(TEST_ARGS) $(ARGS)

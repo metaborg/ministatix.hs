@@ -154,3 +154,8 @@ queryspec = describe "query" $ do
       , ", y -> f(), z -> g()"
       , ", {ans, ps, p} query x `A as ans, filter ans (d where d = f()) ps, only(ps, p)"
       ]
+
+  describe "lists" $ do
+    run True "(f():g()) match { (f():g():[]) -> true }"
+
+  '(x:xs)' = Cons()

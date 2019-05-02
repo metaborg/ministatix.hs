@@ -123,7 +123,9 @@ fv = cata fvF
   where
     fvTmF (AFuncF sym ts)      = HSet.unions ts
     fvTmF (AStrF _)            = HSet.empty
-    fvTmF (AListF ts)          = HSet.unions ts
+    fvTmF (AConsF t ts)        = t `HSet.union` ts
+    fvTmF ANilF                = HSet.empty
+    fvTmF (ATupleF ts)         = HSet.unions ts
 
     fvF (TTmF t)             = fvTmF t
     fvF (TVarF ℓ)            = HSet.singleton ℓ
@@ -201,6 +203,12 @@ type Term₁            = Fix (TermF IPath)
 
 funcTm :: Text → [Fix (TermF ℓ)] → Fix (TermF ℓ)
 funcTm c ts = Fix (TTmF (AFuncF c ts))
+
+consTm :: Fix (TermF ℓ) → Fix (TermF ℓ) → Fix (TermF ℓ)
+consTm t ts = Fix (TTmF (AConsF t ts))
+
+nilTm :: Fix (TermF ℓ)
+nilTm = Fix (TTmF ANilF)
 
 pattern TTm t         = Fix (TTmF t)
 pattern Label l t     = Fix (TLabelF l t)

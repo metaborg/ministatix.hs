@@ -21,6 +21,7 @@ tokens :-
   <0> $white+                   ;
   <0> $Alpha [$alpha $digit \_]*{ symbol }
 
+  <0> \:                        { plain TokColon}
   <0> \[                        { plain TokOpenSB }
   <0> \]                        { plain TokCloseSB }
   <0> \(                        { plain TokOpenB }

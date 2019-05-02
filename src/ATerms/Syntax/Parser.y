@@ -31,12 +31,16 @@ import ATerms.Syntax.Lexer
   ')'           { TokCloseB }
   '['           { TokOpenSB }
   ']'           { TokCloseSB }
+  ':'           { TokColon }
  
 %%
 
 ATerm : symbol '(' ATerms ')' { AFunc $1 $3 }
-      | '[' ATerms ']'        { AList (reverse $2) }
+      | '(' ATermList ')'     { $2 }
       | str                   { AStr $1 }
+
+ATermList : ATerm ':' ATermList { ACons $1 $3 }
+          | '[' ']'             { ANil }
 
 ATerms :                      { [] }
        | ATerm                { [ $1 ] }
