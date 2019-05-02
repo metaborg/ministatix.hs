@@ -2,19 +2,22 @@
 module ATerms.Syntax.Parser where
 
 import Data.List
-import qualified Data.Text as Text
 import Data.Char
 import Data.Default
 
 import Control.Monad.Except
+import Control.Monad.State
+
+import ATerms.Syntax.Types
 
 import ATerms.Syntax.ATerm
 import ATerms.Syntax.Lexer
 
 }
 
-%name parse ATerm
+%name parseAct ATerm
 %monad {ParserM}
+%lexer {lexer} {TokEOF} 
 
 %tokentype { AToken }
 %error { parseError }
@@ -33,19 +36,21 @@ import ATerms.Syntax.Lexer
 
 ATerm : symbol '(' ATerms ')' { AFunc $1 $3 }
       | '[' ATerms ']'        { AList (reverse $2) }
-      | '"' str '"'           { AStr $2 }
+      | str                   { AStr $1 }
 
-ATerms : ATerm                { [ $1 ] }
+ATerms :                      { [] }
+       | ATerm                { [ $1 ] }
        | ATerms ',' ATerm     { $3 : $1 }
 
 {
 
-type ParserM a = Except String a
+parseError :: AToken -> ParserM a
+parseError _ = do
+  s ← gets input
+  let rem = remainder s
+  throwError $ "Parse error on line " ++ show (line s) ++ ": " ++ take 80 rem
 
-runParser :: Text.Text → ParserM a → Either String a
-runParser mod c = runExcept c
-
-parseError :: [AToken] -> ParserM a
-parseError toks = throwError $ "Parse error while parsing: " ++ show (take 5 toks)
+parse :: String → Either String ATerm
+parse s = evalParser parseAct s
 
 }

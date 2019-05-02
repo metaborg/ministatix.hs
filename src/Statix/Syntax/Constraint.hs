@@ -18,6 +18,7 @@ import Statix.Graph.Types
 import Statix.Graph.Paths
 import Statix.Analysis.Lexical as Lexical
 
+import ATerms.Syntax.ATerm
 import Unification
 
 ------------------------------------------------------------------
@@ -41,7 +42,7 @@ type IPath = Lexical.Path Ident
 -- | The term language
 
 data TermF ℓ r
-  = TConF Ident [r]
+  = TTmF (ATermF r)
   | TLabelF Label (Maybe r)
   | TVarF ℓ 
   | TPathConsF ℓ r r
@@ -49,9 +50,9 @@ data TermF ℓ r
   deriving (Eq, Functor, Foldable, Traversable)
 
 instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
-  show (TConF c ts)  = show c ++ "(" ++ (intercalate ", " $ fmap show ts) ++ ")"
-  show (TLabelF l t) = "`" ++ show l ++ "(" ++ show t ++ ")"
-  show (TVarF x)     = show x
+  show (TTmF t)           = show t
+  show (TLabelF l t)      = "`" ++ show l ++ "(" ++ show t ++ ")"
+  show (TVarF x)          = show x
   show (TPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
   show (TPathEndF l)      = show l ++ " ◅"
 
@@ -120,7 +121,11 @@ tmapc f = cata (tmapc_ f)
 fv :: (Hashable ℓ, Eq ℓ) ⇒ Fix (TermF ℓ) → HashSet ℓ
 fv = cata fvF
   where
-    fvF (TConF k ℓs)         = HSet.unions ℓs
+    fvTmF (AFuncF sym ts)      = HSet.unions ts
+    fvTmF (AStrF _)            = HSet.empty
+    fvTmF (AListF ts)          = HSet.unions ts
+
+    fvF (TTmF t)             = fvTmF t
     fvF (TVarF ℓ)            = HSet.singleton ℓ
     fvF (TPathConsF ℓ r₁ r₂) = HSet.singleton ℓ `HSet.union` r₁ `HSet.union` r₂
     fvF (TPathEndF ℓ)        = HSet.singleton ℓ
@@ -191,7 +196,7 @@ type TermF₁ r         = TermF IPath r
 type Term₀            = Fix (TermF Ident)
 type Term₁            = Fix (TermF IPath)
 
-pattern Con c ts      = Fix (TConF c ts)
+pattern Con c ts      = Fix (TTmF (AFuncF c ts))
 pattern Label l t     = Fix (TLabelF l t)
 pattern Var x         = Fix (TVarF x)
 pattern PathCons t l t'   = Fix (TPathConsF t l t')

@@ -1,5 +1,6 @@
 module Statix.Analysis.Namer where
 
+
 import Control.Lens
 import Control.Monad.State
 import Control.Monad.Reader
@@ -35,7 +36,7 @@ qualify n = do
     Just q  → return q
 
 checkTermF :: (MonadNamer m) ⇒ TermF₀ r → m (TermF₁ r)
-checkTermF (TConF s ts)   = return $ TConF s ts
+checkTermF (TTmF at)      = return $ TTmF at
 checkTermF (TLabelF l t)  = do
   return $ TLabelF l t
 checkTermF (TPathConsF n l p) = do
