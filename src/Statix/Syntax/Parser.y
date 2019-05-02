@@ -125,7 +125,7 @@ Term            : Label                                 { Label $1 Nothing }
                 | Label '(' Term ')'                    { Label $1 (Just $3) }
                 | edge '(' name ',' Term ',' Term ')'   { PathCons $3 $5 $7 }
                 | end  '(' name ')'                     { PathEnd $3 }
-                | name '(' Terms ')'                    { Con $1 (reverse $3) }
+                | name '(' Terms ')'                    { funcTm $1 (reverse $3) }
                 | name                                  { Var $1 }
 
 Terms           :                                       { []  }

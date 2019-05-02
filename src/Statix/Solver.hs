@@ -39,7 +39,7 @@ import Statix.Solver.Types
 import Statix.Solver.Reify
 import Statix.Solver.Monad
 
-import Unification as U
+import Unification as U hiding (TTm)
 
 __trace__ = False
 
@@ -185,10 +185,10 @@ queryGuard ce = do
 toDag :: Term₁ → SolverM s (STmRef s)
 toDag (C.Var p)    =
   resolve p
-toDag (Con c ts) = do
-  id  ← fresh
-  ts' ← mapM toDag ts
-  newClass (Rep (SCon c ts') id)
+toDag (TTm t) = do
+  id ← fresh
+  t ← mapM toDag t
+  newClass (Rep (STm t) id)
 toDag (Label l t) = do
   id ← fresh
   t ← mapM toDag t

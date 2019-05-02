@@ -27,6 +27,7 @@ dependencies:
 - hashable
 - haskeline
 - lens
+- utf8-string
 
 build-tools:
 - alex
@@ -59,7 +60,7 @@ library:
   - -fwarn-incomplete-uni-patterns
 
 executables:
-  statix-exe:
+  statix:
     main:                Main.hs
     source-dirs:         app
     ghc-options:

@@ -10,18 +10,23 @@ import System.Exit
 
 import Data.Text (Text, pack)
 import Data.HashMap.Strict as HM
+import Data.Functor.Fixedpoint
 
 import Control.Monad.Except
 
 import Statix.Syntax.Lexer as StxLex
 import Statix.Syntax.Parser as StxParser
+import Statix.Syntax.Constraint
 import Statix.Analysis
 
-import Statix.Repl (REPL, runREPL)
+import Statix.Repl (REPL, runREPL, printSolution)
 import Statix.Repl.Errors
+import Statix.Solver
 
 import ATerms.Syntax.Lexer as ALex
 import ATerms.Syntax.Parser as AParser
+
+import Debug.Trace
 
 handleErrors :: (ReplError e) ⇒ Either e a → REPL a
 handleErrors (Right a) = return a
@@ -52,5 +57,16 @@ main spec file = runREPL HM.empty $ do
   doc   ← liftIO $ readFile (here </> file)
   aterm ← handleErrors $ AParser.parse doc
 
+  -- solve the main - if it is defined
+  let main   = (modname, pack "main")
+  let symtab = HM.singleton modname mod
+  let wrapper = CApply main [fromATerm aterm]
+
+  solution@(result, sg) ← case HM.lookup (snd main) mod of
+    Nothing → handleErrors $ Left $ "Missing main in module " ++ spec
+    Just p  → return $ solve symtab wrapper
+
+  handleErrors result
+
+  liftIO $ printSolution solution
   liftIO $ putStrLn "All good!"
-  liftIO $ exitSuccess

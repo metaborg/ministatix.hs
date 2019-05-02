@@ -132,6 +132,9 @@ fv = cata fvF
     fvF (TLabelF l (Just r)) = r
     fvF _                    = HSet.empty
 
+fromATerm :: ATerm → Fix (TermF ℓ)
+fromATerm = cata (Fix . TTmF)
+
 ------------------------------------------------------------------
 -- | Predicates and modules
 
@@ -196,7 +199,10 @@ type TermF₁ r         = TermF IPath r
 type Term₀            = Fix (TermF Ident)
 type Term₁            = Fix (TermF IPath)
 
-pattern Con c ts      = Fix (TTmF (AFuncF c ts))
+funcTm :: Text → [Fix (TermF ℓ)] → Fix (TermF ℓ)
+funcTm c ts = Fix (TTmF (AFuncF c ts))
+
+pattern TTm t         = Fix (TTmF t)
 pattern Label l t     = Fix (TLabelF l t)
 pattern Var x         = Fix (TVarF x)
 pattern PathCons t l t'   = Fix (TPathConsF t l t')

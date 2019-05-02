@@ -26,6 +26,8 @@ import Statix.Syntax.Constraint
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 
+import ATerms.Syntax.ATerm
+
 import Unification
 import Unification.ST
 
@@ -56,7 +58,7 @@ type SGen = Int
 data STermF s c =
     SNodeF (SNode s)
   | SLabelF Label (Maybe c)
-  | SConF Ident [c]
+  | STmF (ATermF c)
   | SAnsF [SPath s c]
   | SPathEndF c
   | SPathConsF c c c deriving (Functor, Foldable, Traversable)
@@ -64,14 +66,14 @@ data STermF s c =
 instance (Show c) ⇒ Show (STermF s c) where
   show (SNodeF n)         = "new " ++ show n
   show (SLabelF l t)      = show l ++ "(" ++ show t ++ ")"
-  show (SConF k ts)       = unpack k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
+  show (STmF t)           = show t
   show (SAnsF _)          = "{...}"
   show (SPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
   show (SPathEndF n)      = show n ++ " ◅ "
  
+pattern STm t           = Tm (STmF t)
 pattern SNode n         = Tm (SNodeF n)
 pattern SLabel l t      = Tm (SLabelF l t)
-pattern SCon id ts      = Tm (SConF id ts)
 pattern SAns ps         = Tm (SAnsF ps)
 pattern SPathCons s l p = Tm (SPathConsF s l p)
 pattern SPathEnd s      = Tm (SPathEndF s)
@@ -82,12 +84,7 @@ instance Unifiable (STermF s) where
     | n == m    = Just (SNodeF n)
     | otherwise = Nothing
 
-  zipMatch (SConF k₁ ts₁) (SConF k₂ ts₂)
-    | k₁ == k₂ =
-      if List.length ts₁ == List.length ts₂
-        then Just (SConF k₁ (List.zip ts₁ ts₂))
-        else Nothing
-    | otherwise = Nothing
+  zipMatch (STmF tm) (STmF tm') = STmF <$> zipMatch tm tm'
 
   zipMatch (SLabelF l₁ t₁) (SLabelF l₂ t₂)
     | l₁ == l₂  =
