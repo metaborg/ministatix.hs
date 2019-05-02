@@ -36,11 +36,12 @@ import ATerms.Syntax.Lexer
 %%
 
 ATerm : symbol '(' ATerms ')' { AFunc $1 $3 }
-      | '(' ATermList ')'     { $2 }
       | str                   { AStr $1 }
+      | '[' ']'               { ANil }
+      | '[' ATermList ']'     { $2 }
 
-ATermList : ATerm ':' ATermList { ACons $1 $3 }
-          | '[' ']'             { ANil }
+ATermList : ATerm ',' ATermList { ACons $1 $3 }
+          | ATerm               { ACons $1 ANil }
 
 ATerms :                      { [] }
        | ATerm                { [ $1 ] }
