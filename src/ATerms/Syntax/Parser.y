@@ -35,7 +35,7 @@ import ATerms.Syntax.Lexer
  
 %%
 
-ATerm : symbol '(' ATerms ')' { AFunc $1 $3 }
+ATerm : symbol '(' ATerms ')' { AFunc $1 (reverse $3) }
       | str                   { AStr $1 }
       | '[' ']'               { ANil }
       | '[' ATermList ']'     { $2 }
