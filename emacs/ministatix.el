@@ -38,7 +38,8 @@
   (setq font-lock-defaults '((ministatix-font-lock-keywords))))
 
 
-(add-to-list 'auto-mode-alist '("\\.stx\\'" . ministatix-mode))
+(add-to-list 'auto-mode-alist '("\\.mstx\\'" . ministatix-mode))
+(add-to-list 'auto-mode-alist '("\\.stx\\'"  . ministatix-mode))
 
 ;; add the mode to the `features' list
 (provide 'ministatix-mode)
