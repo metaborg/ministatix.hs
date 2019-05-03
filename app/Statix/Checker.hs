@@ -68,7 +68,7 @@ main spec file = runREPL HM.empty $ do
   case result of
     Left error → liftIO $ do
       putStrLn "Unsatisfiable"
-      putStrLn $ "  - " ++ show error
+      report error
       putStrLn "Graph: "
       print sg
 

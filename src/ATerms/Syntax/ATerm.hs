@@ -47,3 +47,4 @@ instance (Show r) ⇒ Show (ATermF r) where
   show (AConsF r rs)   = show r ++ ":" ++ show rs
   show ANilF           = "[]"
   show (ATupleF ts)    = "(" ++ intercalate "," (fmap show ts) ++ ")"
+  show AWildCardF      = "_"

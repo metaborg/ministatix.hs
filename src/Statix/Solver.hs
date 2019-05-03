@@ -39,6 +39,8 @@ import Statix.Solver.Types
 import Statix.Solver.Reify
 import Statix.Solver.Monad
 
+import ATerms.Syntax.ATerm
+
 import Unification as U hiding (TTm)
 
 __trace__ = False
@@ -70,11 +72,22 @@ reifyPath (Graph.End n) = do
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
 
+delimitedTree :: Int → STmRef s → SolverM s (STree s)
+delimitedTree depth n
+  | depth >= 1 = do
+      t ← getSchema n
+      case t of 
+        U.Var v → return (Fix (U.Var v))
+        U.Tm tm  → do
+          subtree ← mapM (delimitedTree (depth - 1)) tm
+          return (Fix (Tm subtree))
+  | otherwise = return (Fix (Tm (STmF AWildCardF)))
+
 unsatisfiable :: String → SolverM s a
 unsatisfiable msg = do
   trace ← getTrace
   trace ← mapM (\(qn, params) → do
-                   params ← mapM (fmap show . toTree) params
+                   params ← mapM (fmap show . delimitedTree 3) params
                    return $ Call qn params) trace
   throwError (Unsatisfiable trace msg)
 
