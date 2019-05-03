@@ -103,7 +103,7 @@ pushGoal i c = do
 delay :: Constraint₁ → SolverM s ()
 delay c = do
   gen ← use generation
-  pushGoal gen c
+  tracer ("Delaying " ++ show c) $ pushGoal gen c
 
 newGoal :: Constraint₁ → SolverM s ()
 newGoal c = do
