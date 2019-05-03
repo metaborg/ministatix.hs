@@ -30,7 +30,8 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
 %error { parseError }
 
 %token
-  name          { TokVar $$ }
+  name          { TokName $$ }
+  constructor   { TokConstructor $$ }
   modpath       { TokModpath $$ }
   true          { TokTrue }
   false         { TokFalse }
@@ -124,13 +125,13 @@ Names           :                                       { [] }
                 | name                                  { [ $1 ] }
                 | Names ',' name                        { $3 : $1 }
 
-Label           : '`' name                              { Lab $2 }
+Label           : '`' constructor                       { Lab $2 }
 
 Term            : Label                                 { Label $1 Nothing }
                 | Label '(' Term ')'                    { Label $1 (Just $3) }
                 | edge '(' name ',' Term ',' Term ')'   { PathCons $3 $5 $7 }
                 | end  '(' name ')'                     { PathEnd $3 }
-                | name '(' Terms ')'                    { funcTm $1 (reverse $3) }
+                | constructor '(' Terms ')'             { funcTm $1 (reverse $3) }
                 | name                                  { Var $1 }
                 | Term colon Term                       { consTm $1 $3 }
                 | '[' ']'                               { nilTm }

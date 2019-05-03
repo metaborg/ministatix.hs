@@ -17,6 +17,8 @@ import ATerms.Syntax.Types
 
 $digit = 0-9
 $alpha = [a-zA-Z]
+$upper = [A-Z]
+$lower = [a-z]
 
 tokens :-
 
@@ -39,7 +41,8 @@ tokens :-
   <0> end                           { plain TokEnd }
   <0> lexico                        { plain TokPathLT }
 
-  <0> $alpha [$alpha $digit \_ \- ']* { name }
+  <0> $lower [$alpha $digit \_ \- ']* { name }
+  <0> $upper [$alpha $digit \_ \- ']* { constructor }
 
   <0> "<"                           { plain TokLAngle }
   <0> ">"                           { plain TokRAngle }
@@ -74,7 +77,10 @@ plain :: Token → LexAction
 plain tok _ _ = return (Just tok)
 
 name :: LexAction
-name _ str = return (Just (TokVar (pack str)))
+name _ str = return (Just (TokName (pack str)))
+
+constructor :: LexAction
+constructor _ str = return (Just (TokConstructor (pack str)))
 
 /* beginString :: LexAction */
 /* beginString _ _ = do */

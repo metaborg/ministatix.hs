@@ -11,7 +11,7 @@ import Statix.Syntax.Constraint
 import ATerms.Syntax.Types (remainder, input, ParseState)
 
 data Token
-  = TokVar Text
+  = TokName Text | TokConstructor Text
   | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
   | TokIn | TokAs | TokWhere
   | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
