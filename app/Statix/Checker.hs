@@ -71,6 +71,7 @@ main spec file = runREPL HM.empty $ do
       report error
       putStrLn "Graph: "
       print sg
+      exitFailure
 
     Right sol → liftIO $ do
       liftIO $ putStrLn "Satisfied"
