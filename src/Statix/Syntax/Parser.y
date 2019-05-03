@@ -1,5 +1,5 @@
 {
-module Statix.Syntax.Parser where
+module Statix.Syntax.Parser (parseConstraint, parsePredicate, parseModule) where
 
 import Data.List
 import qualified Data.Text as Text
@@ -8,18 +8,23 @@ import Data.Default
 
 import Control.Monad.Reader
 import Control.Monad.Except
+import Control.Monad.State
 
 import Statix.Regex
 
 import Statix.Syntax.Constraint
+import Statix.Syntax.Types
 import Statix.Syntax.Lexer
+
+import ATerms.Syntax.Types (input, remainder, line, prev)
 
 }
 
-%name parseConstraint Constraint
-%name parsePredicate  Predicate
-%name parseModule     Module
+%name parseConstraintAct Constraint
+%name parsePredicateAct  Predicate
+%name parseModuleAct     Module
 %monad {ParserM}
+%lexer {lexer} {TEOF}
 
 %tokentype { Token }
 %error { parseError }
@@ -145,27 +150,29 @@ Predicates      :                                       { []      }
                 | Predicate                             { [$1]    }
                 | Predicates Predicate                  { $2 : $1 }
 
--- Import       : import modpath period                 { Text.pack $2 }
--- Imports      :                                       { []      }
---              | Import                                { [$1]    }
---              | Imports Import                        { $2 : $1 }
-
 Module          : Predicates                            { Mod [] $1 }
 
 {
 
 mkParams = fmap (\id → (id , TBot))
 
-type ParserM a = ReaderT Text.Text (Except String) a
+parseError :: Token -> ParserM a
+parseError toks = do
+  s ← gets input
+  let rem = remainder s
+  let c = prev s
+  throwError $
+    "Parse error:"
+    ++ "\n" ++ show (line s) ++ " | ... " ++ c : takeWhile ((/=) '\n') rem
+    ++ "\n" ++ take 8 (repeat ' ') ++ "^"
 
-runParser :: Text.Text → ParserM a → Either String a
-runParser mod c = runExcept $ runReaderT c mod
+parseConstraint :: Ident → String → Either String Constraint₀
+parseConstraint mod s = evalParser mod s parseConstraintAct
 
-parseError :: [Token] -> ParserM a
-parseError toks = throwError $ "Parse error while parsing: " ++ show (take 5 toks)
+parsePredicate :: Ident → String → Either String Predicate₀
+parsePredicate mod s = evalParser mod s parsePredicateAct
 
-varName :: Token -> Text.Text
-varName (TokVar s) = s
-varName _ = error "Parser error: not a name"
+parseModule :: Ident → String → Either String RawModule
+parseModule mod s = evalParser mod s parseModuleAct
 
 }

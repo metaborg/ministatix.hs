@@ -47,8 +47,7 @@ main spec file = runREPL HM.empty $ do
   let modname = pack spec
 
   -- parse the module
-  toks   ← handleErrors $ StxLex.lexer content
-  rawmod ← handleErrors $ StxParser.runParser modname $ StxParser.parseModule $ toks
+  rawmod ← handleErrors $ StxParser.parseModule modname content
 
   -- Typecheck the module
   mod ← withErrors $ analyze modname HM.empty rawmod

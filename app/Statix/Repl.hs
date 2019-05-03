@@ -26,6 +26,7 @@ import Control.Monad.Unique as Unique
 import Debug.Trace
 
 import Statix.Syntax.Parser
+import Statix.Syntax.Types
 import Statix.Syntax.Lexer
 import Statix.Syntax.Constraint
 
@@ -70,9 +71,6 @@ instance MonadUnique Integer REPL where
     return i
 
   updateSeed i = modify (set freshId i)
-
-liftParser :: Text.Text → ParserM a → REPL a
-liftParser mod c = handleErrors $ runParser mod c
 
 prompt :: REPL Cmd
 prompt = do
@@ -136,8 +134,7 @@ handler κ (Main rawc) = do
   symtab ← use globals
 
   -- parse and analyze the constraint as a singleton module
-  toks     ← handleErrors $ lexer rawc
-  c        ← liftParser this $ (parseConstraint toks) 
+  c        ← handleErrors $ parseConstraint this rawc
   mod      ← withErrors $ analyze this symtab (Mod imps [Pred (this, main) [] c])
 
   -- import the module
@@ -158,8 +155,7 @@ handler κ (Define p) = do
   imps   ← use imports
   symtab ← use globals
 
-  toks  ← handleErrors $ lexer p
-  pr    ← liftParser this (parsePredicate toks)
+  pr    ← handleErrors $ parsePredicate this p
   mod   ← withErrors $ analyze this symtab (Mod imps [pr])
 
   -- import the predicate into the symboltable
@@ -178,8 +174,7 @@ handler κ (Import file) = do
   symtab ← use globals
 
   -- parse the module
-  toks   ← handleErrors $ lexer content
-  rawmod ← liftParser modname $ parseModule $ toks
+  rawmod ← handleErrors $ parseModule modname content
 
   -- Typecheck the module
   mod ← withErrors $ analyze modname symtab rawmod
