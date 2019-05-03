@@ -34,12 +34,12 @@ import Data.Maybe (fromJust)
 -- The fix is to use the base path to determine the absolute module name (TBD).
 
 
-toModulePath :: ModPath -> (Ident, ModPath, Bool)
-toModulePath = toModulePath_ . unpack
+-- toModulePath :: ModPath -> (Ident, ModPath, Bool)
+-- toModulePath = toModulePath_ . unpack
 
-toModulePath_ :: String -> (Ident, ModPath, Bool)
-toModulePath_ ('.':p) = (((pack . getModuleName_) p), ((pack . getModulePath_) p),  True)
-toModulePath_ p       = (((pack . getModuleName_) p), ((pack . getModulePath_) p), False)
+-- toModulePath_ :: String -> (Ident, ModPath, Bool)
+-- toModulePath_ ('.':p) = (((pack . getModuleName_) p), ((pack . getModulePath_) p),  True)
+-- toModulePath_ p       = (((pack . getModuleName_) p), ((pack . getModulePath_) p), False)
 
 getModuleName :: ModPath -> Ident
 getModuleName = pack . getModuleName_ . unpack
@@ -48,16 +48,16 @@ getModuleName_ :: String -> String
 getModuleName_ ('.':n) = getModuleName_ n
 getModuleName_ n       = n
 
-getModulePath :: ModPath -> ModPath
-getModulePath = pack . getModulePath_ . unpack
+-- getModulePath :: ModPath -> ModPath
+-- getModulePath = pack . getModulePath_ . unpack
 
-getModulePath_ :: String -> String
-getModulePath_ ('.':p) = "../" ++ getModulePath_ p
-getModulePath_ p       = map replaceModulePathChar p ++ ".stx"
+-- getModulePath_ :: String -> String
+-- getModulePath_ ('.':p) = "../" ++ getModulePath_ p
+-- getModulePath_ p       = map replaceModulePathChar p ++ ".stx"
 
-replaceModulePathChar :: Char -> Char
-replaceModulePathChar '.' = '/'
-replaceModulePathChar x   = x
+-- replaceModulePathChar :: Char -> Char
+-- replaceModulePathChar '.' = '/'
+-- replaceModulePathChar x   = x
 
 -- Import
 -- * name
@@ -84,14 +84,53 @@ replaceModulePathChar x   = x
 -- 3) Load modules in topological order.
 
 -- Turns a module import path into a module name and absolute file path
--- This takes the base directory, current directory, and module import.
+-- This takes the base path, current path, and module import path.
 resolveModule :: FilePath -> FilePath -> ModPath -> Either String (Ident, FilePath)
-resolveModule absp relp modp =
-  let (_, relModPath, isRel) = toModulePath modp in
-  let basePath = dropFileName absp </> if isRel then dropFileName relp else "." in
-  let modPath = simplifyPath $ basePath </> unpack relModPath in do
-    modName <- modnameFromPath (dropFileName absp) modPath
-    return (modName, modPath)
+resolveModule absp relp modp = do
+  modName <- modNameFromPath (dropFileName absp) modPath
+  return (modName, modPath)
+  where
+    (relModPath, isRel) = toModulePath $ unpack modp
+    basePath = dropFileName absp </> if isRel then dropFileName relp else "."
+    modPath = simplifyPath $ basePath </> relModPath
+
+    toModulePath :: String -> (FilePath, Bool)
+    toModulePath ('.':p) = (getModulePath p,  True)
+    toModulePath p       = (getModulePath p, False)
+
+    getModulePath :: String -> FilePath
+    getModulePath ('.':p) = ".." </> getModulePath p
+    getModulePath p       = let
+      repl '.' = '/'
+      repl x   = x
+      in map repl p ++ ".stx"
+
+    modNameFromPath :: FilePath -> FilePath -> Either String Ident
+    modNameFromPath basepath modpath = do
+      relpath <- ensureRelative $ makeRelative basepath modpath
+      return $ pack . concat $ intersperse "." $ onLast stripStxSuffix $ splitDirectories relpath
+
+    stripStxSuffix :: FilePath -> FilePath
+    stripStxSuffix s = unpack (fromJust $ stripSuffix ".stx" $ pack s)
+
+    ensureRelative :: FilePath -> Either String FilePath
+    ensureRelative p = case isRelative p of
+      True  -> Right p
+      False -> Left ("Path '" ++ p ++ "' points to a location outside the base directory.")
+
+    -- Could not find a build-in function that does this
+    onLast :: (a -> a) -> [a] -> [a]
+    onLast f (x:y:xs) = (x : onLast f (y:xs))
+    onLast f [x]      = [f x]
+    onLast _ []       = []
+
+-- resolveModule2 :: FilePath -> FilePath -> ModPath -> Either String (Ident, FilePath)
+-- resolveModule2 absp relp modp =
+--   let (_, relModPath, isRel) = toModulePath modp in
+--   let basePath = dropFileName absp </> if isRel then dropFileName relp else "." in
+--   let modPath = simplifyPath $ basePath </> unpack relModPath in do
+--     modName <- modnameFromPath (dropFileName absp) modPath
+--     return (modName, modPath)
   
   -- case toModulePath modp of
   -- -- FIXME: Determine the module name from the resulting path relative to the base path
@@ -102,23 +141,23 @@ resolveModule absp relp modp =
 -- resolveModule2 :: FilePath -> FilePath -> ModPath -> (Ident, FilePath)
 -- resolveModule2 absp relp modp
 
-modnameFromPath :: FilePath -> FilePath -> Either String Ident
-modnameFromPath basepath modpath = do
-  relpath <- ensureRelative $ makeRelative basepath modpath
-  return $ pack . concat $ intersperse "." $ onLast stripStxSuffix $ splitDirectories relpath
+-- modnameFromPath :: FilePath -> FilePath -> Either String Ident
+-- modnameFromPath basepath modpath = do
+--   relpath <- ensureRelative $ makeRelative basepath modpath
+--   return $ pack . concat $ intersperse "." $ onLast stripStxSuffix $ splitDirectories relpath
 
-stripStxSuffix :: FilePath -> FilePath
-stripStxSuffix s = unpack (fromJust $ stripSuffix ".stx" $ pack s)
+-- stripStxSuffix :: FilePath -> FilePath
+-- stripStxSuffix s = unpack (fromJust $ stripSuffix ".stx" $ pack s)
 
-ensureRelative :: FilePath -> Either String FilePath
-ensureRelative p = case isRelative p of
-  True  -> Right p
-  False -> Left ("Path '" ++ p ++ "' points to a location outside the base directory.")
+-- ensureRelative :: FilePath -> Either String FilePath
+-- ensureRelative p = case isRelative p of
+--   True  -> Right p
+--   False -> Left ("Path '" ++ p ++ "' points to a location outside the base directory.")
 
-onLast :: (a -> a) -> [a] -> [a]
-onLast f (x:y:xs) = (x : onLast f (y:xs))
-onLast f [x]      = [f x]
-onLast _ []       = []
+-- onLast :: (a -> a) -> [a] -> [a]
+-- onLast f (x:y:xs) = (x : onLast f (y:xs))
+-- onLast f [x]      = [f x]
+-- onLast _ []       = []
 
 -- Removes "./" and "../"
 -- If any of the elements are symbolic links,
