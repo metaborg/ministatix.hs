@@ -86,19 +86,19 @@ printSolution (res , graph) = do
   case res of
     Left e → do
       setSGR [SetColor Foreground Vivid Red]
-      putStrLn $ "  ⟨×⟩ - " ++ show e
+      report e
       putStrLn ""
       setSGR [Reset]
     Right φ → do
       setSGR [SetColor Foreground Dull Green]
-      putStrLn "  ⟨✓⟩ Satisfiable"
+      putStrLn "⟨✓⟩ Satisfiable"
       setSGR [SetColor Foreground Vivid White]
-      putStrLn "  ⟪ Unifier ⟫"
+      putStrLn "⟪ Unifier ⟫"
       setSGR [Reset]
       putStrLn φ
 
   setSGR [SetColor Foreground Vivid White]
-  putStrLn "  ⟪ Graph ⟫"
+  putStrLn "⟪ Graph ⟫"
   setSGR [Reset]
   print graph
   setSGR [Reset]
@@ -118,7 +118,7 @@ reportImports :: Module → IO ()
 reportImports mod = do
   setSGR [SetColor Foreground Dull Green]
   putStrLn ""
-  putStrLn $ "  ⟨✓⟩ Imported module "
+  putStrLn $ "⟨✓⟩ Imported module "
   setSGR [Reset]
   -- putStrLn $ showModuleContent mod
   -- putStrLn ""

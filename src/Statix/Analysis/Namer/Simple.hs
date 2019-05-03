@@ -29,7 +29,9 @@ runNC :: NameContext → NCM a → Either TCError a
 runNC ctx c = runExcept $ runReaderT c ctx
 
 instance MonadLex Ident Ident IPath NCM where
-  enter     = local (over locals ([]:))
+  type FrameDesc NCM = ()
+
+  enter _   = local (over locals ([]:))
 
   intros xs = local (over locals (\lex → (xs ++ head lex) : tail lex))
 

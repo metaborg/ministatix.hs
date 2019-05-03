@@ -35,6 +35,7 @@ class
   , MonadUnique Integer m
   , MonadError TCError m
   , MonadReader (TyEnv n) m
+  , FrameDesc m ~ ()
   ) ⇒ MonadTyper n m | m → n where
 
 getFormals :: MonadTyper n m ⇒ QName → m (PreFormals n)
@@ -115,7 +116,7 @@ mkBinder n = do
 typeMatch  :: MonadTyper n m ⇒ Matcher Term₁ → m a → m a
 typeMatch (Matcher ps t eqs) ma = do
   bs ← mapM mkBinder ps
-  enters bs ma
+  enters () bs ma
 
 typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
 typeBranch (Branch m c) = do
@@ -127,7 +128,7 @@ typeAnalysis CTrue  = return ()
 typeAnalysis CFalse = return ()
 typeAnalysis (CEx ns c) = do
   bs ← mapM mkBinder ns
-  enters bs (typeAnalysis c)
+  enters () bs (typeAnalysis c)
 typeAnalysis (CAnd c d) = do
   typeAnalysis c
   typeAnalysis d
@@ -204,5 +205,5 @@ typecheckConstraint c = do
 typecheckPredicate :: (MonadTyper n m) ⇒ Predicate₁ → m ()
 typecheckPredicate p = do
   bs ← getFormals (qname p)
-  enters bs $ do
+  enters () bs $ do
     void $ typecheckConstraint (body p)

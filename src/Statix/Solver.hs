@@ -70,6 +70,14 @@ reifyPath (Graph.End n) = do
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
 
+unsatisfiable :: String → SolverM s a
+unsatisfiable msg = do
+  trace ← getTrace
+  trace ← mapM (\(qn, params) → do
+                   params ← mapM (fmap show . toTree) params
+                   return $ Call qn params) trace
+  throwError (Unsatisfiable trace msg)
+
 pushGoal :: SGen → Constraint₁ → SolverM s ()
 pushGoal i c = do
   env ← ask
@@ -130,7 +138,7 @@ next = do
 openExist :: [Ident] → SolverM s a → SolverM s a
 openExist ns c = do
   bs ← mapM mkBinder ns
-  enters bs c
+  enters FrExist bs c
 
   where
     mkBinder name = do
@@ -220,17 +228,25 @@ matches t (Matcher ns g eqs) ma =
 
     ma
 
+unifiesOrUnsatisfiable :: STmRef s → STmRef s → SolverM s ()
+unifiesOrUnsatisfiable t1 t2 =
+  catchError (unify t1 t2)
+    (\case
+        UnificationError e → unsatisfiable $ "unification error (" ++ e ++ ")"
+        e                  → throwError e
+    )
+
 -- | Try to solve a focused constraint.
 -- This should not be a recursive function, as not to infer with scheduling.
 solveFocus :: Constraint₁ → SolverM s ()
 
 solveFocus CTrue  = return ()
-solveFocus CFalse = throwError (Unsatisfiable "Derived ⊥")
+solveFocus CFalse = unsatisfiable "Say hello to Falso"
 
 solveFocus (CEq t1 t2) = do
   t1' ← toDag t1
   t2' ← toDag t2
-  unify t1' t2'
+  unifiesOrUnsatisfiable t1' t2'
   next
 
 solveFocus (CAnd l r) = do
@@ -246,7 +262,7 @@ solveFocus (CNew x) = do
   t' ← construct (Tm (SNodeF u))
   catchError
     (unify t t')
-    (\ err → throwError (Unsatisfiable "Not fresh!"))
+    (\ err → unsatisfiable "Cannot get ownership of existing node")
   next
 
 solveFocus (CEdge x (Label l t) y) = do
@@ -292,12 +308,12 @@ solveFocus c@(COne x t) = do
       throwError StuckError
     (SAns (p : [])) → do
       pref ← reifyPath p
-      unify pref t
+      unifiesOrUnsatisfiable pref t
       next
     (SAns []) →
-      throwError (Unsatisfiable $ show c ++ " (No paths)")
+      unsatisfiable "No paths in answer set"
     (SAns ps) →
-      throwError (Unsatisfiable $ show c ++ " (More than one path: ") -- TODO  ++ show ps ++ ")")
+      unsatisfiable "More than one path in answer set"
     t →
       throwError TypeError
 
@@ -316,7 +332,7 @@ solveFocus (CData x t) = do
         Nothing →
           setDatum n t
         Just t' → do
-          unify t t'
+          unifiesOrUnsatisfiable t t'
           next
     (U.Var x) → throwError StuckError
     _         → throwError TypeError
@@ -342,7 +358,7 @@ solveFocus (CApply p ts) = do
    ts' ← mapM toDag ts
 
    -- bind the parameters
-   enters (List.zip (fmap fst σ) ts') $ do
+   enters (FrPred p) (List.zip (fmap fst σ) ts') $ do
      -- solve the body
      tracer ("unfold " ++ show p ++ " with " ++ show ts) $ newGoal c
 
@@ -357,14 +373,14 @@ solveFocus (CMatch t bs) = do
     solveBranch :: STmRef s → [Branch₁] → SolverM s ()
     solveBranch t' []                    = do
       t' ← toTree t'
-      throwError $ Unsatisfiable $ "No match for '" ++ show t' ++ "'"
+      unsatisfiable $ "No match for '" ++ show t' ++ "'"
     solveBranch t' ((Branch match c):br) = do
       -- determine if the matcher matches the term
       -- and schedule the body of the branch in that environment
       catchError (matches t' match (newGoal c))
         (\case
-          Unsatisfiable s → solveBranch t' br
-          e               → throwError e
+          UnificationError _ → solveBranch t' br
+          e                  → throwError e
         )
 
 solveFocus (CMin x lt z) = do
@@ -408,8 +424,8 @@ solveFocus (CFilter x m z) = do
         (Just t) → catchError
           (matches t m (return True))
           (\case
-            Unsatisfiable s → return False
-            e               → throwError e
+            UnificationError _ → return False
+            e                  → throwError e
           )
 
 type Unifier s = HashMap Ident (STree s)
@@ -418,7 +434,7 @@ type Unifier s = HashMap Ident (STree s)
 unifier :: SolverM s (Unifier s)
 unifier = do
   env ← view locals
-  mapM toTree (head env)
+  mapM toTree (binders $ head env)
 
 formatUnifier :: Unifier s → String
 formatUnifier fr =
@@ -441,9 +457,9 @@ schedule = do
         catchError (solveFocus c)
           (\case
             -- reschedule stuck goals
-            StuckError      → local (const env) (delay c)
-            Unsatisfiable s → throwError $ Unsatisfiable $ "constraint " ++ show c ++ " failed with: " ++ s
-            e          → throwError e
+            StuckError           → local (const env) (delay c)
+            Unsatisfiable tr msg → throwError $ Unsatisfiable (Within c:tr) msg
+            e                    → throwError e
           )
       schedule
 

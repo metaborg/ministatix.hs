@@ -66,7 +66,13 @@ main spec file = runREPL HM.empty $ do
     Nothing → handleErrors $ Left $ "Missing main in module " ++ spec
     Just p  → return $ solve symtab wrapper
 
-  handleErrors result
+  case result of
+    Left error → liftIO $ do
+      putStrLn "Unsatisfiable"
+      putStrLn $ "  - " ++ show error
+      putStrLn "Graph: "
+      print sg
 
-  liftIO $ printSolution solution
-  liftIO $ putStrLn "All good!"
+    Right sol → liftIO $ do
+      liftIO $ putStrLn "Satisfied"
+      liftIO $ printSolution solution

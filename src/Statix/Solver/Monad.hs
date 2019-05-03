@@ -8,10 +8,9 @@ import Data.HashMap.Strict as HM
 import Data.Either
 import Data.STRef
 import Data.Coerce
-import Data.Text
 import Data.Default
 import Data.Hashable
-import Debug.Trace
+import Data.Maybe
 
 import Control.Lens
 import Control.Monad.ST
@@ -57,13 +56,16 @@ instance MonadGraph (SNode s) Label (STmRef s) (SolverM s) where
     return es
 
 instance MonadLex (Ident, STmRef s) IPath (STmRef s) (SolverM s) where
+  type FrameDesc (SolverM s) = Trace
 
-  enter     = local (\env → env { _locals = HM.empty : _locals env })
+  enter fd = local (\env → env { _locals = def { desc = fd } : _locals env })
 
   intros is m = do
     frs ← view locals
     case frs of
-      (fr : frs) → local (\env → env { _locals = (HM.union (HM.fromList is) fr) : frs }) m
+      (fr : frs) → do
+        let fr' = fr { binders = HM.union (HM.fromList is) (binders fr) }
+        local (\env → env { _locals = fr' : frs }) m
       _          → throwError $ Panic "No frame for current scope"
 
   resolve p = do
@@ -74,7 +76,7 @@ instance MonadLex (Ident, STmRef s) IPath (STmRef s) (SolverM s) where
       derefLocal :: IPath → [Frame s] → SolverM s (STmRef s)
       derefLocal (Skip p)     (fr : frs) = derefLocal p frs
       derefLocal (Lex.End id) (fr : frs) =
-        case HM.lookup id fr of
+        case HM.lookup id (binders fr) of
           Nothing → throwError $ Panic $ "Variable " ++ show id ++ " unbound at runtime"
           Just t  → return t
       derefLocal _ _                    =
@@ -110,10 +112,21 @@ runSolver c = runST $ do
   graph ← forM graph (\n → show <$> toTree n)
   return (c, graph)
 
+-- | Get a trace entry from a frame
+getCallTrace :: Frame s → SolverM s (Maybe (QName , [STmRef s]))
+getCallTrace fr = case desc fr of
+  FrExist   → return Nothing
+  FrPred qn → do
+      σ ← sig <$> getPredicate qn
+      let bs = fmap (\(id, _) → (binders fr) HM.! id) σ
+      return $ Just (qn, bs)
+
+-- | Create a trace from the callstack
+getTrace :: SolverM s [(QName , [STmRef s])]
+getTrace = do
+  env ← view locals
+  catMaybes <$> mapM getCallTrace env
+
 -- | Lift ST computations into Solver
 liftST :: ST s a → SolverM s a
 liftST = lift . lift . lift
-
--- | Lift State computations into Solver
--- liftState :: StateT (Solver s) (ST s) a → SolverM s a
--- liftState = lift

@@ -49,7 +49,9 @@ instance MonadUnique Integer (TCM s) where
   updateSeed = lift . updateSeed
 
 instance MonadLex (Ident, TyRef s) IPath (TyRef s) (TCM s) where
-  enter = local (over scopes (HM.empty:))
+  type FrameDesc (TCM s) = ()
+
+  enter _ = local (over scopes (HM.empty:))
 
   intros xs =
     local (over scopes (\sc → (HM.union (head sc) (HM.fromList xs)) : tail sc))

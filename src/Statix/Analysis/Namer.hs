@@ -25,6 +25,7 @@ class
   ( MonadLex Ident Ident IPath m
   , MonadError TCError m
   , MonadReader NameContext m
+  , FrameDesc m ~ ()
   ) ⇒ MonadNamer m where
 
 qualify :: MonadNamer m ⇒ Ident → m QName
@@ -58,7 +59,7 @@ checkMatch (Matcher _ g eqs) ma = do
   let ns = HSet.toList $ fv g
 
   -- introduce those variables
-  enters ns $ do
+  enters () ns $ do
     g ← checkTerm g
     a ← ma
     eqs ← forM eqs $ \(lhs, rhs) → do
@@ -88,7 +89,7 @@ checkConstraint (CAnd c d) = do
   cd ← checkConstraint d
   return (CAnd cc cd)
 checkConstraint (CEx ns c) = do
-  enters ns $ do
+  enters () ns $ do
     cc ← checkConstraint c
     return (CEx ns cc)
 checkConstraint (CNew x) = do
@@ -135,6 +136,6 @@ checkConstraint (CMatch t br) = do
 
 checkPredicate :: (MonadNamer m) ⇒ Predicate₀ → m Predicate₁
 checkPredicate (Pred qn σ body) = do
-  enters (fmap fst σ) $ do
+  enters () (fmap fst σ) $ do
     body' ← checkConstraint body
     return (Pred qn σ body')

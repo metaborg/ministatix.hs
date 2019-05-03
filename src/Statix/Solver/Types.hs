@@ -106,8 +106,13 @@ instance Unifiable (STermF s) where
   -- other combinations are constructor clashes
   zipMatch _ _ = Nothing
 
-{- READER -}
-type Frame s = HashMap Ident (STmRef s)
+data Trace = FrExist | FrPred QName
+
+data Frame s = Frame
+  { binders :: HashMap Ident (STmRef s)
+  , desc    :: Trace
+  }
+
 data Env s = Env
  { _symbols :: SymbolTable
  , _locals  :: [Frame s]
@@ -116,31 +121,33 @@ data Env s = Env
 makeLenses ''Env
 
 instance Default (Frame s) where
-  def = HM.empty
+  def = Frame HM.empty FrExist
 
 instance Default (Env s) where
   def = Env HM.empty [def]
 
 {- ERROR -}
+data Traceline = Call QName [String] | Within Constraint₁
+
 data StatixError
-  = Unsatisfiable String
+  = Unsatisfiable [Traceline] String -- trace, reason
   | StuckError
   | TypeError
   | Panic String
-  | NoMatch
+  | UnificationError String
 
 instance Show StatixError where
-  show TypeError         = "Constraint unsatisfiable: type error"
-  show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
-  show StuckError        = "Stuck"
-  show NoMatch           = "No match"
-  show (Panic x)         = "Panic: " ++ x
+  show TypeError              = "Constraint unsatisfiable: type error"
+  show (UnificationError e)   = "Constraint unsatisfiable: unification error (" ++ e ++ ")"
+  show (Unsatisfiable tr msg) = "Constraint unsatisfiable: " ++ msg
+  show StuckError             = "Stuck"
+  show (Panic x)              = "Panic: " ++ x
  
 instance HasClashError (STermF s) StatixError where
-  symbolClash l r = Unsatisfiable $ "Symbol clash: " ++ show l ++ " != " ++ show r
+  symbolClash l r = UnificationError $ "Symbol clash: " ++ show l ++ " != " ++ show r
 
 instance HasCyclicError StatixError where
-  cyclicTerm      = Unsatisfiable "Cyclic term"
+  cyclicTerm      = UnificationError "Cyclic term"
 
 instance HasSubsumptionError StatixError where
   doesNotSubsume  = StuckError

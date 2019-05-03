@@ -10,9 +10,11 @@ end (End id) = id
 
 -- | A better monad for resolving lexical binders
 class Monad m ⇒ MonadLex b r d m | m → b r d where
-  enter   :: m a → m a
+  type FrameDesc m :: *
+
+  enter   :: FrameDesc m → m a → m a
   intros  :: [b] → m a → m a
   resolve :: r → m d
 
-enters :: (MonadLex b r d m) ⇒ [b] → m a → m a
-enters is c = enter $ intros is c
+enters :: (MonadLex b r d m) ⇒ FrameDesc m → [b] → m a → m a
+enters fd is c = enter fd $ intros is c

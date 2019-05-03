@@ -35,6 +35,9 @@ instance Show Label where
 
 type QName = (Ident, Ident)   -- qualified predicate names (module, raw)
 
+showQName :: QName → String
+showQName (mod, pred) = unpack mod ++ "." ++ unpack pred
+
 type Ident = Text
 type IPath = Lexical.Path Ident
 

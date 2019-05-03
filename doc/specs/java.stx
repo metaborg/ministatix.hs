@@ -323,3 +323,7 @@ test2(pkg, ty) :-
 	Nil()))
     )
     , type-of(pkg, Call(New(A(), Cons(Obj(B(), Nil()), Nil())), p(), Nil()), ty).
+
+main(prog) :- {pkg, ty}
+  new pkg
+  , declare-classes(pkg, prog).
