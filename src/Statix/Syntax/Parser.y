@@ -134,6 +134,7 @@ Term            : Label                                 { Label $1 Nothing }
                 | name                                  { Var $1 }
                 | Term colon Term                       { consTm $1 $3 }
                 | '[' ']'                               { nilTm }
+                | '(' Terms ')'                         { tupleTm $2 }
 
 Terms           :                                       { []  }
                 | Term                                  { [$1] }

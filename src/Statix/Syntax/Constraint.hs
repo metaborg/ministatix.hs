@@ -213,6 +213,9 @@ consTm t ts = Fix (TTmF (AConsF t ts))
 nilTm :: Fix (TermF ℓ)
 nilTm = Fix (TTmF ANilF)
 
+tupleTm :: [Fix (TermF ℓ)] → Fix (TermF ℓ)
+tupleTm ts = Fix (TTmF (ATupleF ts))
+
 pattern TTm t         = Fix (TTmF t)
 pattern Label l t     = Fix (TLabelF l t)
 pattern Var x         = Fix (TVarF x)
