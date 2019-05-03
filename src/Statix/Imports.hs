@@ -1,12 +1,14 @@
 module Statix.Imports where
 
+
+import Data.List (foldl', foldl)
 import System.IO hiding (liftIO)
 import System.Directory
 import System.FilePath
 import Data.List
 import Statix.Syntax.Constraint -- (RawModule(..), ModPath)
 import qualified Data.Graph as G
-import Data.Map.Strict as Map hiding (map, null)
+import Data.Map.Strict as Map hiding (map, null, foldl', foldl)
 import qualified Data.HashMap.Strict as HM
 import Debug.Trace
 import Data.Text (pack, unpack, stripSuffix)
@@ -83,12 +85,22 @@ replaceModulePathChar x   = x
 
 -- Turns a module import path into a module name and absolute file path
 -- This takes the base directory, current directory, and module import.
-resolveModule :: FilePath -> FilePath -> ModPath -> (Ident, FilePath)
-resolveModule absp relp modp = case toModulePath modp of
-  -- FIXME: Determine the module name from the resulting path relative to the base path
-  (modName, modPath,  True) -> (modName, relp </> unpack modPath)
-  (modName, modPath, False) -> (modName, absp </> unpack modPath)
+resolveModule :: FilePath -> FilePath -> ModPath -> Either String (Ident, FilePath)
+resolveModule absp relp modp =
+  let (_, relModPath, isRel) = toModulePath modp in
+  let basePath = dropFileName absp </> if isRel then dropFileName relp else "." in
+  let modPath = simplifyPath $ basePath </> unpack relModPath in do
+    modName <- modnameFromPath (dropFileName absp) modPath
+    return (modName, modPath)
+  
+  -- case toModulePath modp of
+  -- -- FIXME: Determine the module name from the resulting path relative to the base path
+  -- (modName, modPath,  True) -> (modName, relp </> unpack modPath)
+  -- (modName, modPath, False) -> (modName, absp </> unpack modPath)
 
+
+-- resolveModule2 :: FilePath -> FilePath -> ModPath -> (Ident, FilePath)
+-- resolveModule2 absp relp modp
 
 modnameFromPath :: FilePath -> FilePath -> Either String Ident
 modnameFromPath basepath modpath = do
@@ -107,6 +119,24 @@ onLast :: (a -> a) -> [a] -> [a]
 onLast f (x:y:xs) = (x : onLast f (y:xs))
 onLast f [x]      = [f x]
 onLast _ []       = []
+
+-- Removes "./" and "../"
+-- If any of the elements are symbolic links,
+-- this function may change where the path resolves to.
+simplifyPath :: FilePath -> FilePath
+simplifyPath p = joinPath $ reverse newDirs where
+  newDirs = foldl step [] (splitPath p)
+
+  step acc c | dropTrailingPathSeparator c == "." = case acc of
+    []                         -> c:acc
+    _                          -> acc
+  step acc c | dropTrailingPathSeparator c == ".." = case acc of
+    []                         -> c:acc    -- Prepend "../" to the empty list.
+    [[s]]  | isPathSeparator s -> acc      -- Keep the path absolute
+    (h:ts) | dropTrailingPathSeparator h ==  "." -> c:ts     
+           | dropTrailingPathSeparator h == ".." -> c:acc
+           | otherwise         -> ts
+  step acc c              = c:acc
 
 -- modnameFromPath :: FilePath -> FilePath -> Either String Ident
 -- modnameFromPath basepath modpath =

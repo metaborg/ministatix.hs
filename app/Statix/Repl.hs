@@ -179,7 +179,7 @@ handler κ (Import path) = do
   symtab ← use globals
 
   -- parse the module
-  let (modName, modPath) = resolveModule here here (Text.pack path)
+  (modName, modPath) <- handleErrors $ resolveModule here here (Text.pack path)
   r <- liftIO $ readModuleIO modName path
   rawmod <- handleErrors $ r
   -- toks   ← handleErrors $ lexer content
