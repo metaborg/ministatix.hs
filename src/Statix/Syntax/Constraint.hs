@@ -129,6 +129,7 @@ fv = cata fvF
     fvTmF (AConsF t ts)        = t `HSet.union` ts
     fvTmF ANilF                = HSet.empty
     fvTmF (ATupleF ts)         = HSet.unions ts
+    fvTmF AWildCardF           = HSet.empty
 
     fvF (TTmF t)             = fvTmF t
     fvF (TVarF ℓ)            = HSet.singleton ℓ
@@ -218,6 +219,9 @@ tupleTm ts = Fix (TTmF (ATupleF ts))
 
 unitTm :: Fix (TermF ℓ)
 unitTm = Fix (TTmF (ATupleF []))
+
+wildcardTm :: Fix (TermF ℓ)
+wildcardTm = Fix (TTmF AWildCardF)
 
 pattern TTm t         = Fix (TTmF t)
 pattern Label l t     = Fix (TLabelF l t)

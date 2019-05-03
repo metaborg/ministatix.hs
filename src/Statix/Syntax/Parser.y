@@ -48,6 +48,7 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
   '+'           { TokPlus }
   '|'           { TokBar }
   '<'           { TokLAngle }
+  '_'           { TokUnderscore }
   where         { TokWhere }
   new           { TokNew }
   arrL          { TokOpenArr }
@@ -137,6 +138,7 @@ Term            : Label                                 { Label $1 Nothing }
                 | Term colon Term                       { consTm $1 $3 }
                 | '[' ']'                               { nilTm }
                 | '(' Terms ')'                         { tupleTm $2 }
+                | '_'                                   { wildcardTm }
 
 Terms           :                                       { []  }
                 | Term                                  { [$1] }
