@@ -1,7 +1,7 @@
 module Statix.Imports where
 
 
-import Data.List (foldl', foldl)
+-- import Data.List (foldl', foldl)
 import System.IO hiding (liftIO)
 import System.Directory
 import System.FilePath
@@ -15,6 +15,8 @@ import Data.Text (pack, unpack, stripSuffix)
 import Statix.Syntax.Parser
 import Statix.Syntax.Lexer
 import Data.Maybe (fromJust)
+
+
 
 -- Converts an imported name into a tuple
 -- of a module name, module path,
@@ -34,37 +36,6 @@ import Data.Maybe (fromJust)
 -- The fix is to use the base path to determine the absolute module name (TBD).
 
 
--- toModulePath :: ModPath -> (Ident, ModPath, Bool)
--- toModulePath = toModulePath_ . unpack
-
--- toModulePath_ :: String -> (Ident, ModPath, Bool)
--- toModulePath_ ('.':p) = (((pack . getModuleName_) p), ((pack . getModulePath_) p),  True)
--- toModulePath_ p       = (((pack . getModuleName_) p), ((pack . getModulePath_) p), False)
-
-getModuleName :: ModPath -> Ident
-getModuleName = pack . getModuleName_ . unpack
-
-getModuleName_ :: String -> String
-getModuleName_ ('.':n) = getModuleName_ n
-getModuleName_ n       = n
-
--- getModulePath :: ModPath -> ModPath
--- getModulePath = pack . getModulePath_ . unpack
-
--- getModulePath_ :: String -> String
--- getModulePath_ ('.':p) = "../" ++ getModulePath_ p
--- getModulePath_ p       = map replaceModulePathChar p ++ ".stx"
-
--- replaceModulePathChar :: Char -> Char
--- replaceModulePathChar '.' = '/'
--- replaceModulePathChar x   = x
-
--- Import
--- * name
--- * path
--- * whether the path is relative (True) or absolute (False)
--- data Import = Import Ident ModPath Bool deriving (Show)
-
 -- Import algorithm
 -- We have a worklist with modules
 -- Until the worklist is empty, for each module in the worklist:
@@ -83,84 +54,25 @@ getModuleName_ n       = n
 -- 2) Get the topological sort of the graph (see Data.Graph.topSort)
 -- 3) Load modules in topological order.
 
--- Turns a module import path into a module name and absolute file path
--- This takes the base path, current path, and module import path.
-resolveModule :: FilePath -> FilePath -> ModPath -> Either String (Ident, FilePath)
-resolveModule absp relp modp = do
-  modName <- modNameFromPath (dropFileName absp) modPath
-  return (modName, modPath)
+
+
+-- | Turns a module import path into a tuple of a module name
+-- | and absolute file path.
+resolveModule :: FilePath   -- ^ The base path (e.g., current directory or root module path).
+              -> Ident      -- ^ The module name (e.g., "commons.utils").
+              -> FilePath   -- ^ The module's absolute path.
+resolveModule basePath modName = modPath
   where
-    (relModPath, isRel) = toModulePath $ unpack modp
-    basePath = dropFileName absp </> if isRel then dropFileName relp else "."
-    modPath = simplifyPath $ basePath </> relModPath
-
-    toModulePath :: String -> (FilePath, Bool)
-    toModulePath ('.':p) = (getModulePath p,  True)
-    toModulePath p       = (getModulePath p, False)
-
-    getModulePath :: String -> FilePath
-    getModulePath ('.':p) = ".." </> getModulePath p
-    getModulePath p       = let
-      repl '.' = '/'
-      repl x   = x
-      in map repl p ++ ".stx"
-
-    modNameFromPath :: FilePath -> FilePath -> Either String Ident
-    modNameFromPath basepath modpath = do
-      relpath <- ensureRelative $ makeRelative basepath modpath
-      return $ pack . concat $ intersperse "." $ onLast stripStxSuffix $ splitDirectories relpath
-
-    stripStxSuffix :: FilePath -> FilePath
-    stripStxSuffix s = unpack (fromJust $ stripSuffix ".stx" $ pack s)
-
-    ensureRelative :: FilePath -> Either String FilePath
-    ensureRelative p = case isRelative p of
-      True  -> Right p
-      False -> Left ("Path '" ++ p ++ "' points to a location outside the base directory.")
-
-    -- Could not find a build-in function that does this
-    onLast :: (a -> a) -> [a] -> [a]
-    onLast f (x:y:xs) = (x : onLast f (y:xs))
-    onLast f [x]      = [f x]
-    onLast _ []       = []
-
--- resolveModule2 :: FilePath -> FilePath -> ModPath -> Either String (Ident, FilePath)
--- resolveModule2 absp relp modp =
---   let (_, relModPath, isRel) = toModulePath modp in
---   let basePath = dropFileName absp </> if isRel then dropFileName relp else "." in
---   let modPath = simplifyPath $ basePath </> unpack relModPath in do
---     modName <- modnameFromPath (dropFileName absp) modPath
---     return (modName, modPath)
-  
-  -- case toModulePath modp of
-  -- -- FIXME: Determine the module name from the resulting path relative to the base path
-  -- (modName, modPath,  True) -> (modName, relp </> unpack modPath)
-  -- (modName, modPath, False) -> (modName, absp </> unpack modPath)
+    relModPath = getModulePath $ unpack modName
+    modPath = simplifyPath $ dropFileName basePath </> relModPath
+    getModulePath p = map repl p ++ ".stx"
+      where
+        repl '.' = '/'
+        repl x   = x
 
 
--- resolveModule2 :: FilePath -> FilePath -> ModPath -> (Ident, FilePath)
--- resolveModule2 absp relp modp
-
--- modnameFromPath :: FilePath -> FilePath -> Either String Ident
--- modnameFromPath basepath modpath = do
---   relpath <- ensureRelative $ makeRelative basepath modpath
---   return $ pack . concat $ intersperse "." $ onLast stripStxSuffix $ splitDirectories relpath
-
--- stripStxSuffix :: FilePath -> FilePath
--- stripStxSuffix s = unpack (fromJust $ stripSuffix ".stx" $ pack s)
-
--- ensureRelative :: FilePath -> Either String FilePath
--- ensureRelative p = case isRelative p of
---   True  -> Right p
---   False -> Left ("Path '" ++ p ++ "' points to a location outside the base directory.")
-
--- onLast :: (a -> a) -> [a] -> [a]
--- onLast f (x:y:xs) = (x : onLast f (y:xs))
--- onLast f [x]      = [f x]
--- onLast _ []       = []
-
--- Removes "./" and "../"
--- If any of the elements are symbolic links,
+-- | Simplifies a path by removing  "./" and "../"
+-- | If any of the elements are symbolic links,
 -- this function may change where the path resolves to.
 simplifyPath :: FilePath -> FilePath
 simplifyPath p = joinPath $ reverse newDirs where
@@ -177,41 +89,32 @@ simplifyPath p = joinPath $ reverse newDirs where
            | otherwise         -> ts
   step acc c              = c:acc
 
--- modnameFromPath :: FilePath -> FilePath -> Either String Ident
--- modnameFromPath basepath modpath =
---   let relpath = makeRelative basepath modpath in
---     case isRelative relpath of
---       -- TODO: stripSuffix ".stx" from the last element
---       -- returns nothing if suffix is not present (error)
---       True  -> Right $ pack . concat $ intersperse "." $ splitDirectories relpath
---       False -> Left ("Path '" ++ relpath ++ "' points to a location outside the base directory.")
 
--- Reads a module with the specified name from the specified path
-readModuleIO :: Ident -> FilePath -> IO (Either String RawModule)
+-- | Reads a module with the specified name from the specified path
+readModuleIO :: Ident                         -- ^ The name of the module.
+             -> FilePath                      -- ^ The path to the module.
+             -> IO (Either String RawModule)  -- ^ IO monad wrapping either an error or the parse module.
 readModuleIO modName modPath = do
   content <- readFile modPath
   return $ readModule modName content
 
--- Reads a module with the specified name and content
-readModule :: Ident -> String -> Either String RawModule
+
+-- | Reads a module with the specified name and content.
+readModule :: Ident                   -- ^ The name of the module.
+           -> String                  -- ^ The raw content of the module.
+           -> Either String RawModule -- ^ Either an error or the parsed module.
 readModule modName content =
   let tokens = lexer content in
   (tokens >>= runParser modName . parseModule)
 
--- importModule :: SymbolTable -> RawModule -> ()
--- importModule symtab rawmod =
---   -- Typecheck the module
---   let mod = analyze symtab rawmod
 
---   -- Import the typechecked module into the symboltable
---   importMod modName mod
-
--- Produces a topological sort of a list of modules
--- according to their import dependencies.
--- The returned list is from dependee to depender.
-moduleTopSort :: [RawModule] -> [RawModule]
+-- | Produces a topological sort of a list of modules
+-- | according to their import dependencies.
+-- | The returned list is from dependee to depender.
+moduleTopSort :: [RawModule]    -- ^ The list of modules to sort.
+              -> [RawModule]    -- ^ The sorted list of modules.
 moduleTopSort modules =
-  let edges = [(mod, name, map getModuleName imports) | mod@(Mod name imports _) <- modules ] in
+  let edges = [(mod, name, imports) | mod@(Mod name imports _) <- modules ] in
   let (graph, vertexToNode, _) = G.graphFromEdges edges in
   let sorted = (reverse . G.topSort) graph in
     [mod | (mod, _, _) <- map vertexToNode sorted]

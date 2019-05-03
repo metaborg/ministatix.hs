@@ -224,9 +224,8 @@ pattern CMatch t br   = Fix (CMatchF t br)
 type Predicate₀       = Predicate Ident   Ident   Term₀ -- parsed
 type Predicate₁       = Predicate QName   IPath   Term₁ -- named & optionally typed
 
-type ModPath   = Text
 data RawModule = Mod 
   { moduleName    :: Ident
-  , moduleImports :: [ModPath]
+  , moduleImports :: [Ident]
   , definitions   :: [Predicate₀] }
   deriving (Show)

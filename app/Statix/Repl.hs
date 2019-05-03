@@ -171,16 +171,13 @@ handler κ (Define p) = do
   κ
 
 handler κ (Import path) = do
-  here     ← liftIO getCurrentDirectory
-  -- let path = here </> path
-  -- content  ← liftIO $ readFile path
-  -- let modName = Text.pack path
-
   symtab ← use globals
 
   -- parse the module
-  (modName, modPath) <- handleErrors $ resolveModule here here (Text.pack path)
-  r <- liftIO $ readModuleIO modName path
+  here     ← liftIO getCurrentDirectory
+  let modName = Text.pack path
+  let modPath = resolveModule here modName
+  r <- liftIO $ readModuleIO modName modPath
   rawmod <- handleErrors $ r
   -- toks   ← handleErrors $ lexer content
   -- rawmod ← liftParser modName $ parseModule $ toks
