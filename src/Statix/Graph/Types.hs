@@ -9,8 +9,8 @@ type CriticalEdge n l = (n , Regex l)
 
 {- A Graph monad interface -}
 class (Monad m, Eq l, Ord n) => MonadGraph n l d m | m -> n l d where
-  newNode  :: Maybe d -> m n
+  newNode  :: d -> m n
   newEdge  :: (n, l, Maybe d, n) → m ()
-  getDatum :: n → m (Maybe d)
+  getDatum :: n → m d
   setDatum :: n → d → m ()
   getOutEdges :: n → m [(l, Maybe d, n)]

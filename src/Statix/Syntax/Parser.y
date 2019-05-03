@@ -102,7 +102,8 @@ Constraint      : '{' Names '}' Constraint              { CEx (reverse $2) $4 }
                 | Term '=' Term                         { CEq $1 $3 }
                 | true                                  { CTrue }
                 | false                                 { CFalse }
-                | new name                              { CNew $2 }
+                | new name rightarrow Term              { CNew $2 $4 }
+                | new name                              { CNew $2 unitTm }
                 | name rightarrow Term                  { CData $1 $3 }
                 | name arrL Term arrR name              { CEdge $1 $3 $5 }
                 | query name Regex as name              { CQuery $2 $3 $5 }

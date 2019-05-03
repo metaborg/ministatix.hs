@@ -143,11 +143,11 @@ typeAnalysis (CEdge n e m)
       unify n n'
       void $ unify m m'
   | otherwise = throwError $ TypeError "Expected label"
-typeAnalysis (CNew n)       = do
+typeAnalysis (CNew n t) = do
   n  ← resolve n
   m  ← construct (Tm (Const (TNode Out)))
   void $ unify n m
-typeAnalysis (CData x t)       = do
+typeAnalysis (CData x t) = do
   n  ← resolve x
   m  ← construct (Tm (Const (TNode None)))
   void $ unify n m

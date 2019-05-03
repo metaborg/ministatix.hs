@@ -29,7 +29,7 @@ data IntGraphEdge l d = IntEdge l (Maybe d) Int
 data IntGraphNode l d = IntNode
   { id    :: Int
   , edges :: [IntGraphEdge l d]
-  , datum :: Maybe d
+  , datum :: d
   } deriving (Functor, Foldable, Traversable)
 
 newtype IntGraph l d = IntGraph (IntMap (IntGraphNode l d))
@@ -49,7 +49,7 @@ instance (Show l, Show d) ⇒ Show (IntGraph l d) where
 
 {- Graph node/data types for graph in ST -} 
 type STEdge s l d = (l , Maybe d, STNodeRef s l d)
-data STNodeData s l d = STNData [STEdge s l d] (Maybe d)
+data STNodeData s l d = STNData [STEdge s l d] d
 data STNodeRef  s l d = STNRef !Int !(STRef s (STNodeData s l d))
 
 instance Eq (STNodeRef s l d) where

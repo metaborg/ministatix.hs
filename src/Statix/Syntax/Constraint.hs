@@ -74,7 +74,7 @@ data PathFilter t = MatchDatum (Matcher t)
 data ConstraintF p ℓ t r
   = CTrueF | CFalseF
   | CAndF r r | CEqF t t | CExF [Ident] r
-  | CNewF ℓ | CDataF ℓ t | CEdgeF ℓ t ℓ
+  | CNewF ℓ t | CDataF ℓ t | CEdgeF ℓ t ℓ
   | CQueryF ℓ (Regex Label) ℓ
   | COneF ℓ t | CEveryF ℓ (Branch t r) | CMinF ℓ PathComp ℓ | CFilterF ℓ (PathFilter t) ℓ
   | CApplyF p [t] | CMatchF t [Branch t r]
@@ -87,7 +87,7 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (CAndF c₁ c₂)   = show c₁ ++ ", " ++ show c₂
   show (CEqF t₁ t₂)    = show t₁ ++ " = " ++ show t₂
   show (CExF ns c)     = "{ " ++ intercalate ", " (fmap show ns) ++ "} " ++ show c
-  show (CNewF t)       = "new " ++ show t
+  show (CNewF t t')    = "new " ++ show t ++ " -> " ++ show t'
   show (CDataF l t)    = show l ++ " ↦ " ++ show t
   show (CEdgeF t l t') = show t ++ " ─[ " ++ show l ++ " ]-> " ++ show t'
   show (CApplyF p ts)  = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
@@ -107,7 +107,7 @@ tmapc f = cata (tmapc_ f)
     tmapc_ f (CTrueF)         = CTrue
     tmapc_ f (CFalseF)        = CFalse
     tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
-    tmapc_ f (CNewF n)        = CNew n
+    tmapc_ f (CNewF n t)      = CNew n (f t)
     tmapc_ f (CDataF l t)     = CData l (f t)
     tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ (f l) n₂
     tmapc_ f (CAndF c d)      = CAnd c d
@@ -216,6 +216,9 @@ nilTm = Fix (TTmF ANilF)
 tupleTm :: [Fix (TermF ℓ)] → Fix (TermF ℓ)
 tupleTm ts = Fix (TTmF (ATupleF ts))
 
+unitTm :: Fix (TermF ℓ)
+unitTm = Fix (TTmF (ATupleF []))
+
 pattern TTm t         = Fix (TTmF t)
 pattern Label l t     = Fix (TLabelF l t)
 pattern Var x         = Fix (TVarF x)
@@ -236,7 +239,7 @@ pattern CFalse        = Fix CFalseF
 pattern CAnd l r      = Fix (CAndF l r)
 pattern CEq l r       = Fix (CEqF l r)
 pattern CEx ns c      = Fix (CExF ns c)
-pattern CNew t        = Fix (CNewF t)
+pattern CNew t t'     = Fix (CNewF t t')
 pattern CData x t     = Fix (CDataF x t)
 pattern CEdge n l m   = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)

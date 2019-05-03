@@ -256,9 +256,10 @@ solveFocus (CAnd l r) = do
 solveFocus (CEx ns c) =
   openExist ns (newGoal c)
 
-solveFocus (CNew x) = do
+solveFocus (CNew x d) = do
   t  ← resolve x
-  u  ← newNode Nothing
+  d  ← toDag d
+  u  ← newNode d
   t' ← construct (Tm (SNodeF u))
   catchError
     (unify t t')
@@ -328,12 +329,8 @@ solveFocus (CData x t) = do
 
       -- check if a datum is already associated
       -- with the node
-      case t' of
-        Nothing →
-          setDatum n t
-        Just t' → do
-          unifiesOrUnsatisfiable t t'
-          next
+      unifiesOrUnsatisfiable t t'
+      next
     (U.Var x) → throwError StuckError
     _         → throwError TypeError
 
@@ -419,14 +416,12 @@ solveFocus (CFilter x m z) = do
       let tgt = target p
       t ← getDatum tgt
 
-      case t of
-        Nothing  → return False -- TODO issue #17
-        (Just t) → catchError
-          (matches t m (return True))
-          (\case
-            UnificationError _ → return False
-            e                  → throwError e
-          )
+      catchError
+        (matches t m (return True))
+        (\case
+          UnificationError _ → return False
+          e                  → throwError e
+        )
 
 type Unifier s = HashMap Ident (STree s)
 

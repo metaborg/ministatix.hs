@@ -92,9 +92,10 @@ checkConstraint (CEx ns c) = do
   enters () ns $ do
     cc ← checkConstraint c
     return (CEx ns cc)
-checkConstraint (CNew x) = do
+checkConstraint (CNew x t) = do
   p ← resolve x
-  return (CNew p)
+  t ← checkTerm t
+  return (CNew p t)
 checkConstraint (CData x t) = do
   p ← resolve x
   t ← checkTerm t
