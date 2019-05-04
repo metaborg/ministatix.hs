@@ -13,15 +13,19 @@ import Data.HashMap.Strict as HM
 import Data.Functor.Fixedpoint
 
 import Control.Monad.Except
+import Control.Monad.ST.Unsafe
 
 import Statix.Syntax.Lexer as StxLex
 import Statix.Syntax.Parser as StxParser
 import Statix.Syntax.Constraint
 import Statix.Analysis
 
-import Statix.Repl (REPL, runREPL, printSolution)
+import Statix.Repl (REPL, runREPL, printResult)
 import Statix.Repl.Errors
 import Statix.Solver
+import Statix.Graph
+import Statix.Solver.Monad
+import Statix.Solver.Types
 
 import ATerms.Syntax.Lexer as ALex
 import ATerms.Syntax.Parser as AParser
@@ -61,18 +65,13 @@ main spec file = runREPL HM.empty $ do
   let symtab = HM.singleton modname mod
   let wrapper = CApply main [fromATerm aterm]
 
-  solution@(result, sg) ← case HM.lookup (snd main) mod of
+  case HM.lookup (snd main) mod of
     Nothing → handleErrors $ Left $ "Missing main in module " ++ spec
-    Just p  → return $ solve symtab wrapper
+    Just p  → do
+      result ← liftIO $ unsafeSTToIO $ solve symtab wrapper
+      liftIO $ printResult result
 
-  case result of
-    Left error → liftIO $ do
-      putStrLn "Unsatisfiable"
-      report error
-      putStrLn "Graph: "
-      print sg
-      exitFailure
-
-    Right sol → liftIO $ do
-      liftIO $ putStrLn "Satisfied"
-      liftIO $ printSolution solution
+      liftIO $ case result of
+        IsUnsatisfiable _ → exitFailure
+        IsStuck _ → exitFailure
+        _ → exitSuccess

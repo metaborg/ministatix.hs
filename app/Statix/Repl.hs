@@ -79,26 +79,25 @@ prompt = do
     Nothing  → prompt
     Just cmd → handleErrors (readEither cmd)
 
-printSolution :: Solution → IO ()
-printSolution (res , graph) = do
-  case res of
-    Left e → do
-      setSGR [SetColor Foreground Vivid Red]
-      report e
-      putStrLn ""
-      setSGR [Reset]
-    Right φ → do
-      setSGR [SetColor Foreground Dull Green]
-      putStrLn "⟨✓⟩ Satisfiable"
-      setSGR [SetColor Foreground Vivid White]
-      putStrLn "⟪ Unifier ⟫"
-      setSGR [Reset]
-      putStrLn φ
-
+printResult :: Result s → IO ()
+printResult (IsSatisfied φ sg) = do
+  setSGR [SetColor Foreground Dull Green]
+  putStrLn "⟨✓⟩ Satisfiable"
   setSGR [SetColor Foreground Vivid White]
-  putStrLn "⟪ Graph ⟫"
+  putStrLn "⟪ Unifier ⟫"
   setSGR [Reset]
-  print graph
+  putStrLn (formatUnifier φ)
+printResult (IsUnsatisfiable e) = do
+  setSGR [SetColor Foreground Vivid Red]
+  putStrLn "⟨×⟩ Unsatisfiable"
+  report e
+  putStrLn ""
+  setSGR [Reset]
+printResult (IsStuck q) = do
+  setSGR [SetColor Foreground Vivid Yellow]
+  putStrLn "⟨×⟩ Stuck, with queue:"
+  mapM_ (putStrLn . show) q
+  putStrLn ""
   setSGR [Reset]
 
 withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a
@@ -141,11 +140,7 @@ handler κ (Main rawc) = do
   importMod this mod
   modify (over gen (+1))
 
-  let solution = solve symtab (body $ mod HM.! main)
-
-  -- output solution
-  liftIO $ putStrLn ""
-  liftIO $ printSolution solution
+  liftIO $ runST $ fmap printResult (solve symtab (body $ mod HM.! main))
 
   -- rinse and repeat
   κ

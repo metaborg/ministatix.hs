@@ -48,15 +48,21 @@ __trace__ = False
 tracer :: String → a → a
 tracer s a = if __trace__ then trace s a else a
 
+formatGoal :: Goal s → SolverM s (Constraint QName IPath (STree s))
+formatGoal (env, c, _) = do
+  local (const env) $ do
+    substConstraint 3 c
+
+formatQueue :: SolverM s [Constraint QName IPath (STree s)]
+formatQueue = do
+  q ← use queue
+  mapM formatGoal (Fold.toList q)
+
 tracerWithQueue :: SolverM s a → SolverM s a
 tracerWithQueue c = do
-  q   ← use queue
-  let out = intercalate "\n" $ fmap format (Fold.toList q)
-  tracer out c
-
-  where
-    format :: Goal s → String
-    format (_, c, _) = show c
+  q ← formatQueue
+  let q' = fmap show q
+  tracer (intercalate "\n, " q') c
 
 -- TODO make Reifiable a typeclass again
 reifyPath :: SPath s (STmRef s) → SolverM s (STmRef s)
@@ -509,12 +515,32 @@ kick sym c =
         newGoal c
         schedule
 
+data Result s
+  = IsSatisfied (Unifier s) (IntGraph Label (STree s))
+  | IsUnsatisfiable StatixError
+  | IsStuck [Constraint QName IPath (STree s)]
+
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
-solve :: SymbolTable → Constraint₁ → Solution
-solve p c = runSolver (do φ ← kick p c
-                          return $ formatUnifier φ)
+solve :: SymbolTable → Constraint₁ → ST s (Result s)
+solve symtab c = do
+  solution ← runSolver' $ do
+    catchError
+      (do unifier ← kick symtab c 
+          gr ← use graph
+          gr ← liftST $ toIntGraph gr
+          gr' ← mapM (delimitedTree 3) gr
+          return (IsSatisfied unifier gr'))
+      (\case 
+          StuckError → do
+            q ← formatQueue
+            return $ IsStuck q
+          e → do
+            return (IsUnsatisfiable e))
+
+  -- TODO improve once we factor SolverM into an interface...
+  return $ fromRight undefined $ fst $ solution
 
 -- | Check satisfiability of a program
-check :: SymbolTable → Constraint₁ → Bool
-check p c = let (ei, _) = solve p c in isRight ei
+-- check :: SymbolTable → Constraint₁ → Bool
+-- check p c = let (ei, _) = solve p c in _

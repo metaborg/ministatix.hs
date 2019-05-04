@@ -104,10 +104,13 @@ instance MonadUnify (STermF s) (STmRef s) VarInfo StatixError (SolverM s)
 getPredicate :: (MonadReader (Env s) m) ⇒ QName → m Predicate₁
 getPredicate qn = view (symbols . to (!!! qn))
 
+runSolver' :: SolverM s a → ST s (Either StatixError a, Solver s)
+runSolver' c = runStateT (runExceptT (runReaderT c def)) def
+
 -- | Run Solver computations
 runSolver :: (forall s. SolverM s a) → (Either StatixError a, IntGraph Label String)
 runSolver c = runST $ do
-  (c, s) ← runStateT (runExceptT (runReaderT c def)) def
+  (c, s) ← runSolver' c
   graph ← toIntGraph (_graph s)
   graph ← forM graph (\n → show <$> toTree n)
   return (c, graph)
