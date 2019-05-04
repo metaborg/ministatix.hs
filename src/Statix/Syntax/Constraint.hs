@@ -121,6 +121,29 @@ tmapc f = cata (tmapc_ f)
     tmapc_ f (CMatchF t br)   =
       CMatch (f t) (fmap (\(Branch m c) → Branch (fmap f m) c) br)
 
+tsequencec :: (Applicative f) ⇒ Constraint p ℓ (f t) → f (Constraint p ℓ t)
+tsequencec = cata tsequencec_
+  where
+    tseqb :: (Applicative f) ⇒ Branch (f t) (f c) → f (Branch t c)
+    tseqb (Branch t c) = liftA2 Branch (sequenceA t) c
+
+    tsequencec_ :: (Applicative f) ⇒ ConstraintF p ℓ (f t) (f (Constraint p ℓ t)) → f (Constraint p ℓ t)
+    tsequencec_ (CTrueF)         = pure CTrue
+    tsequencec_ (CFalseF)        = pure CFalse
+    tsequencec_ (CEqF t₁ t₂)     = liftA2 CEq t₁ t₂
+    tsequencec_ (CNewF n t)      = pure (CNew n) <*> t
+    tsequencec_ (CDataF l t)     = pure (CData l) <*> t
+    tsequencec_ (CEdgeF n₁ l n₂) = pure (\t → CEdge n₁ t n₂) <*> l
+    tsequencec_ (CAndF c d)      = liftA2 CAnd c d
+    tsequencec_ (CExF ns c)      = pure (CEx ns) <*> c
+    tsequencec_ (CQueryF x r y)  = pure (CQuery x r y)
+    tsequencec_ (COneF x t)      = pure (COne x) <*> t
+    tsequencec_ (CEveryF x b)    = pure (CEvery x) <*> (tseqb b)
+    tsequencec_ (CMinF x p t)    = pure (CMin x p t)
+    tsequencec_ (CFilterF x p t) = pure (\p → CFilter x p t) <*> sequenceA p
+    tsequencec_ (CApplyF p ts)   = pure (CApply p) <*> sequenceA ts
+    tsequencec_ (CMatchF t brs)  = liftA2 (\t brs → CMatch t brs) t (sequenceA $ fmap tseqb brs)
+
 fv :: (Hashable ℓ, Eq ℓ) ⇒ Fix (TermF ℓ) → HashSet ℓ
 fv = cata fvF
   where

@@ -85,6 +85,17 @@ delimitedTree depth n
           return (Fix (Tm subtree))
   | otherwise = return (Fix (Tm (STmF AWildCardF)))
 
+-- | Fully instantiate the terms in a given constraint using the solver
+-- state. This is useful for debugging purposes.
+-- Within the solver this never happens.
+substConstraint :: Int → Constraint₁ → SolverM s (Constraint QName IPath (STree s))
+substConstraint depth c = tsequencec $ tmapc convert c
+  where
+    convert :: Term₁ → SolverM s (STree s)
+    convert t = do
+      t ← toDag t
+      delimitedTree depth t
+
 -- | Throw an Unsatisfiable error containing the trace
 -- as extracted from the lexical environment.
 unsatisfiable :: String → SolverM s a
