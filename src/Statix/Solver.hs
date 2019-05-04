@@ -72,6 +72,8 @@ reifyPath (Graph.End n) = do
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
 
+-- | Convert a solver term to a tree of limited depth.
+-- When the maximum depth is reached, terms become wildcards.
 delimitedTree :: Int → STmRef s → SolverM s (STree s)
 delimitedTree depth n
   | depth >= 1 = do
@@ -83,6 +85,8 @@ delimitedTree depth n
           return (Fix (Tm subtree))
   | otherwise = return (Fix (Tm (STmF AWildCardF)))
 
+-- | Throw an Unsatisfiable error containing the trace
+-- as extracted from the lexical environment.
 unsatisfiable :: String → SolverM s a
 unsatisfiable msg = do
   trace ← getTrace
@@ -91,6 +95,7 @@ unsatisfiable msg = do
                    return $ Call qn params) trace
   throwError (Unsatisfiable trace msg)
 
+-- | Push a goal to the queue with a given generation number.
 pushGoal :: SGen → Constraint₁ → SolverM s ()
 pushGoal i c = do
   env ← ask
@@ -455,7 +460,7 @@ formatUnifier fr =
 -- | The solver loop just continuously checks the work queue,
 -- steals an item and focuses it down, until nothing remains.
 -- When the work is done it grounds the solution and returns it.
-schedule :: SolverM s String
+schedule :: SolverM s (Unifier s)
 schedule = do
   st ← get
   c  ← popGoal
@@ -473,11 +478,10 @@ schedule = do
 
     -- done, gather up the solution (graph and top-level unifier)
     Nothing → do
-      φ     ← unifier
-      return $ formatUnifier φ
+      unifier
 
 -- | Construct a solver for a raw constraint
-kick :: SymbolTable → Constraint₁ → (forall s. SolverM s String)
+kick :: SymbolTable → Constraint₁ → SolverM s (Unifier s)
 kick sym c =
   -- convert the raw constraint to the internal representatio
   local (\_ → set symbols sym def) $ do
@@ -491,9 +495,11 @@ kick sym c =
         newGoal c
         schedule
 
--- | Construct and run a solver for a constraint
+-- | Construct and run a solver for a constraint and
+-- extract an ST free solution
 solve :: SymbolTable → Constraint₁ → Solution
-solve p c = runSolver (kick p c)
+solve p c = runSolver (do φ ← kick p c
+                          return $ formatUnifier φ)
 
 -- | Check satisfiability of a program
 check :: SymbolTable → Constraint₁ → Bool
