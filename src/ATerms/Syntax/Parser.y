@@ -39,6 +39,7 @@ ATerm : symbol '(' ATerms ')' { AFunc $1 (reverse $3) }
       | str                   { AStr $1 }
       | '[' ']'               { ANil }
       | '[' ATermList ']'     { $2 }
+      | '(' ATerms ')'        { ATuple (reverse $2) }
 
 ATermList : ATerm ',' ATermList { ACons $1 $3 }
           | ATerm               { ACons $1 ANil }
