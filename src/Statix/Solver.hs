@@ -482,7 +482,10 @@ schedule = do
           (\case
             -- reschedule stuck goals
             StuckError           → local (const env) (delay c)
-            Unsatisfiable tr msg → throwError $ Unsatisfiable (Within c:tr) msg
+            Unsatisfiable tr msg → do
+              c ← substConstraint 3 c
+              let c' = tmapc show c
+              throwError $ Unsatisfiable (Within c':tr) msg
             e                    → throwError e
           )
       schedule
