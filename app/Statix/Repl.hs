@@ -12,7 +12,8 @@ import Data.Default
 import Data.List
 import Data.HashMap.Strict as HM
 import Data.Functor.Identity
-import qualified Data.Text as Text
+import Data.Text (Text, pack, unpack)
+import qualified Data.Text.IO as TIO
 import Text.Read hiding (lift, get, lex)
 
 import Control.Lens
@@ -55,11 +56,11 @@ data REPLState = REPLState
 makeLenses ''REPLState
 
 -- | The module name for the current generation of the REPL
-self :: Getting Text.Text REPLState Text.Text
-self = gen . (to $ \g → "repl-" ++ show g) . to Text.pack
+self :: Getting Text REPLState Text
+self = gen . (to $ \g → "repl-" ++ show g) . to pack
 
-main :: Getting Text.Text REPLState Text.Text
-main = gen . (to $ \g → "main" ++ show g) . to Text.pack
+main :: Getting Text REPLState Text
+main = gen . (to $ \g → "main" ++ show g) . to pack
 
 runREPL :: SymbolTable → REPL a → IO a
 runREPL sym c = runInputT (defaultSettings { historyFile = Just ".statix" }) $ evalStateT c (REPLState sym 0 [] 0)
@@ -96,7 +97,7 @@ printResult (IsUnsatisfiable e) = do
 printResult (IsStuck q) = do
   setSGR [SetColor Foreground Vivid Yellow]
   putStrLn "⟨×⟩ Stuck, with queue:"
-  mapM_ (putStrLn . show) q
+  mapM_ (TIO.putStrLn) q
   putStrLn ""
   setSGR [Reset]
 
@@ -164,7 +165,7 @@ handler κ (Import file) = do
   here     ← liftIO getCurrentDirectory
   let path = here </> file
   content  ← liftIO $ readFile path
-  let modname = Text.pack file
+  let modname = pack file
 
   symtab ← use globals
 
@@ -187,12 +188,12 @@ handler κ (Type pred) = do
 
   case (symtab !!!) <$> HM.lookup pred q of
     Just p  → liftIO $ putStrLn $
-      Text.unpack pred
+      unpack pred
         ++ " :: "
         ++ (intercalate " → "
-            (fmap (\(n,t) → "(" ++ Text.unpack n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
+            (fmap (\(n,t) → "(" ++ unpack n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
         ++ " → Constraint"
-    Nothing → liftIO $ putStrLn $ "No predicate named: " ++ Text.unpack pred
+    Nothing → liftIO $ putStrLn $ "No predicate named: " ++ unpack pred
 
   κ
 

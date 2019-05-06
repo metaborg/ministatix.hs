@@ -18,3 +18,9 @@ class Monad m ⇒ MonadLex b r d m | m → b r d where
 
 enters :: (MonadLex b r d m) ⇒ FrameDesc m → [b] → m a → m a
 enters fd is c = enter fd $ intros is c
+
+suffix :: Int → Path id → Maybe (Path id)
+suffix i p
+  | i == 0             = Just p
+  | i > 0, Skip p' ← p = suffix i p
+  | otherwise          = Nothing

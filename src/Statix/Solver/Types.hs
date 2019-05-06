@@ -126,7 +126,7 @@ instance Default (Frame s) where
 instance Default (Env s) where
   def = Env HM.empty [def]
 
-data Traceline = Call QName [String] | Within (Constraint QName IPath String)
+data Traceline = Call QName [String] | Within Text
 data StatixError
   = Unsatisfiable [Traceline] String -- trace, reason
   | StuckError

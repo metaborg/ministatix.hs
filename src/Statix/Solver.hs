@@ -1,6 +1,7 @@
 module Statix.Solver where
 
 import Prelude hiding (lookup, null)
+import Data.Text (Text)
 import Data.Map.Strict as Map hiding (map, null)
 import Data.HashMap.Strict as HM
 import Data.HashSet as HS
@@ -38,6 +39,7 @@ import Statix.Analysis.Lexical
 import Statix.Solver.Types
 import Statix.Solver.Reify
 import Statix.Solver.Monad
+import Statix.Solver.Terms
 
 import ATerms.Syntax.ATerm
 
@@ -48,12 +50,12 @@ __trace__ = False
 tracer :: String → a → a
 tracer s a = if __trace__ then trace s a else a
 
-formatGoal :: Goal s → SolverM s (Constraint QName IPath (STree s))
+formatGoal :: Goal s → SolverM s Text
 formatGoal (env, c, _) = do
   local (const env) $ do
-    substConstraint 3 c
+    instantConstraint 3 c
 
-formatQueue :: SolverM s [Constraint QName IPath (STree s)]
+formatQueue :: SolverM s [Text]
 formatQueue = do
   q ← use queue
   mapM formatGoal (Fold.toList q)
@@ -77,30 +79,6 @@ reifyPath (Graph.End n) = do
 
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
-
--- | Convert a solver term to a tree of limited depth.
--- When the maximum depth is reached, terms become wildcards.
-delimitedTree :: Int → STmRef s → SolverM s (STree s)
-delimitedTree depth n
-  | depth >= 1 = do
-      t ← getSchema n
-      case t of 
-        U.Var v → return (Fix (U.Var v))
-        U.Tm tm  → do
-          subtree ← mapM (delimitedTree (depth - 1)) tm
-          return (Fix (Tm subtree))
-  | otherwise = return (Fix (Tm (STmF AWildCardF)))
-
--- | Fully instantiate the terms in a given constraint using the solver
--- state. This is useful for debugging purposes.
--- Within the solver this never happens.
-substConstraint :: Int → Constraint₁ → SolverM s (Constraint QName IPath (STree s))
-substConstraint depth c = tsequencec $ tmapc convert c
-  where
-    convert :: Term₁ → SolverM s (STree s)
-    convert t = do
-      t ← toDag t
-      delimitedTree depth t
 
 -- | Throw an Unsatisfiable error containing the trace
 -- as extracted from the lexical environment.
@@ -223,31 +201,6 @@ queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
 queryGuard ce = do
   cs ← use queue
   Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c) cs
-
--- | Embedding of syntactical terms into the DAG representation of terms
-toDag :: Term₁ → SolverM s (STmRef s)
-toDag (C.Var p)    =
-  resolve p
-toDag (TTm t) = do
-  id ← fresh
-  t ← mapM toDag t
-  newClass (Rep (STm t) id)
-toDag (Label l t) = do
-  id ← fresh
-  t ← mapM toDag t
-  newClass (Rep (SLabel l t) id)
-toDag (PathCons x l t₂) = do
-  id ← fresh
-  n  ← resolve x
-  t₂ ← toDag t₂
-  l  ← toDag l
-  newClass (Rep (SPathCons n l t₂) id)
-toDag (PathEnd x) = do
-  id ← fresh
-  n ← resolve x
-  newClass (Rep (SPathEnd n) id)
-
-toDag _ = throwError (Panic "Not implemented")
 
 matches :: STmRef s → Matcher Term₁ → SolverM s a → SolverM s a
 matches t (Matcher ns g eqs) ma = 
@@ -487,12 +440,11 @@ schedule = do
         catchError (solveFocus c)
           (\case
             -- reschedule stuck goals
-            StuckError           → local (const env) (delay c)
+            StuckError           → delay c
             Unsatisfiable tr msg → do
-              c ← substConstraint 3 c
-              let c' = tmapc show c
-              throwError $ Unsatisfiable (Within c':tr) msg
-            e                    → throwError e
+              c ← instantConstraint 3 c
+              throwError $ Unsatisfiable (Within c:tr) msg
+            e → throwError e
           )
       schedule
 
@@ -518,7 +470,7 @@ kick sym c =
 data Result s
   = IsSatisfied (Unifier s) (IntGraph Label (STree s))
   | IsUnsatisfiable StatixError
-  | IsStuck [Constraint QName IPath (STree s)]
+  | IsStuck [Text]
 
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
@@ -539,8 +491,12 @@ solve symtab c = do
             return (IsUnsatisfiable e))
 
   -- TODO improve once we factor SolverM into an interface...
-  return $ fromRight undefined $ fst $ solution
+  return $ either (\e → IsUnsatisfiable e) (\r → r) $ fst $ solution
 
 -- | Check satisfiability of a program
--- check :: SymbolTable → Constraint₁ → Bool
--- check p c = let (ei, _) = solve p c in _
+check :: SymbolTable → Constraint₁ → Bool
+check p c = runST $ do
+                  sol ← solve p c
+                  case sol of
+                    (IsSatisfied _ _) → return True
+                    otherwise         → return False
