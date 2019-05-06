@@ -14,6 +14,8 @@ import Data.Set as Set
 import Control.Applicative
 
 import Statix.Regex
+import Statix.Syntax.Terms
+import Statix.Syntax.Typing
 import Statix.Graph.Types
 import Statix.Graph.Paths
 import Statix.Analysis.Lexical as Lexical
@@ -21,43 +23,10 @@ import Statix.Analysis.Lexical as Lexical
 import ATerms.Syntax.ATerm
 import Unification
 
-------------------------------------------------------------------
--- | Some primitives
-
-type Node     = String
-
-newtype Label = Lab Text deriving (Eq, Ord)
-instance Hashable Label where
-  hashWithSalt salt (Lab txt) = hashWithSalt salt txt
-
-instance Show Label where
-  show (Lab l) = unpack l
-
 type QName = (Ident, Ident)   -- qualified predicate names (module, raw)
 
 showQName :: QName → String
 showQName (mod, pred) = unpack mod ++ "." ++ unpack pred
-
-type Ident = Text
-type IPath = Lexical.Path Ident
-
-------------------------------------------------------------------
--- | The term language
-
-data TermF ℓ r
-  = TTmF (ATermF r)
-  | TLabelF Label (Maybe r)
-  | TVarF ℓ 
-  | TPathConsF ℓ r r
-  | TPathEndF ℓ
-  deriving (Eq, Functor, Foldable, Traversable)
-
-instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
-  show (TTmF t)           = show t
-  show (TLabelF l t)      = "`" ++ show l ++ "(" ++ show t ++ ")"
-  show (TVarF x)          = show x
-  show (TPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
-  show (TPathEndF l)      = show l ++ " ◅"
 
 ------------------------------------------------------------------
 -- | The constraint language
@@ -161,58 +130,8 @@ fv = cata fvF
     fvF (TLabelF l (Just r)) = r
     fvF _                    = HSet.empty
 
-fromATerm :: ATerm → Fix (TermF ℓ)
-fromATerm = cata (Fix . TTmF)
-
 ------------------------------------------------------------------
 -- | Predicates and modules
-
--- | Node permission modes:
--- `In` denotes that the node requires extension permission.
--- `Out` denotes that we have extension permission on the variable.
--- `InOut` means we both require and have extension permission.
-data Mode
-  = None
-  | Out
-  | In    (Set Label)
-  | InOut (Set Label) deriving (Eq, Show)
-
-modeJoin :: Mode → Mode → Mode
-modeJoin m None             = m
-modeJoin None m             = m
-modeJoin (In ls) (In ks)    = In (ls `Set.union` ks)
-modeJoin (In ls) Out        = In ls
-modeJoin Out (In ls)        = In ls
-modeJoin Out Out            = Out
-modeJoin (InOut ks) (In ls) = InOut (ls `Set.union` ks)
-modeJoin (In ls) (InOut ks) = InOut (ls `Set.union` ks)
-modeJoin (InOut ks) Out     = InOut ks
-modeJoin Out (InOut ks)     = InOut ks
-modeJoin (InOut ls) (InOut ks) = InOut (ls `Set.union` ks)
-
-data Type
-  = TNode Mode
-  | TPath
-  | TLabel
-  | TAns
-  | TBot deriving (Eq)
-
-instance Unifiable (Const Type) where
-
-  zipMatch (Const (TNode m)) (Const (TNode n))
-    = Just (Const (TNode (modeJoin m n)))
-  zipMatch ty ty'
-    | ty == ty'         = Just ((\r → (r,r)) <$> ty)
-    | ty == Const TBot  = Just ((\r → (r,r)) <$> ty')
-    | ty' == Const TBot = Just ((\r → (r,r)) <$> ty)
-    | otherwise = Nothing
-
-instance Show Type where
-  show (TNode m) = "Node " ++ show m
-  show TPath = "Path"
-  show TAns  = "{Path}"
-  show TBot  = "⊥"
-  show TLabel = "Label"
 
 type Signature = [(Ident, Type)]
 
@@ -221,36 +140,6 @@ data Predicate p ℓ t = Pred
   , sig      :: Signature
   , body     :: Constraint p ℓ t
   } deriving (Show)
-
-type TermF₀ r         = TermF Ident r
-type TermF₁ r         = TermF IPath r
-
-type Term₀            = Fix (TermF Ident)
-type Term₁            = Fix (TermF IPath)
-
-funcTm :: Text → [Fix (TermF ℓ)] → Fix (TermF ℓ)
-funcTm c ts = Fix (TTmF (AFuncF c ts))
-
-consTm :: Fix (TermF ℓ) → Fix (TermF ℓ) → Fix (TermF ℓ)
-consTm t ts = Fix (TTmF (AConsF t ts))
-
-nilTm :: Fix (TermF ℓ)
-nilTm = Fix (TTmF ANilF)
-
-tupleTm :: [Fix (TermF ℓ)] → Fix (TermF ℓ)
-tupleTm ts = Fix (TTmF (ATupleF ts))
-
-unitTm :: Fix (TermF ℓ)
-unitTm = Fix (TTmF (ATupleF []))
-
-wildcardTm :: Fix (TermF ℓ)
-wildcardTm = Fix (TTmF AWildCardF)
-
-pattern TTm t         = Fix (TTmF t)
-pattern Label l t     = Fix (TLabelF l t)
-pattern Var x         = Fix (TVarF x)
-pattern PathCons t l t'   = Fix (TPathConsF t l t')
-pattern PathEnd l         = Fix (TPathEndF l)
 
 type ConstraintF₀ r   = ConstraintF Ident Ident Term₀ r -- parsed
 type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named
