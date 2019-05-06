@@ -349,10 +349,7 @@ solveFocus (CApply p ts) = do
 
 solveFocus (CMatch t bs) = do
   t' ← tracer ("matching " ++ show t) $ toDag t
-  σ  ← getSchema t'
-  case σ of
-    (U.Var x) → throwError StuckError
-    (U.Tm f)  → solveBranch t' bs
+  solveBranch t' bs
 
   where
     solveBranch :: STmRef s → [Branch₁] → SolverM s ()
