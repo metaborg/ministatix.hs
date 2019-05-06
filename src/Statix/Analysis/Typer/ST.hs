@@ -12,7 +12,7 @@ import Control.Monad.State
 import Control.Monad.Unique
 import Control.Monad.ST
 
-import Statix.Syntax.Constraint as Term
+import Statix.Syntax
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
 import Statix.Analysis.Namer

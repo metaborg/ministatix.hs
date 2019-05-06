@@ -15,9 +15,8 @@ import Data.Functor.Fixedpoint
 import Control.Monad.Except
 import Control.Monad.ST.Unsafe
 
-import Statix.Syntax.Lexer as StxLex
+import Statix.Syntax
 import Statix.Syntax.Parser as StxParser
-import Statix.Syntax.Constraint
 import Statix.Analysis
 
 import Statix.Repl (REPL, runREPL, printResult)

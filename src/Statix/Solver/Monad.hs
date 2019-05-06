@@ -25,7 +25,7 @@ import Unification.ST
 
 import Statix.Analysis.Lexical as Lex
 import Statix.Analysis.Symboltable
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Solver.Types
 import Statix.Graph
 import Statix.Graph.Types

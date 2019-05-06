@@ -30,7 +30,7 @@ import Control.Monad.Unique
 import Debug.Trace
 
 import Statix.Regex as Re
-import Statix.Syntax.Constraint as C
+import Statix.Syntax as Syn
 import Statix.Graph
 import Statix.Graph.Paths
 import Statix.Graph.Types as Graph

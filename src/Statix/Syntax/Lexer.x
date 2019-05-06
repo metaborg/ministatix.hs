@@ -8,6 +8,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 
 import Statix.Syntax.Types
+import Statix.Syntax.Terms
 
 import ATerms.Syntax.Types
   ( AlexInput(..), ParseState

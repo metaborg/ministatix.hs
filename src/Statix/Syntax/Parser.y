@@ -12,8 +12,10 @@ import Control.Monad.State
 
 import Statix.Regex
 
+import Statix.Syntax.Terms
 import Statix.Syntax.Constraint
 import Statix.Syntax.Types
+import Statix.Syntax.Typing
 import Statix.Syntax.Lexer
 
 import ATerms.Syntax.Types (input, remainder, line, prev)

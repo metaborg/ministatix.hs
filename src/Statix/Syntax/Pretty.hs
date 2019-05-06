@@ -8,6 +8,8 @@ import Data.List
 import Control.Monad.State
 import Control.Monad.Writer
 
+import Statix.Syntax.Terms
+import Statix.Syntax.Typing
 import Statix.Syntax.Constraint
 
 prettyBranch :: forall t c m. (MonadWriter Text m) ⇒ (t → m ()) → (Maybe [Ident] → c → m ()) → Branch t c → m ()

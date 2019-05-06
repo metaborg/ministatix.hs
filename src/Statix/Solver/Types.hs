@@ -22,7 +22,7 @@ import Control.Monad.Trans
 import Statix.Regex
 import Statix.Graph
 import Statix.Graph.Types as Graph
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 

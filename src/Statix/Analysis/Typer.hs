@@ -20,7 +20,7 @@ import Control.Monad.State
 import Control.Monad.Unique
 import Control.Applicative
 
-import Statix.Syntax.Constraint as Term
+import Statix.Syntax as Syn
 import Statix.Analysis.Types
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical as Lex
@@ -102,7 +102,7 @@ solution = do
       return (param, τ)
 
 termTypeAnalysis :: MonadTyper n m ⇒ Term₁ → m n
-termTypeAnalysis (Term.Var x) = resolve x
+termTypeAnalysis (Syn.Var x)  = resolve x
 termTypeAnalysis (Label _ _)  = construct (Tm (Const TLabel))
 termTypeAnalysis (PathCons _ _ _) = construct (Tm (Const TPath))
 termTypeAnalysis (PathEnd _)  = construct (Tm (Const TPath))

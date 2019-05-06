@@ -16,7 +16,7 @@ import Control.Monad.State
 import Control.Monad.ST
 import Control.Monad.Equiv
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 import Unification

@@ -14,7 +14,7 @@ import Data.Functor.Fixedpoint
 import Data.Coerce
 import qualified Data.Text as Text
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Analysis.Types
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical

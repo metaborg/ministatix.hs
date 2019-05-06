@@ -10,7 +10,7 @@ import Control.Monad.Except
 import Control.Monad.ST
 import Control.Lens
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Types

@@ -16,13 +16,12 @@ import Unification as U hiding (TTm)
 import Statix.Solver.Types
 import Statix.Solver.Monad
 import Statix.Analysis.Lexical
+import Statix.Syntax as Syn
 import Statix.Syntax.Pretty
-
-import Statix.Syntax.Constraint as C
 
 -- | Embedding of syntactical terms into the DAG representation of terms
 toDag :: Term₁ → SolverM s (STmRef s)
-toDag (C.Var p)    =
+toDag (Syn.Var p)    =
   resolve p
 toDag (TTm t) = do
   id ← fresh

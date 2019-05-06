@@ -26,10 +26,8 @@ import Control.Monad.Unique as Unique
 
 import Debug.Trace
 
+import Statix.Syntax
 import Statix.Syntax.Parser
-import Statix.Syntax.Types
-import Statix.Syntax.Lexer
-import Statix.Syntax.Constraint
 
 import Statix.Solver
 import Statix.Solver.Types
