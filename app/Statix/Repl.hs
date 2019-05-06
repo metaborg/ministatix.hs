@@ -27,6 +27,7 @@ import Control.Monad.Unique as Unique
 import Debug.Trace
 
 import Statix.Syntax
+import Statix.Syntax.Surface
 import Statix.Syntax.Parser
 
 import Statix.Solver
@@ -133,7 +134,8 @@ handler κ (Main rawc) = do
 
   -- parse and analyze the constraint as a singleton module
   c        ← handleErrors $ parseConstraint this rawc
-  mod      ← withErrors $ analyze this symtab (Mod imps [Pred (this, main) [] c])
+  let c'   = desugar c
+  mod      ← withErrors $ analyze this symtab (Mod imps [Pred (this, main) [] c'])
 
   -- import the module
   importMod this mod
@@ -150,7 +152,8 @@ handler κ (Define p) = do
   symtab ← use globals
 
   pr    ← handleErrors $ parsePredicate this p
-  mod   ← withErrors $ analyze this symtab (Mod imps [pr])
+  let pr' = desugarPred pr
+  mod   ← withErrors $ analyze this symtab (Mod imps [pr'])
 
   -- import the predicate into the symboltable
   importMod this mod
@@ -169,9 +172,10 @@ handler κ (Import file) = do
 
   -- parse the module
   rawmod ← handleErrors $ parseModule modname content
+  let rawmod' = desugarMod rawmod
 
   -- Typecheck the module
-  mod ← withErrors $ analyze modname symtab rawmod
+  mod ← withErrors $ analyze modname symtab rawmod'
 
   -- Import the typechecked module into the symboltable
   importMod modname mod

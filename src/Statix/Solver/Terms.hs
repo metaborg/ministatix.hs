@@ -42,21 +42,23 @@ toDag (PathEnd x) = do
   n ← resolve x
   newClass (Rep (SPathEnd n) id)
 
-hole :: STree s
-hole = Fix (Tm (STmF AWildCardF))
-
 -- | Convert a solver term to a tree of limited depth.
 -- When the maximum depth is reached, terms become wildcards.
-delimitedTree :: Int → STmRef s → SolverM s (STree s)
-delimitedTree depth n
+instantTerm :: Int → STmRef s → SolverM s Text
+instantTerm depth n
   | depth >= 1 = do
       t ← getSchema n
       case t of 
-        U.Var v → return (Fix (U.Var v))
-        U.Tm tm  → do
-          subtree ← mapM (delimitedTree (depth - 1)) tm
-          return (Fix (Tm subtree))
-  | otherwise = return hole
+        U.Var v → return v
+        U.Tm tm → do
+          tm ← mapM (instantTerm (depth - 1)) tm
+          return $ pack $ show tm
+  | otherwise = return "_"
+
+instantVariable d x = do
+  t ← lift $ resolve x
+  t ← lift $ instantTerm d t
+  tell t
 
 instantConstraint :: Int → Constraint₁ → SolverM s Text
 instantConstraint d c = execWriterT (insta d c)
@@ -64,14 +66,11 @@ instantConstraint d c = execWriterT (insta d c)
     insta :: Int → Constraint₁ → WriterT Text (SolverM s) ()
     insta d (Fix c) = prettyF
       (\qn → tell $ pack $ showQName qn)
-      (\x  → do
-          t ← lift $ resolve x
-          t ← lift $ delimitedTree d t
-          tell $ pack $ show t)
+      (instantVariable d)
       (\t → do
           t ← lift (toDag t)
-          t ← lift $ delimitedTree d t
-          tell $ pack $ show t)
+          t ← lift (instantTerm d t)
+          tell t)
       (\ ns c → case ns of
         (Just ns) → tell "_"  -- dont move under binders
         Nothing   → insta d c)

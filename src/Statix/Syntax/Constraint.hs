@@ -24,6 +24,7 @@ import ATerms.Syntax.ATerm
 import Unification
 
 type QName = (Ident, Ident)   -- qualified predicate names (module, raw)
+type ModPath   = Text
 
 showQName :: QName → String
 showQName (mod, pred) = unpack mod ++ "." ++ unpack pred
@@ -41,13 +42,38 @@ data PathFilter t = MatchDatum (Matcher t)
   deriving (Functor, Foldable, Traversable, Show)
 
 data ConstraintF p ℓ t r
-  = CTrueF | CFalseF
-  | CAndF r r | CEqF t t | CExF [Ident] r
-  | CNewF ℓ t | CDataF ℓ t | CEdgeF ℓ t ℓ
+  = CTrueF
+  | CFalseF
+  | CAndF r r
+  | CEqF t t
+  | CExF [Ident] r
+  | CNewF ℓ t
+  | CDataF ℓ t
+  | CEdgeF ℓ t ℓ
   | CQueryF ℓ (Regex Label) ℓ
-  | COneF ℓ t | CEveryF ℓ (Branch t r) | CMinF ℓ PathComp ℓ | CFilterF ℓ (PathFilter t) ℓ
-  | CApplyF p [t] | CMatchF t [Branch t r]
+  | COneF ℓ t
+  | CEveryF ℓ (Branch t r)
+  | CMinF ℓ PathComp ℓ
+  | CFilterF ℓ (PathFilter t) ℓ
+  | CApplyF p [t]
+  | CMatchF t [Branch t r]
   deriving (Functor, Foldable, Traversable)
+
+pattern CTrue         = Fix CTrueF
+pattern CFalse        = Fix CFalseF
+pattern CAnd l r      = Fix (CAndF l r)
+pattern CEq l r       = Fix (CEqF l r)
+pattern CEx ns c      = Fix (CExF ns c)
+pattern CNew t t'     = Fix (CNewF t t')
+pattern CData x t     = Fix (CDataF x t)
+pattern CEdge n l m   = Fix (CEdgeF n l m)
+pattern CQuery t re x = Fix (CQueryF t re x)
+pattern COne x t      = Fix (COneF x t)
+pattern CEvery x b    = Fix (CEveryF x b)
+pattern CMin x p t    = Fix (CMinF x p t)
+pattern CFilter x p t = Fix (CFilterF x p t)
+pattern CApply p ts   = Fix (CApplyF p ts)
+pattern CMatch t br   = Fix (CMatchF t br)
 
 instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) where
 
@@ -113,33 +139,20 @@ tsequencec = cata tsequencec_
     tsequencec_ (CApplyF p ts)   = pure (CApply p) <*> sequenceA ts
     tsequencec_ (CMatchF t brs)  = liftA2 (\t brs → CMatch t brs) t (sequenceA $ fmap tseqb brs)
 
-fv :: (Hashable ℓ, Eq ℓ) ⇒ Fix (TermF ℓ) → HashSet ℓ
-fv = cata fvF
-  where
-    fvTmF (AFuncF sym ts)      = HSet.unions ts
-    fvTmF (AStrF _)            = HSet.empty
-    fvTmF (AConsF t ts)        = t `HSet.union` ts
-    fvTmF ANilF                = HSet.empty
-    fvTmF (ATupleF ts)         = HSet.unions ts
-    fvTmF AWildCardF           = HSet.empty
-
-    fvF (TTmF t)             = fvTmF t
-    fvF (TVarF ℓ)            = HSet.singleton ℓ
-    fvF (TPathConsF ℓ r₁ r₂) = HSet.singleton ℓ `HSet.union` r₁ `HSet.union` r₂
-    fvF (TPathEndF ℓ)        = HSet.singleton ℓ
-    fvF (TLabelF l (Just r)) = r
-    fvF _                    = HSet.empty
-
 ------------------------------------------------------------------
 -- | Predicates and modules
 
 type Signature = [(Ident, Type)]
 
-data Predicate p ℓ t = Pred
+data Predicate c = Pred
   { qname    :: QName
   , sig      :: Signature
-  , body     :: Constraint p ℓ t
+  , body     :: c
   } deriving (Show)
+
+data RawModule c = Mod 
+  { moduleImports :: [ModPath]
+  , definitions   :: [Predicate c] }
 
 type ConstraintF₀ r   = ConstraintF Ident Ident Term₀ r -- parsed
 type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named
@@ -150,26 +163,8 @@ type Branch₁          = Branch Term₁ Constraint₁ -- named
 type Constraint₀      = Constraint Ident  Ident Term₀ -- parsed
 type Constraint₁      = Constraint QName  IPath Term₁ -- named
 
-pattern CTrue         = Fix CTrueF
-pattern CFalse        = Fix CFalseF
-pattern CAnd l r      = Fix (CAndF l r)
-pattern CEq l r       = Fix (CEqF l r)
-pattern CEx ns c      = Fix (CExF ns c)
-pattern CNew t t'     = Fix (CNewF t t')
-pattern CData x t     = Fix (CDataF x t)
-pattern CEdge n l m   = Fix (CEdgeF n l m)
-pattern CQuery t re x = Fix (CQueryF t re x)
-pattern COne x t      = Fix (COneF x t)
-pattern CEvery x b    = Fix (CEveryF x b)
-pattern CMin x p t    = Fix (CMinF x p t)
-pattern CFilter x p t = Fix (CFilterF x p t)
-pattern CApply p ts   = Fix (CApplyF p ts)
-pattern CMatch t br   = Fix (CMatchF t br)
+type Predicate₀       = Predicate Constraint₀
+type Predicate₁       = Predicate Constraint₁
 
-type Predicate₀       = Predicate Ident   Ident   Term₀ -- parsed
-type Predicate₁       = Predicate QName   IPath   Term₁ -- named & optionally typed
-
-type ModPath   = Text
-data RawModule = Mod 
-  { moduleImports :: [ModPath]
-  , definitions   :: [Predicate₀] }
+type RawModule₀       = RawModule Constraint₀
+type RawModule₁       = RawModule Constraint₁

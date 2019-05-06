@@ -1,7 +1,7 @@
 module Statix.Solver where
 
 import Prelude hiding (lookup, null)
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import Data.Map.Strict as Map hiding (map, null)
 import Data.HashMap.Strict as HM
 import Data.HashSet as HS
@@ -86,7 +86,7 @@ unsatisfiable :: String → SolverM s a
 unsatisfiable msg = do
   trace ← getTrace
   trace ← mapM (\(qn, params) → do
-                   params ← mapM (fmap show . delimitedTree 3) params
+                   params ← mapM (fmap unpack . instantTerm 3) params
                    return $ Call qn params) trace
   throwError (Unsatisfiable trace msg)
 
@@ -468,7 +468,7 @@ kick sym c =
         schedule
 
 data Result s
-  = IsSatisfied (Unifier s) (IntGraph Label (STree s))
+  = IsSatisfied (Unifier s) (IntGraph Label Text)
   | IsUnsatisfiable StatixError
   | IsStuck [Text]
 
@@ -481,7 +481,7 @@ solve symtab c = do
       (do unifier ← kick symtab c 
           gr ← use graph
           gr ← liftST $ toIntGraph gr
-          gr' ← mapM (delimitedTree 3) gr
+          gr' ← mapM (instantTerm 3) gr
           return (IsSatisfied unifier gr'))
       (\case 
           StuckError → do

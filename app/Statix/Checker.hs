@@ -16,6 +16,7 @@ import Control.Monad.Except
 import Control.Monad.ST.Unsafe
 
 import Statix.Syntax
+import Statix.Syntax.Surface
 import Statix.Syntax.Parser as StxParser
 import Statix.Analysis
 
@@ -51,9 +52,10 @@ main spec file = runREPL HM.empty $ do
 
   -- parse the module
   rawmod ← handleErrors $ StxParser.parseModule modname content
+  let rawmod' = desugarMod rawmod
 
   -- Typecheck the module
-  mod ← withErrors $ analyze modname HM.empty rawmod
+  mod ← withErrors $ analyze modname HM.empty rawmod'
 
   -- Parse the aterm file
   doc   ← liftIO $ readFile (here </> file)

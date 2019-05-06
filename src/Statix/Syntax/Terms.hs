@@ -4,6 +4,8 @@ import Data.Text (Text, unpack)
 import Data.Hashable
 import Data.Functor.Fixedpoint
 
+import Data.HashSet as HSet
+
 import ATerms.Syntax.ATerm
 import Statix.Analysis.Lexical as Lexical
 
@@ -63,11 +65,24 @@ tupleTm ts = Fix (TTmF (ATupleF ts))
 unitTm :: Fix (TermF ℓ)
 unitTm = Fix (TTmF (ATupleF []))
 
-wildcardTm :: Fix (TermF ℓ)
-wildcardTm = Fix (TTmF AWildCardF)
-
 pattern TTm t         = Fix (TTmF t)
 pattern Label l t     = Fix (TLabelF l t)
 pattern Var x         = Fix (TVarF x)
 pattern PathCons t l t'   = Fix (TPathConsF t l t')
 pattern PathEnd l         = Fix (TPathEndF l)
+
+fv :: (Hashable ℓ, Eq ℓ) ⇒ Fix (TermF ℓ) → HashSet ℓ
+fv = cata fvF
+  where
+    fvTmF (AFuncF sym ts)      = HSet.unions ts
+    fvTmF (AStrF _)            = HSet.empty
+    fvTmF (AConsF t ts)        = t `HSet.union` ts
+    fvTmF ANilF                = HSet.empty
+    fvTmF (ATupleF ts)         = HSet.unions ts
+
+    fvF (TTmF t)             = fvTmF t
+    fvF (TVarF ℓ)            = HSet.singleton ℓ
+    fvF (TPathConsF ℓ r₁ r₂) = HSet.singleton ℓ `HSet.union` r₁ `HSet.union` r₂
+    fvF (TPathEndF ℓ)        = HSet.singleton ℓ
+    fvF (TLabelF l (Just r)) = r
+    fvF _                    = HSet.empty

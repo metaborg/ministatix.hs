@@ -31,7 +31,7 @@ specmod :: Text
 specmod = pack "spec"
 
 
-runMod :: Bool → RawModule → Text → Spec
+runMod :: Bool → RawModule₀ → Text → Spec
 runMod o rawmod main = do
   let mod      = runIdentity $ runExceptT $
         evalStateT (analyze specmod HM.empty rawmod) (0 :: Integer)

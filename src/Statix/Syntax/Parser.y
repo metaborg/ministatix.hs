@@ -5,6 +5,8 @@ import Data.List
 import qualified Data.Text as Text
 import Data.Char
 import Data.Default
+import Data.Functor.Sum
+import Data.Functor.Fixedpoint
 
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -14,6 +16,7 @@ import Statix.Regex
 
 import Statix.Syntax.Terms
 import Statix.Syntax.Constraint
+import Statix.Syntax.Surface as Surf
 import Statix.Syntax.Types
 import Statix.Syntax.Typing
 import Statix.Syntax.Lexer
@@ -95,10 +98,26 @@ Eqs             :                                       { [] }
 WhereClause     :                                       { [] }
                 | where Eqs                             { $2 }
 
-Pattern         : Term                                  { $1 }
-Matcher         : Pattern WhereClause                   { Matcher [] $1 $2 }
+Pattern         : Label						{ PatTm $ TLabelF $1 Nothing }
+                | Label '(' Pattern ')'				{ PatTm $ TLabelF $1 (Just $3) }
+                | edge '(' name ',' Pattern ',' Pattern ')'	{ PatTm $ TPathConsF $3 $5 $7 }
+                | end  '(' name ')'				{ PatTm $ TPathEndF $3 }
+                | name						{ PatTm $ TVarF $1 }
 
-Branch          : Matcher rightarrow Constraint         { Branch $1 $3 }
+                | constructor '(' Patterns ')'			{ funcPat $1 (reverse $3) }
+                | Pattern colon Pattern				{ consPat $1 $3 }
+                | '[' ']'					{ nilPat }
+                | '(' Patterns ')'				{ tuplePat (reverse $2) }
+
+                | '_'						{ Wildcard }
+
+Patterns        :                                       { []  }
+                | Pattern                               { [$1] }
+                | Patterns ',' Pattern                  { $3 : $1 }
+
+Matcher         : Pattern WhereClause                   { Surf.Matcher [] $1 $2 }
+
+Branch          : Matcher rightarrow Constraint         { Surf.Branch $1 $3 }
 Branches        : Branch                                { [ $1 ] }
                 | Branches '|' Branch                   { $3 : $1 }
 
@@ -111,23 +130,25 @@ LabelLTs        :                                       { [] }
 
 PathComp        : lexico '(' LabelLTs ')'               { Lex $3 }
 
-Constraint      : '{' Names '}' Constraint              { CEx (reverse $2) $4 }
-                | Constraint ',' Constraint             { CAnd $1 $3 }
-                | Term '=' Term                         { CEq $1 $3 }
-                | true                                  { CTrue }
-                | false                                 { CFalse }
-                | new name rightarrow Term              { CNew $2 $4 }
-                | new name                              { CNew $2 unitTm }
-                | name rightarrow Term                  { CData $1 $3 }
-                | name arrL Term arrR name              { CEdge $1 $3 $5 }
-                | query name Regex as name              { CQuery $2 $3 $5 }
-                | one  '(' name ',' Term ')'            { COne $3 $5 }
-                | every name Lambda                     { CEvery $2 $3 }
-                | min name PathComp name                { CMin $2 $3 $4 }
-                | filter name '(' Matcher ')' name      { CFilter $2 (MatchDatum $4) $6 }
-                | name '(' Terms ')'                    { CApply $1 (reverse $3) }
+Constraint      : '{' Names '}' Constraint              { core $ CExF (reverse $2) $4 }
+                | Constraint ',' Constraint             { core $ CAndF $1 $3 }
+                | Term '=' Term                         { core $ CEqF $1 $3 }
+                | true                                  { core $ CTrueF }
+                | false                                 { core $ CFalseF }
+                | new name rightarrow Term              { core $ CNewF $2 $4 }
+                | new name                              { core $ CNewF $2 unitTm }
+                | name rightarrow Term                  { core $ CDataF $1 $3 }
+                | name arrL Term arrR name              { core $ CEdgeF $1 $3 $5 }
+                | query name Regex as name              { core $ CQueryF $2 $3 $5 }
+                | one  '(' name ',' Term ')'            { core $ COneF $3 $5 }
+                | min name PathComp name                { core $ CMinF $2 $3 $4 }
+                | name '(' Terms ')'                    { core $ CApplyF $1 (reverse $3) }
+
+                -- /* | every name Lambda                     { ext $ CEveryF $2 $3 } */
+                -- /* | filter name '(' Matcher ')' name      { ext $ CFilterF $2 (MatchDatum $4) $6 } */
+                | Term match '{' Branches '}'           { ext $ SMatchF $1 (reverse $4) }
+
                 | '(' Constraint ')'                    { $2 }
-                | Term match '{' Branches '}'           { CMatch $1 (reverse $4) }
 
 RegexLit        : Label                                 { RMatch $1 }
                 | RegexLit RegexLit %prec CONCAT        { RSeq $1 $2 }
@@ -156,7 +177,6 @@ Term            : Label                                 { Label $1 Nothing }
                 | Term colon Term                       { consTm $1 $3 }
                 | '[' ']'                               { nilTm }
                 | '(' Terms ')'                         { tupleTm (reverse $2) }
-                | '_'                                   { wildcardTm }
 
 Terms           :                                       { []  }
                 | Term                                  { [$1] }
@@ -176,6 +196,9 @@ Predicates      :                                       { []      }
 Module          : Predicates                            { Mod [] $1 }
 
 {
+  
+core = \c → Fix (InL c)
+ext  = \c → Fix (InR c)
 
 mkParams = fmap (\id → (id , TBot))
 
@@ -189,13 +212,13 @@ parseError toks = do
     ++ "\n" ++ show (line s) ++ " | ... " ++ c : takeWhile ((/=) '\n') rem
     ++ "\n" ++ take 8 (repeat ' ') ++ "^"
 
-parseConstraint :: Ident → String → Either String Constraint₀
+parseConstraint :: Ident → String → Either String SurfaceC
 parseConstraint mod s = evalParser mod s parseConstraintAct
 
-parsePredicate :: Ident → String → Either String Predicate₀
+parsePredicate :: Ident → String → Either String SurfaceP
 parsePredicate mod s = evalParser mod s parsePredicateAct
 
-parseModule :: Ident → String → Either String RawModule
+parseModule :: Ident → String → Either String SurfaceM
 parseModule mod s = evalParser mod s parseModuleAct
 
 }

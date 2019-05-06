@@ -68,7 +68,7 @@ typecheck this mod symtab = do
 analyze ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ Ident → SymbolTable → RawModule → m Module
+  ) ⇒ Ident → SymbolTable → RawModule₀ → m Module
 analyze name symtab (Mod imports defs) = do
   -- first construct the initial context from the import list
   let q = importsQualifier imports symtab
