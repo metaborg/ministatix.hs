@@ -46,9 +46,12 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
   '`'           { TokTick }
   '*'           { TokStar }
   '+'           { TokPlus }
+  '?'           { TokQuestionmark }
   '|'           { TokBar }
+  '&'           { TokAmp }
   '<'           { TokLAngle }
   '_'           { TokUnderscore }
+  '~'           { TokTilde }
   where         { TokWhere }
   new           { TokNew }
   arrL          { TokOpenArr }
@@ -72,6 +75,14 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
   import        { TokImport }
   lexico        { TokPathLT }
   newline       { TokNewline }
+
+%left '|'
+%left '&'
+%right CONCAT
+%left '?'
+%left '+'
+%left '*'
+%left '~'
 
 %%
 
@@ -117,9 +128,14 @@ Constraint      : '{' Names '}' Constraint              { CEx (reverse $2) $4 }
                 | Term match '{' Branches '}'           { CMatch $1 (reverse $4) }
 
 RegexLit        : Label                                 { RMatch $1 }
-                | RegexLit RegexLit                     { RSeq $1 $2 }
+                | RegexLit RegexLit %prec CONCAT        { RSeq $1 $2 }
+                | RegexLit '|' RegexLit                 { RAlt $1 $3 }
+                | RegexLit '&' RegexLit                 { RAnd $1 $3 }
                 | RegexLit '*'                          { RStar $1 }
                 | RegexLit '+'                          { rplus $1 }
+                | RegexLit '?'                          { rquestion $1 }
+                | '~' RegexLit                          { RNeg $2 }
+                | '(' RegexLit ')'                      { $2 }
 
 Regex           : RegexLit                              { $1 }
 

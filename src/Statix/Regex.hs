@@ -7,11 +7,15 @@ data Regex l
   | RAlt (Regex l) (Regex l)
   | Rε
   | REmp
+  | RNeg (Regex l)
+  | RAnd (Regex l) (Regex l)
   deriving (Eq, Ord, Show)
 
 (⍮) = RSeq
 (∥) = RAlt
+(&) = RAlt
 rplus r = RSeq r (RStar r)
+rquestion r = RAlt Rε r
 
 empty :: Regex l → Bool
 empty REmp = True
@@ -26,6 +30,8 @@ matchε (RSeq r₁ r₂) = matchε r₁ && matchε r₂
 matchε (RAlt r₁ r₂) = matchε r₁ || matchε r₂
 matchε REmp         = False
 matchε (RMatch _)   = False
+matchε (RNeg r)     = not (matchε r)
+matchε (RAnd r₁ r₂) = matchε r₁ && matchε r₂
 
 match :: (Eq l) ⇒ l → Regex l → Regex l
 match l r = case r of
@@ -40,6 +46,8 @@ match l r = case r of
   (RAlt r₁ r₂) → (match l r₁ ∥ match l r₂)
   REmp → REmp
   Rε   → REmp
+  RNeg r → RNeg (match l r)
+  RAnd r₁ r₂ → (match l r₁) & (match l r₂)
 
 matchₙ :: (Eq l) ⇒ [l] → Regex l → Regex l
 matchₙ xs r = foldl (flip match) r xs

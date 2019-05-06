@@ -44,10 +44,12 @@ tokens :-
   <0> $lower [$alpha $digit \_ \- ']* { name }
   <0> $upper [$alpha $digit \_ \- ']* { constructor }
 
+  <0> "~"                           { plain TokTilde }
   <0> "_"                           { plain TokUnderscore }
   <0> "<"                           { plain TokLAngle }
   <0> ">"                           { plain TokRAngle }
   <0> "|"                           { plain TokBar }
+  <0> "&"                           { plain TokAmp }
   <0> ":-"                          { plain TokLeftArrow }
   <0> "<-"                          { plain TokLeftArrow }
   <0> "->"                          { plain TokRightArrow }
@@ -68,6 +70,7 @@ tokens :-
   <0> [\+]                          { plain TokPlus }
   <0> [\.]                          { plain TokPeriod }
   <0> [\,]                          { plain TokComma }
+  <0> [\?]                          { plain TokQuestionmark }
 
 {
 

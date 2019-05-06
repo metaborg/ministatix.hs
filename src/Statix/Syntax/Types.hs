@@ -17,7 +17,7 @@ data Token
   | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
   | TokRegexQuote | TokStar | TokPlus | TokTick | TokColon | TokPeriod
   | TokUnderscore | TokComma | TokOpenBr | TokCloseBr | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB
-  | TokOpenArr | TokCloseArr | TokQuote | TokLeftArrow | TokRightArrow | TokBar
+  | TokOpenArr | TokCloseArr | TokQuote | TokLeftArrow | TokRightArrow | TokBar | TokAmp | TokTilde | TokQuestionmark
   | TokRAngle | TokLAngle | TokImport | TokNewline
   | TokModpath String | TEOF deriving Show
 
