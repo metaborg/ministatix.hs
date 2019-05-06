@@ -12,9 +12,8 @@ import Control.Monad.Identity
 import Control.Monad.Except
 import Control.Monad.State
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Syntax.Parser
-import Statix.Syntax.Lexer
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
 import Statix.Analysis.Namer
