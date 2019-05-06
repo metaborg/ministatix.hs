@@ -14,7 +14,7 @@ import Control.Monad.Writer.Strict hiding (Sum)
 import Statix.Syntax.Types
 import Statix.Syntax.Terms
 import Statix.Syntax.Typing
-import Statix.Syntax.Constraint hiding (Matcher, Branch)
+import Statix.Syntax.Constraint hiding (Matcher, Branch, PathFilter(..))
 import qualified Statix.Syntax.Constraint as Syn
 
 import ATerms.Syntax.ATerm
@@ -29,11 +29,14 @@ nilPat       = PatTm (TTmF ANilF)
 tuplePat ts  = PatTm (TTmF (ATupleF ts))
 unitPat      = PatTm (TTmF (ATupleF []))
 
-data Matcher  = Matcher [Ident] Pattern [(Term₀ , Term₀)] deriving (Show)
-data Branch c = Branch Matcher c deriving (Functor, Foldable, Traversable, Show)
+data Matcher    = Matcher [Ident] Pattern [(Term₀ , Term₀)] deriving (Show)
+data Branch c   = Branch Matcher c deriving (Functor, Foldable, Traversable, Show)
+data PathFilter = MatchDatum Matcher
 
 data Extensions r
   = SMatchF Term₀ [Branch r]
+  | SFilterF Ident PathFilter Ident
+  | SEveryF Ident (Branch r)
   deriving (Functor, Foldable, Traversable)
 
 -- | The surface syntax consists of the core constraint language
@@ -44,7 +47,7 @@ type SurfaceP  = Predicate SurfaceC
 type SurfaceM  = RawModule SurfaceC
 
 desugar :: SurfaceC → Constraint Ident Ident Term₀
-desugar c = evalState (cataM desugar_ c) 0
+desugar c = evalState (cataM desugarF c) 0
 
 desugarPred :: SurfaceP → Predicate₀
 desugarPred (Pred qn sig body) = Pred qn sig (desugar body)
@@ -52,7 +55,21 @@ desugarPred (Pred qn sig body) = Pred qn sig (desugar body)
 desugarMod :: SurfaceM → RawModule₀
 desugarMod (Mod imps defs) = Mod imps (fmap desugarPred defs)
 
+-- | Implementation of desguaring
+
 type DesugarM = StateT Integer (Writer [Ident])
+
+desugarF :: SurfaceCF (Constraint Ident Ident Term₀) → State Integer (Constraint Ident Ident Term₀)
+desugarF (InL c) = return (Fix c)
+desugarF (InR (SEveryF id br)) = do
+  br ← desugarBranch br
+  return (CEvery id br)
+desugarF (InR (SFilterF id filt id')) = do
+  filt ← desugarFilter filt
+  return (CFilter id filt id')
+desugarF (InR (SMatchF tm branches)) = do
+    branches ← mapM desugarBranch branches
+    return (CMatch tm branches)
 
 desugarPatATm :: ATermF Pattern → DesugarM Term₀
 desugarPatATm t = TTm <$> (mapM desugarPattern t)
@@ -68,14 +85,15 @@ desugarPattern Wildcard = do
     tell [name]
     return (Var name)
 
-desugarBranch :: Branch (Constraint Ident Ident Term₀) → State Integer (Syn.Branch Term₀ (Constraint Ident Ident Term₀))
-desugarBranch (Branch (Matcher ns pat eqs) r) = do
-    (ns' , pat) ← mapStateT (\wma → fmap (\((tm,s),w) → ((w,tm),s)) (runWriterT wma)) (desugarPattern pat)
-    return (Syn.Branch (Syn.Matcher (ns' ++ ns) pat eqs) r)
+desugarMatcher (Matcher ns pat eqs) = do
+  (ns' , pat) ← mapStateT (\wma → fmap (\((tm,s),w) → ((w,tm),s)) (runWriterT wma)) (desugarPattern pat)
+  return (Syn.Matcher (ns' ++ ns) pat eqs)
+  
+desugarBranch (Branch m r) = do
+  m ← desugarMatcher m
+  return (Syn.Branch m r)
 
-desugar_ :: SurfaceCF (Constraint Ident Ident Term₀) → State Integer (Constraint Ident Ident Term₀)
-desugar_ (InL c) = return (Fix c)
-desugar_ (InR (SMatchF tm branches)) = do
-    branches ← mapM desugarBranch branches
-    return (CMatch tm branches)
+desugarFilter (MatchDatum m) = do
+  m ← desugarMatcher m
+  return (Syn.MatchDatum m)
 

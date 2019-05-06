@@ -144,8 +144,8 @@ Constraint      : '{' Names '}' Constraint              { core $ CExF (reverse $
                 | min name PathComp name                { core $ CMinF $2 $3 $4 }
                 | name '(' Terms ')'                    { core $ CApplyF $1 (reverse $3) }
 
-                -- /* | every name Lambda                     { ext $ CEveryF $2 $3 } */
-                -- /* | filter name '(' Matcher ')' name      { ext $ CFilterF $2 (MatchDatum $4) $6 } */
+                | every name Lambda                     { ext $ SEveryF $2 $3 }
+                | filter name '(' Matcher ')' name      { ext $ SFilterF $2 (Surf.MatchDatum $4) $6 }
                 | Term match '{' Branches '}'           { ext $ SMatchF $1 (reverse $4) }
 
                 | '(' Constraint ')'                    { $2 }

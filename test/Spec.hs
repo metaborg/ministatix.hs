@@ -13,6 +13,7 @@ import Control.Monad.Except
 import Control.Monad.State
 
 import Statix.Syntax
+import Statix.Syntax.Surface
 import Statix.Syntax.Parser
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
@@ -53,7 +54,7 @@ run o c = do
       isRight parsed `shouldBe` True
 
     -- static analysis
-    let rawbody  = fromRight undefined parsed
+    let rawbody  = desugar $ fromRight undefined parsed
     let testpred = pack "test"
     let qn       = (specmod, testpred)
     let rawmod   = Mod [] [Pred qn [] rawbody]
@@ -163,3 +164,9 @@ queryspec = describe "query" $ do
 
   describe "lists" $ do
     run True "(F():G():[]) match { (F():G():[]) -> true }"
+
+  describe "wildcards" $ do
+    run True  "F() match { _ -> true }"
+    run True  "F() match { _ -> true | F() -> false }"
+    run False "F() match { (_, G()) -> true | F() -> false }"
+    run True  "{x} x match { _ -> true }"
