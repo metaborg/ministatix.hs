@@ -117,8 +117,8 @@ queryspec = describe "query" $ do
     run False "{x, y} new x, new y, x -[ `L ]-> y, x -[ `R ]-> y, {ps, p} query x `L|`R as ps, only(ps , p)"
     run True  "{x, y} new x, new y, x -[ `L ]-> y, {ps, p} query x `L|`R as ps, only(ps , p)"
     run True  "{x, y} new x, new y, x -[ `R ]-> y, {ps, p} query x `L|`R as ps, only(ps , p)"
-    run True  "{x, y} new x, new y, x -[ `R ]-> y, {ps, p} query x ~(`L*) as ps, only(ps , p)"
-    run False "{x, y} new x, new y, x -[ `R ]-> y, {ps, p} query x ~(`R*) as ps, only(ps , p)"
+    run True  "{x, y} new x, new y, x -[ `R ]-> y, {ps, p} query x ~(`L) as ps, only(ps , p)"
+    run False "{x, y} new x, new y, x -[ `R ]-> y, {ps, p} query x ~(`R|eps) as ps, only(ps , p)"
 
   describe "every" $ do
     run True  "{x, y, z} new x, query x `L+ as y, every y (x -> false)"

@@ -57,6 +57,7 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
   '<'           { TokLAngle }
   '_'           { TokUnderscore }
   '~'           { TokTilde }
+  'e'           { TokEpsilon }
   where         { TokWhere }
   new           { TokNew }
   arrL          { TokOpenArr }
@@ -158,6 +159,7 @@ RegexLit        : Label                                 { RMatch $1 }
                 | RegexLit '+'                          { rplus $1 }
                 | RegexLit '?'                          { rquestion $1 }
                 | '~' RegexLit                          { RNeg $2 }
+                | 'e'                                   { Rε }
                 | '(' RegexLit ')'                      { $2 }
 
 Regex           : RegexLit                              { $1 }

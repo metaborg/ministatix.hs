@@ -19,8 +19,10 @@ rquestion r = RAlt Rε r
 
 empty :: Regex l → Bool
 empty REmp = True
+empty (RAnd r₁ r₂) = empty r₁ || empty r₂
 empty (RAlt r₁ r₂) = empty r₁ && empty r₂
 empty (RSeq r₁ r₂) = empty r₁ || empty r₂
+empty (RNeg r) = not (empty r)
 empty _ = False
 
 matchε :: Regex l → Bool

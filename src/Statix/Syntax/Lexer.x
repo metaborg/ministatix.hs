@@ -41,6 +41,7 @@ tokens :-
   <0> edge                          { plain TokEdge }
   <0> end                           { plain TokEnd }
   <0> lexico                        { plain TokPathLT }
+  <0> eps                           { plain TokEpsilon }
 
   <0> $lower [$alpha $digit \_ \- ']* { name }
   <0> $upper [$alpha $digit \_ \- ']* { constructor }
