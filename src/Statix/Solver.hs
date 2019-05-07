@@ -86,7 +86,7 @@ unsatisfiable :: String → SolverM s a
 unsatisfiable msg = do
   trace ← getTrace
   trace ← mapM (\(qn, params) → do
-                   params ← mapM (instantTerm 3) params
+                   params ← mapM (instantTerm 5) params
                    return $ Call qn params) trace
   throwError (Unsatisfiable trace msg)
 
@@ -465,7 +465,7 @@ data Result s
 dumpgraph =  do
   gr ← use graph
   gr ← liftST $ toIntGraph gr
-  mapM (instantTerm 3) gr
+  mapM (instantTerm 5) gr
 
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
