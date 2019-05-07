@@ -5,7 +5,7 @@ import Data.HashMap.Strict as HM
 import Control.Lens
 import Control.Monad
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 
 type Module       = HashMap Ident Predicate₁
 type ModuleSig    = HashMap Ident Signature

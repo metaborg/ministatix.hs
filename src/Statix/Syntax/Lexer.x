@@ -1,93 +1,144 @@
 {
 module Statix.Syntax.Lexer (lexer, Token(..)) where
 
-import qualified Data.Text as Text
+import Control.Monad.State
+import Control.Monad.Except
+import Control.Monad.Reader
+
+import Statix.Syntax.Types
+import Statix.Syntax.Terms
+
+import ATerms.Syntax.Types
+  ( AlexInput(..), ParseState
+  , alexGetByte, lexState, stringBuf, input)
 
 }
 
-%wrapper "basic"
-
-$white = [\ \t\f\v]
-$nl    = [\r\n]
-$digit = 0-9
-$alpha = [a-zA-Z]
-@name  = $alpha [$alpha $digit \_ ]*
-@qname = (@name [\.])+ @name
+$white       = [\ \t\f\v]
+$nl          = [\r\n]
+$digit       = 0-9
+$alpha       = [a-zA-Z]
+$upper       = [A-Z]
+$lower       = [a-z]
+@name        = $lower [$alpha $digit \_ \- ']*
+@constructor = $upper [$alpha $digit \_ \- ']*
+@qname       = (@name [\.])+ @name
 
 tokens :-
 
-  $white+                       ;
-  $nl+                          ;
-  "//".*                        ;
+  <0> $white+                       ;
+  <0> $nl+                          ;
+  <0> "//".*                        ;
 
-  true                          { const TokTrue }
-  false                         { const TokFalse }
-  new                           { const TokNew }
-  in                            { const TokIn }
-  as                            { const TokAs }
-  where                         { const TokWhere }
-  query                         { const TokQuery }
-  only                          { const TokOne }
-  every                         { const TokEvery }
-  min                           { const TokMin }
-  filter                        { const TokFilter }
-  match                         { const TokMatch }
-  edge                          { const TokEdge }
-  end                           { const TokEnd }
-  import                        { const TokImport }
-  lexico                        { const TokPathLT }
+  <0> true                          { plain TokTrue }
+  <0> false                         { plain TokFalse }
+  <0> new                           { plain TokNew }
+  <0> in                            { plain TokIn }
+  <0> as                            { plain TokAs }
+  <0> where                         { plain TokWhere }
+  <0> query                         { plain TokQuery }
+  <0> only                          { plain TokOne }
+  <0> every                         { plain TokEvery }
+  <0> min                           { plain TokMin }
+  <0> filter                        { plain TokFilter }
+  <0> match                         { plain TokMatch }
+  <0> Edge                          { plain TokEdge }
+  <0> End                           { plain TokEnd }
+  <0> import                        { plain TokImport }
+  <0> lexico                        { plain TokPathLT }
+  <0> eps                           { plain TokEpsilon }
 
-  @qname                        { TokQName . Text.pack }
-  @name                         { TokName . Text.pack }
+  <0> @qname                        { qname }
+  <0> @name                         { name }
+  <0> @constructor                  { constructor }
 
-  "<"                           { const TokLAngle }
-  ">"                           { const TokRAngle }
-  "|"                           { const TokBar }
-  ":-"                          { const TokLeftArrow }
-  "<-"                          { const TokLeftArrow }
-  "->"                          { const TokRightArrow }
-  ":"                           { const TokColon }
-  ";"                           { const TokSemicolon }
-  "-["                          { const TokOpenArr }
-  "]->"                         { const TokCloseArr }
+  <0> "~"                           { plain TokTilde }
+  <0> "_"                           { plain TokUnderscore }
+  <0> "<"                           { plain TokLAngle }
+  <0> ">"                           { plain TokRAngle }
+  <0> "|"                           { plain TokBar }
+  <0> "&"                           { plain TokAmp }
+  <0> ":-"                          { plain TokLeftArrow }
+  <0> "<-"                          { plain TokLeftArrow }
+  <0> "->"                          { plain TokRightArrow }
+  <0> ":"                           { plain TokColon }
+  <0> ";"                           { plain TokSemicolon }
+  <0> "-["                          { plain TokOpenArr }
+  <0> "]->"                         { plain TokCloseArr }
 
-  \(                            { const TokOpenB }
-  \)                            { const TokCloseB }
-  \{                            { const TokOpenBr }
-  \}                            { const TokCloseBr }
-  \[                            { const TokOpenSB }
-  \]                            { const TokCloseSB }
-  \'                            { const TokQuote }
-  \=                            { const TokEq }
-  [`]                           { const TokTick }
-  [\*]                          { const TokStar }
-  [\+]                          { const TokPlus }
-  [\.]                          { const TokPeriod }
-  [\,]                          { const TokComma }
-
+  <0> \(                            { plain TokOpenB }
+  <0> \)                            { plain TokCloseB }
+  <0> \{                            { plain TokOpenBr }
+  <0> \}                            { plain TokCloseBr }
+  <0> \[                            { plain TokOpenSB }
+  <0> \]                            { plain TokCloseSB }
+  <0> \'                            { plain TokQuote }
+  <0> \=                            { plain TokEq }
+  <0> [`]                           { plain TokTick }
+  <0> [\*]                          { plain TokStar }
+  <0> [\+]                          { plain TokPlus }
+  <0> [\.]                          { plain TokPeriod }
+  <0> [\,]                          { plain TokComma }
+  <0> [\?]                          { plain TokQuestionmark }
 
 {
 
-data Token
-  = TokName Text.Text
-  | TokQName Text.Text
-  | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
-  | TokIn | TokAs | TokWhere
-  | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
-  | TokRegexQuote | TokStar | TokPlus | TokTick | TokColon | TokSemicolon | TokPeriod
-  | TokComma | TokOpenBr | TokCloseBr | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB
-  | TokOpenArr | TokCloseArr | TokQuote | TokLeftArrow | TokRightArrow | TokBar
-  | TokRAngle | TokLAngle | TokImport | TokNL
-  deriving Show
+type LexAction = Int → String → ParserM (Maybe Token)
 
-lexer :: String -> Either String [Token]
-lexer str = go ('\n',[],str)
-  where
-    go inp@(_,_bs,str) =
-      case alexScan inp 0 of
-        AlexEOF                -> Right []
-        AlexError _            -> Left "lexical error"
-        AlexSkip  inp' len     -> go inp'
-        AlexToken inp' len act -> ((act (take len str)):) <$> go inp'
+plain :: Token → LexAction
+plain tok _ _ = return (Just tok)
+
+name :: LexAction
+name _ str = return (Just (TokName str))
+
+qname :: LexAction
+qname _ str = return (Just (TokQName str))
+
+constructor :: LexAction
+constructor _ str = return (Just (TokConstructor str))
+
+/* beginString :: LexAction */
+/* beginString _ _ = do */
+/*   modify (\st → st { lexState = string }) */
+/*   return Nothing */
+
+/* escapeQuote :: LexAction */
+/* escapeQuote _ _ = do */
+/*   modify (\st → st { stringBuf = '"' : stringBuf st }) */
+/*   return Nothing */
+
+/* appendString :: LexAction */
+/* appendString _ (c:_) = do */
+/*   modify (\st → st { stringBuf = c : stringBuf st }) */
+/*   return Nothing */
+
+/* endString :: LexAction */
+/* endString _ _ = do */
+/*   s ← gets stringBuf */
+/*   modify (\st → st { lexState = 0, stringBuf = "" }) */
+/*   return (Just (TokString (pack (reverse s))))  */
+
+readToken :: ParserM Token
+readToken = do
+  s ← get
+
+  case alexScan (input s) (lexState s) of
+    AlexEOF        → return TEOF
+    AlexError inp' → throwError $ "Lexical error on line " ++ (show $ line inp')      
+    AlexSkip inp' _ → do    
+      put s { input = inp' }
+      readToken
+    AlexToken inp' n act → do 
+      let (AlexInput { remainder = buf }) = input s
+      put s { input = inp' }
+      res ← act n (take n buf)
+      case res of
+        Nothing → readToken
+        Just t  → return t
+
+lexer :: (Token → ParserM a) → ParserM a
+lexer cont = do
+  tok ← readToken
+  cont tok
 
 }

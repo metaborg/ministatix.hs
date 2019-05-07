@@ -1,12 +1,13 @@
-STACK      ?= stack
-SETUP_ARGS ?=
-BUILD_ARGS ?=
-EXEC_ARGS  ?=
-TEST_ARGS  ?=
-DOC_ARGS   ?= --keep-going --open
-CLEAN_ARGS ?= --full
-GHCI_ARGS  ?=
-ARGS       ?= --verbosity=warn
+STACK        ?= stack
+SETUP_ARGS   ?=
+BUILD_ARGS   ?=
+EXEC_ARGS    ?=
+TEST_ARGS    ?=
+DOC_ARGS     ?= --keep-going --open
+CLEAN_ARGS   ?= --full
+GHCI_ARGS    ?=
+INSTALL_ARGS ?=
+ARGS         ?= --verbosity=warn
 
 all: build
 
@@ -17,7 +18,7 @@ build: setup
 	$(STACK) build $(BUILD_ARGS) $(ARGS)
 
 run: build
-	$(STACK) exec statix-exe $(EXEC_ARGS) $(ARGS)
+	$(STACK) exec statix $(EXEC_ARGS) $(ARGS)
 
 test: build
 	$(STACK) test $(TEST_ARGS) $(ARGS)
@@ -32,5 +33,8 @@ clean:
 ghci:
 	$(STACK) ghci $(GHCI_ARGS) $(ARGS)
 
-.PHONY: all setup build run exe test doc clean
+install:
+	$(STACK) install $(INSTALL_ARGS) $(ARGS)
+
+.PHONY: all setup build run test doc clean ghci install
 .SILENT:

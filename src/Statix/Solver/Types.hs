@@ -1,7 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Solver.Types where
 
 import Prelude hiding (lookup, null)
-import Data.Text
+import Data.Text as T
 import Data.List as List
 import Data.Map.Strict as Map hiding (map, null)
 import Data.STRef
@@ -21,9 +23,12 @@ import Control.Monad.Trans
 import Statix.Regex
 import Statix.Graph
 import Statix.Graph.Types as Graph
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
+
+import ATerms.Syntax.ATerm hiding (pretty)
+import qualified ATerms.Syntax.ATerm as ATerm
 
 import Unification
 import Unification.ST
@@ -34,8 +39,13 @@ type SNode s = STNodeRef s Label (STmRef s)
 -- | Graph paths in ST
 type SPath s = Graph.Path (SNode s) Label
 
+-- functorial in the edge term
+deriving instance Functor (SPath s)
+deriving instance Foldable (SPath s)
+deriving instance Traversable (SPath s)
+
 -- | Some information about the source of variables
-type VarInfo = Text
+type VarInfo = String
 
 -- | Solver DAG in ST
 type STmRef s = Class s (STermF s) VarInfo
@@ -49,23 +59,33 @@ type SGen = Int
 -- | The constructors of the term language
 data STermF s c =
     SNodeF (SNode s)
-  | SLabelF Label
-  | SConF Ident [c]
-  | SAnsF [SPath s]
+  | SLabelF Label (Maybe c)
+  | STmF (ATermF c)
+  | SAnsF [SPath s c]
   | SPathEndF c
   | SPathConsF c c c deriving (Functor, Foldable, Traversable)
 
+pretty :: (c → String) → STermF s c → String
+pretty f (SNodeF n)         = "new " ++ (show n)
+pretty f (SLabelF (Lab l) t)= l ++ (prettyDatum t)
+  where
+    prettyDatum = maybe ("") (\t → "(" ++ f t ++ ")")
+pretty f (STmF t)           = ATerm.pretty f t
+pretty f (SAnsF _)          = "{...}"
+pretty f (SPathConsF n l p) =
+  "Edge(" ++ f n ++
+  ", "    ++ f l ++
+  ", "    ++ f p ++
+  ")"
+pretty f (SPathEndF n)      =
+  "End(" ++ f n ++ ")"
+
 instance (Show c) ⇒ Show (STermF s c) where
-  show (SNodeF n)         = "new " ++ show n
-  show (SLabelF l)        = show l
-  show (SConF k ts)       = unpack k ++ "(" ++ (List.intercalate "," (show <$> ts)) ++ ")"
-  show (SAnsF _)          = "{...}"
-  show (SPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
-  show (SPathEndF n)      = show n ++ " ◅ "
+  show = pretty show
  
+pattern STm t           = Tm (STmF t)
 pattern SNode n         = Tm (SNodeF n)
-pattern SLabel l        = Tm (SLabelF l)
-pattern SCon id ts      = Tm (SConF id ts)
+pattern SLabel l t      = Tm (SLabelF l t)
 pattern SAns ps         = Tm (SAnsF ps)
 pattern SPathCons s l p = Tm (SPathConsF s l p)
 pattern SPathEnd s      = Tm (SPathEndF s)
@@ -76,15 +96,14 @@ instance Unifiable (STermF s) where
     | n == m    = Just (SNodeF n)
     | otherwise = Nothing
 
-  zipMatch (SConF k₁ ts₁) (SConF k₂ ts₂)
-    | k₁ == k₂ =
-      if List.length ts₁ == List.length ts₂
-        then Just (SConF k₁ (List.zip ts₁ ts₂))
-        else Nothing
-    | otherwise = Nothing
+  zipMatch (STmF tm) (STmF tm') = STmF <$> zipMatch tm tm'
 
-  zipMatch (SLabelF l₁) (SLabelF l₂)
-    | l₁ == l₂  = Just (SLabelF l₁)
+  zipMatch (SLabelF l₁ t₁) (SLabelF l₂ t₂)
+    | l₁ == l₂  =
+        case (t₁, t₂) of
+          (Just t₁ , Just t₂) → Just (SLabelF l₁ (Just (t₁ , t₂)))
+          (Nothing , Nothing) → Just (SLabelF l₁ Nothing)
+          _                   → Nothing
     | otherwise = Nothing
 
   -- paths
@@ -99,8 +118,13 @@ instance Unifiable (STermF s) where
   -- other combinations are constructor clashes
   zipMatch _ _ = Nothing
 
-{- READER -}
-type Frame s = HashMap Ident (STmRef s)
+data Trace = FrExist | FrPred QName
+
+data Frame s = Frame
+  { binders :: HashMap Ident (STmRef s)
+  , desc    :: Trace
+  }
+
 data Env s = Env
  { _symbols :: SymbolTable
  , _locals  :: [Frame s]
@@ -109,31 +133,31 @@ data Env s = Env
 makeLenses ''Env
 
 instance Default (Frame s) where
-  def = HM.empty
+  def = Frame HM.empty FrExist
 
 instance Default (Env s) where
   def = Env HM.empty [def]
 
-{- ERROR -}
+data Traceline = Call QName [String] | Within String
 data StatixError
-  = Unsatisfiable String
+  = Unsatisfiable [Traceline] String -- trace, reason
   | StuckError
   | TypeError
   | Panic String
-  | NoMatch
+  | UnificationError String
 
 instance Show StatixError where
-  show TypeError         = "Constraint unsatisfiable: type error"
-  show (Unsatisfiable x) = "Constraint unsatisfiable: " ++ x
-  show StuckError        = "Stuck"
-  show NoMatch           = "No match"
-  show (Panic x)         = "Panic: " ++ x
+  show TypeError              = "Constraint unsatisfiable: type error"
+  show (UnificationError e)   = "Constraint unsatisfiable: unification error (" ++ e ++ ")"
+  show (Unsatisfiable tr msg) = "Constraint unsatisfiable: " ++ msg
+  show StuckError             = "Stuck"
+  show (Panic x)              = "Panic: " ++ x
  
 instance HasClashError (STermF s) StatixError where
-  symbolClash l r = Unsatisfiable $ "Symbol clash: " ++ show l ++ " != " ++ show r
+  symbolClash l r = UnificationError $ "Symbol clash: " ++ show l ++ " != " ++ show r
 
 instance HasCyclicError StatixError where
-  cyclicTerm      = Unsatisfiable "Cyclic term"
+  cyclicTerm      = UnificationError "Cyclic term"
 
 instance HasSubsumptionError StatixError where
   doesNotSubsume  = StuckError
@@ -155,12 +179,12 @@ instance Default (Solver s) where
     }
 
 -- | The monad that we use to solve Statix constraints
-type SolverM s = ReaderT (Env s) (StateT (Solver s) (ExceptT StatixError (ST s)))
+type SolverM s = ReaderT (Env s) (ExceptT StatixError (StateT (Solver s) (ST s)))
 
 -- | Constraint closure
 type Goal s    = (Env s, Constraint₁, SGen)
 
 -- | (ST-less) solution to a constraint program
-type Solution = Either StatixError (String, IntGraph Label String)
+type Solution = ((Either StatixError String), IntGraph Label String)
 
 makeLenses ''Solver

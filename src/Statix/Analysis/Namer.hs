@@ -1,5 +1,6 @@
 module Statix.Analysis.Namer where
 
+
 import Control.Lens
 import Control.Monad.State
 import Control.Monad.Reader
@@ -13,7 +14,7 @@ import Data.Functor.Fixedpoint
 import Data.Coerce
 import qualified Data.Text as Text
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Analysis.Types
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
@@ -24,6 +25,7 @@ class
   ( MonadLex Ident Ident IPath m
   , MonadError TCError m
   , MonadReader NameContext m
+  , FrameDesc m ~ ()
   ) ⇒ MonadNamer m where
 
 qualify :: MonadNamer m ⇒ Ident → m QName
@@ -35,8 +37,9 @@ qualify n = do
     Just q  → return q
 
 checkTermF :: (MonadNamer m) ⇒ TermF₀ r → m (TermF₁ r)
-checkTermF (TConF s ts)   = return $ TConF s ts
-checkTermF (TLabelF l)    = return $ TLabelF l
+checkTermF (TTmF at)      = return $ TTmF at
+checkTermF (TLabelF l t)  = do
+  return $ TLabelF l t
 checkTermF (TPathConsF n l p) = do
   n ← resolve n
   return $ TPathConsF n l p
@@ -56,7 +59,7 @@ checkMatch (Matcher _ g eqs) ma = do
   let ns = HSet.toList $ fv g
 
   -- introduce those variables
-  enters ns $ do
+  enters () ns $ do
     g ← checkTerm g
     a ← ma
     eqs ← forM eqs $ \(lhs, rhs) → do
@@ -86,12 +89,13 @@ checkConstraint (CAnd c d) = do
   cd ← checkConstraint d
   return (CAnd cc cd)
 checkConstraint (CEx ns c) = do
-  enters ns $ do
+  enters () ns $ do
     cc ← checkConstraint c
     return (CEx ns cc)
-checkConstraint (CNew x) = do
+checkConstraint (CNew x t) = do
   p ← resolve x
-  return (CNew p)
+  t ← checkTerm t
+  return (CNew p t)
 checkConstraint (CData x t) = do
   p ← resolve x
   t ← checkTerm t
@@ -99,6 +103,7 @@ checkConstraint (CData x t) = do
 checkConstraint (CEdge x l y) = do
   p ← resolve x
   q ← resolve y
+  l ← checkTerm l
   return (CEdge p l q)
 checkConstraint (CQuery x re y) = do
   p ← resolve x
@@ -132,6 +137,6 @@ checkConstraint (CMatch t br) = do
 
 checkPredicate :: (MonadNamer m) ⇒ Predicate₀ → m Predicate₁
 checkPredicate (Pred qn σ body) = do
-  enters (fmap fst σ) $ do
+  enters () (fmap fst σ) $ do
     body' ← checkConstraint body
     return (Pred qn σ body')

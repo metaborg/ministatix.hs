@@ -10,7 +10,7 @@ import Control.Monad.Except
 import Control.Monad.ST
 import Control.Lens
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Types
@@ -68,7 +68,7 @@ typecheck this mod symtab = do
 analyze ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ SymbolTable → RawModule → m Module
+  ) ⇒ SymbolTable → RawModule₀ → m Module
 analyze symtab (Mod name imports defs) = do
   -- first construct the initial context from the import list
   let q = importsQualifier imports symtab

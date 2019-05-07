@@ -11,8 +11,9 @@ import System.Exit
 import Data.Default
 import Data.List
 import Data.HashMap.Strict as HM
+import Data.IntMap.Strict as IM
 import Data.Functor.Identity
-import qualified Data.Text as Text
+import qualified Data.Text.IO as TIO
 import Text.Read hiding (lift, get, lex)
 
 import Control.Lens
@@ -25,9 +26,11 @@ import Control.Monad.Unique as Unique
 
 import Debug.Trace
 
+import Statix.Graph
+
+import Statix.Syntax
+import Statix.Syntax.Surface
 import Statix.Syntax.Parser
-import Statix.Syntax.Lexer
-import Statix.Syntax.Constraint
 
 import Statix.Solver
 import Statix.Solver.Types
@@ -56,11 +59,11 @@ data REPLState = REPLState
 makeLenses ''REPLState
 
 -- | The module name for the current generation of the REPL
-self :: Getting Text.Text REPLState Text.Text
-self = gen . (to $ \g → "repl-" ++ show g) . to Text.pack
+self :: Getting String REPLState String
+self = gen . (to $ \g → "repl-" ++ show g)
 
-main :: Getting Text.Text REPLState Text.Text
-main = gen . (to $ \g → "main" ++ show g) . to Text.pack
+main :: Getting String REPLState String
+main = gen . (to $ \g → "main" ++ show g)
 
 runREPL :: SymbolTable → REPL a → IO a
 runREPL sym c = runInputT (defaultSettings { historyFile = Just ".statix" }) $ evalStateT c (REPLState sym 0 [] 0)
@@ -73,9 +76,6 @@ instance MonadUnique Integer REPL where
 
   updateSeed i = modify (set freshId i)
 
-liftParser :: Ident → ParserM a → REPL a
-liftParser modName c = handleErrors $ runParser modName c
-
 prompt :: REPL Cmd
 prompt = do
   cmd ← lift $ getInputLine "► "
@@ -83,26 +83,50 @@ prompt = do
     Nothing  → prompt
     Just cmd → handleErrors (readEither cmd)
 
-printSolution :: Solution → IO ()
-printSolution solution =
-  case solution of
-    Left e → do
-      setSGR [SetColor Foreground Vivid Red]
-      putStrLn $ "  ⟨✗⟩ - " ++ show e
-      putStrLn ""
-      setSGR [Reset]
-    Right (φ, g) → do
-      setSGR [SetColor Foreground Dull Green]
-      putStrLn "  ⟨✓⟩ Satisfiable"
-      setSGR [SetColor Foreground Vivid White]
-      putStrLn "  ⟪ Unifier ⟫"
-      setSGR [Reset]
-      putStrLn φ
-      setSGR [SetColor Foreground Vivid White]
-      putStrLn "  ⟪ Graph ⟫"
-      setSGR [Reset]
-      print g
-      setSGR [Reset]
+printGraph :: IntGraph Label String → IO ()
+printGraph (IntGraph sg) =
+  forM_ (IM.elems sg) $ \(IntNode id es d) → do
+    putStr "∇ "
+      >> putStr (show id)
+      >> putStr " ─◾ " >> putStr d
+      >> putStr "\n"
+
+    forM_ es $ \(IntEdge l d n) → do
+      putStr "\t-[ "
+        >> putStr (show l)
+        >> printDatum d
+        >> putStr " ]-> " >> print n
+  where
+    printDatum = maybe (return ()) putStr
+
+
+printResult :: Result s → IO ()
+printResult (IsSatisfied φ sg) = do
+  setSGR [SetColor Foreground Dull Green]
+  putStrLn "⟨✓⟩ Satisfiable"
+  setSGR [Reset]
+  putStrLn "⟪ Unifier ⟫"
+  -- TODO putStrLn (formatUnifier φ)
+  putStrLn ""
+  putStrLn "⟪ Graph ⟫"
+  printGraph sg
+  putStrLn ""
+printResult (IsUnsatisfiable e gr) = do
+  setSGR [SetColor Foreground Vivid Red]
+  putStrLn "⟨×⟩ Unsatisfiable"
+  setSGR [Reset]
+  putStrLn "⟪ Trace ⟫"
+  report e
+  putStrLn ""
+  putStrLn "⟪ Graph ⟫"
+  printGraph gr
+  putStrLn ""
+printResult (IsStuck q) = do
+  setSGR [SetColor Foreground Vivid Yellow]
+  putStrLn "⟨×⟩ Stuck, with queue:"
+  setSGR [Reset]
+  mapM_ putStrLn q
+  putStrLn ""
 
 withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a
 withErrors c = do
@@ -119,7 +143,7 @@ reportImports :: Module → IO ()
 reportImports mod = do
   setSGR [SetColor Foreground Dull Green]
   putStrLn ""
-  putStrLn $ "  ⟨✓⟩ Imported module "
+  putStrLn $ "⟨✓⟩ Imported module "
   setSGR [Reset]
 
 importMod :: Ident → Module → REPL ()
@@ -136,31 +160,27 @@ handler κ (Main rawc) = do
   symtab ← use globals
 
   -- parse and analyze the constraint as a singleton module
-  toks     ← handleErrors $ lexer rawc
-  c        ← liftParser this $ (parseConstraint toks) 
-  mod      ← withErrors $ analyze symtab (Mod this imps [Pred (this, main) [] c])
+  c        ← handleErrors $ parseConstraint this rawc
+  let c'   = desugar c
+  mod      ← withErrors $ analyze symtab (Mod this imps [Pred (this, main) [] c'])
 
   -- import the module
   importMod this mod
   modify (over gen (+1))
 
-  let solution = solve symtab (body $ mod HM.! main)
-
-  -- output solution
-  liftIO $ putStrLn ""
-  liftIO $ printSolution solution
+  liftIO $ runST $ fmap printResult (solve symtab (body $ mod HM.! main))
 
   -- rinse and repeat
   κ
 
 handler κ (Define p) = do
-  this   ← use self
-  imps   ← use imports
-  symtab ← use globals
+  this    ← use self
+  imps    ← use imports
+  symtab  ← use globals
 
-  toks  ← handleErrors $ lexer p
-  pr    ← liftParser this (parsePredicate toks)
-  mod   ← withErrors $ analyze symtab (Mod this imps [pr])
+  pr      ← handleErrors $ parsePredicate this p
+  let pr' = desugarPred pr
+  mod     ← withErrors $ analyze symtab (Mod this imps [pr'])
 
   -- import the predicate into the symboltable
   importMod this mod
@@ -173,17 +193,17 @@ handler κ (Import path) = do
     -- Gather the modules, then sort them topologically
     imps    <- use imports
     here    <- liftIO getCurrentDirectory
-    rawmods <- (liftIO $ runExceptT $ gatherModules imps (addTrailingPathSeparator here) [Text.pack path]) >>= handleErrors
+    rawmods <- (liftIO $ runExceptT $ gatherModules imps (addTrailingPathSeparator here) [path]) >>= handleErrors
     let sortedmods = moduleTopSort rawmods
 
     -- Typecheck and import the module into the symbol table
     symtab <- use globals
-    mapM_ (analizeAndImport symtab) sortedmods
+    mapM_ (analyzeAndImport symtab) sortedmods
 
     -- Rinse and repeat
     κ
   where
-    analizeAndImport symtab rawmod@(Mod name _ _) = do
+    analyzeAndImport symtab rawmod@(Mod name _ _) = do
       -- Typecheck the module
       mod <- withErrors $ analyze symtab rawmod
       -- Import the typechecked module into the symboltable
@@ -196,12 +216,12 @@ handler κ (Type pred) = do
 
   case (symtab !!!) <$> HM.lookup pred q of
     Just p  → liftIO $ putStrLn $
-      Text.unpack pred
+      pred
         ++ " :: "
         ++ (intercalate " → "
-            (fmap (\(n,t) → "(" ++ Text.unpack n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
+            (fmap (\(n,t) → "(" ++ n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
         ++ " → Constraint"
-    Nothing → liftIO $ putStrLn $ "No predicate named: " ++ Text.unpack pred
+    Nothing → liftIO $ putStrLn $ "No predicate named: " ++ pred
 
   κ
 
@@ -210,8 +230,7 @@ handler κ Help = do
   κ
 
 handler κ Quit = do
-  liftIO $ exitSuccess
-  κ
+  liftIO exitSuccess
  
 handler κ Nop = κ
 

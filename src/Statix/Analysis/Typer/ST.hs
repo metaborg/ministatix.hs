@@ -12,7 +12,7 @@ import Control.Monad.State
 import Control.Monad.Unique
 import Control.Monad.ST
 
-import Statix.Syntax.Constraint as Term
+import Statix.Syntax
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
 import Statix.Analysis.Namer
@@ -49,7 +49,9 @@ instance MonadUnique Integer (TCM s) where
   updateSeed = lift . updateSeed
 
 instance MonadLex (Ident, TyRef s) IPath (TyRef s) (TCM s) where
-  enter = local (over scopes (HM.empty:))
+  type FrameDesc (TCM s) = ()
+
+  enter _ = local (over scopes (HM.empty:))
 
   intros xs =
     local (over scopes (\sc → (HM.union (head sc) (HM.fromList xs)) : tail sc))

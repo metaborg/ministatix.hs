@@ -9,6 +9,8 @@ import Data.Text (Text)
 import Control.Monad.Except
 import Control.Monad.State
 import System.FilePath
+import Statix.Syntax.Terms (Ident)
+import Statix.Syntax.Surface (desugarMod)
 
 
 -- | Turns a module import path into a tuple of a module name
@@ -18,7 +20,7 @@ resolveModule :: FilePath   -- ^ The base path (e.g., current directory or root 
               -> FilePath   -- ^ The module's absolute path.
 resolveModule basePath modName = modPath
   where
-    relModPath = getModulePath $ T.unpack modName
+    relModPath = getModulePath $ modName
     modPath = simplifyPath $ dropFileName basePath </> relModPath
     getModulePath p = map repl p ++ ".stx"
       where
@@ -49,7 +51,7 @@ simplifyPath p = joinPath $ reverse newDirs where
 -- | Reads a module with the specified name from the specified path
 readModuleIO :: Ident                         -- ^ The name of the module.
              -> FilePath                      -- ^ The path to the module.
-             -> ExceptT String IO RawModule   -- ^ IO monad wrapping either an error or the parse module.
+             -> ExceptT String IO RawModule₀   -- ^ IO monad wrapping either an error or the parse module.
 readModuleIO modName modPath = do
   content <- liftIO $ readFile modPath
   liftEither $ readModule modName content
@@ -58,17 +60,15 @@ readModuleIO modName modPath = do
 -- | Reads a module with the specified name and content.
 readModule :: Ident                   -- ^ The name of the module.
            -> String                  -- ^ The raw content of the module.
-           -> Either String RawModule -- ^ Either an error or the parsed module.
-readModule modName content = do
-  tokens <- lexer content
-  runParser modName . parseModule $ tokens
+           -> Either String RawModule₀ -- ^ Either an error or the parsed module.
+readModule modName content = desugarMod <$> parseModule modName content
 
 
 -- | Produces a topological sort of a list of modules
 -- | according to their import dependencies.
 -- | The returned list is from dependee to depender.
-moduleTopSort :: [RawModule]    -- ^ The list of modules to sort.
-              -> [RawModule]    -- ^ The sorted list of modules.
+moduleTopSort :: [RawModule₀]    -- ^ The list of modules to sort.
+              -> [RawModule₀]    -- ^ The sorted list of modules.
 moduleTopSort modules =
   let edges = [(mod, name, imports) | mod@(Mod name imports _) <- modules ] in
   let (graph, vertexToNode, _) = G.graphFromEdges edges in
@@ -83,10 +83,10 @@ type IdentStack = [Ident]
 gatherModules :: [Ident]                        -- ^ Set of already imported modules
               -> FilePath                       -- ^ Base directory of the project
               -> [Ident]                        -- ^ Identifiers of the modules to gather
-              -> ExceptT String IO [RawModule]  -- ^ Either an error or a set of gathered modules
+              -> ExceptT String IO [RawModule₀]  -- ^ Either an error or a set of gathered modules
 gatherModules imports p ix = flip evalStateT (imports, ix) $ step p
   where
-    step :: FilePath -> StateT ([Ident], IdentStack) (ExceptT String IO) [RawModule]
+    step :: FilePath -> StateT ([Ident], IdentStack) (ExceptT String IO) [RawModule₀]
     step p = do
       i <- pop
       (imps, _) <- get

@@ -127,8 +127,13 @@ semiclosure s t = do
           case zipMatch tm₁ tm₂ of
             Nothing → throwError $ symbolClash (fmap (const ()) tm₁) (fmap (const ()) tm₂)
             Just tm₃ → do
-              union s t
               σ ← mapM (uncurry semiclosure) tm₃
+
+              -- we are less optimistic here about taking the union
+              -- then in unification, because the applications of semiclosure
+              -- checking requires us to backtrack on failures
+              union s t
+
               modifyDesc s (\_ → Rep (Tm σ) i) 
               return s
 
@@ -152,8 +157,12 @@ equiv s t = do
           case zipMatch tm₁ tm₂ of
             Nothing → throwError $ symbolClash (fmap (const ()) tm₁) (fmap (const ()) tm₂)
             Just tm₃ → do
-              union s t
               σ ← mapM (uncurry equiv) tm₃
+
+              -- we are less optimistic here about taking the union
+              -- then in unification, because the applications of equiv
+              -- checking requires us to backtrack on failures
+              union s t
               modifyDesc s (\_ → Rep (Tm σ) i) 
               return s
 

@@ -1,6 +1,7 @@
 module Statix.Solver where
 
 import Prelude hiding (lookup, null)
+import Data.Text (Text, unpack)
 import Data.Map.Strict as Map hiding (map, null)
 import Data.HashMap.Strict as HM
 import Data.HashSet as HS
@@ -29,7 +30,7 @@ import Control.Monad.Unique
 import Debug.Trace
 
 import Statix.Regex as Re
-import Statix.Syntax.Constraint as C
+import Statix.Syntax as Syn
 import Statix.Graph
 import Statix.Graph.Paths
 import Statix.Graph.Types as Graph
@@ -38,29 +39,38 @@ import Statix.Analysis.Lexical
 import Statix.Solver.Types
 import Statix.Solver.Reify
 import Statix.Solver.Monad
+import Statix.Solver.Terms
 
-import Unification as U
+import ATerms.Syntax.ATerm
+
+import Unification as U hiding (TTm)
 
 __trace__ = False
 
 tracer :: String → a → a
 tracer s a = if __trace__ then trace s a else a
 
+formatGoal :: Goal s → SolverM s String
+formatGoal (env, c, _) = do
+  local (const env) $ do
+    instantConstraint 3 c
+
+formatQueue :: SolverM s [String]
+formatQueue = do
+  q ← use queue
+  mapM formatGoal (Fold.toList q)
+
 tracerWithQueue :: SolverM s a → SolverM s a
 tracerWithQueue c = do
-  q   ← use queue
-  let out = intercalate "\n" $ fmap format (Fold.toList q)
-  tracer out c
-
-  where
-    format :: Goal s → String
-    format (_, c, _) = show c
+  q ← formatQueue
+  let q' = fmap show q
+  tracer (intercalate "\n, " q') c
 
 -- TODO make Reifiable a typeclass again
-reifyPath :: SPath s → SolverM s (STmRef s)
-reifyPath (Graph.Via (n, l) p) = do
+reifyPath :: SPath s (STmRef s) → SolverM s (STmRef s)
+reifyPath (Graph.Via (n, l, t) p) = do
   n  ← construct (Tm (SNodeF n))
-  l  ← construct (Tm (SLabelF l))
+  l  ← construct (Tm (SLabelF l t))
   pr ← reifyPath p
   construct (Tm (SPathConsF n l pr))
 reifyPath (Graph.End n) = do
@@ -70,6 +80,17 @@ reifyPath (Graph.End n) = do
 panic :: String → SolverM s a
 panic s = throwError (Panic s)
 
+-- | Throw an Unsatisfiable error containing the trace
+-- as extracted from the lexical environment.
+unsatisfiable :: String → SolverM s a
+unsatisfiable msg = do
+  trace ← getTrace
+  trace ← mapM (\(qn, params) → do
+                   params ← mapM (instantTerm 3) params
+                   return $ Call qn params) trace
+  throwError (Unsatisfiable trace msg)
+
+-- | Push a goal to the queue with a given generation number.
 pushGoal :: SGen → Constraint₁ → SolverM s ()
 pushGoal i c = do
   env ← ask
@@ -82,7 +103,7 @@ pushGoal i c = do
 delay :: Constraint₁ → SolverM s ()
 delay c = do
   gen ← use generation
-  pushGoal gen c
+  tracer ("Delaying " ++ show c) $ pushGoal gen c
 
 newGoal :: Constraint₁ → SolverM s ()
 newGoal c = do
@@ -130,7 +151,7 @@ next = do
 openExist :: [Ident] → SolverM s a → SolverM s a
 openExist ns c = do
   bs ← mapM mkBinder ns
-  enters bs c
+  enters FrExist bs c
 
   where
     mkBinder name = do
@@ -158,9 +179,11 @@ checkCritical ces (CAnd l r) = do
   return (lc `Set.union` rc)
 checkCritical ces (CEx xs c) = do
   openExist xs $ checkCritical ces c
-checkCritical ces (CEdge x l y) = do
-  t₁ ← resolve x
-  checkTerm ces t₁ (Set.singleton l)
+checkCritical ces (CEdge x e y)
+  | (Label l _) ← e = do
+      t₁ ← resolve x
+      checkTerm ces t₁ (Set.singleton l)
+  | otherwise = throwError TypeError
 checkCritical ces (CApply qn ts) = do
   ts ← mapM toDag ts
   -- get type information for p
@@ -179,30 +202,6 @@ queryGuard ce = do
   cs ← use queue
   Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c) cs
 
--- | Embedding of syntactical terms into the DAG representation of terms
-toDag :: Term₁ → SolverM s (STmRef s)
-toDag (C.Var p)    =
-  resolve p
-toDag (Con c ts) = do
-  id  ← fresh
-  ts' ← mapM toDag ts
-  newClass (Rep (SCon c ts') id)
-toDag (Label l) = do
-  id ← fresh
-  newClass (Rep (SLabel l) id)
-toDag (PathCons x l t₂) = do
-  id ← fresh
-  n  ← resolve x
-  t₂ ← toDag t₂
-  l  ← toDag l
-  newClass (Rep (SPathCons n l t₂) id)
-toDag (PathEnd x) = do
-  id ← fresh
-  n ← resolve x
-  newClass (Rep (SPathEnd n) id)
-
-toDag _ = throwError (Panic "Not implemented")
-
 matches :: STmRef s → Matcher Term₁ → SolverM s a → SolverM s a
 matches t (Matcher ns g eqs) ma = 
   tracer ("branch: " ++ show g) $ openExist ns $ do
@@ -217,17 +216,25 @@ matches t (Matcher ns g eqs) ma =
 
     ma
 
+unifiesOrUnsatisfiable :: STmRef s → STmRef s → SolverM s ()
+unifiesOrUnsatisfiable t1 t2 =
+  catchError (unify t1 t2)
+    (\case
+        UnificationError e → unsatisfiable $ "unification error (" ++ e ++ ")"
+        e                  → throwError e
+    )
+
 -- | Try to solve a focused constraint.
 -- This should not be a recursive function, as not to infer with scheduling.
 solveFocus :: Constraint₁ → SolverM s ()
 
 solveFocus CTrue  = return ()
-solveFocus CFalse = throwError (Unsatisfiable "Derived ⊥")
+solveFocus CFalse = unsatisfiable "Say hello to Falso"
 
 solveFocus (CEq t1 t2) = do
   t1' ← toDag t1
   t2' ← toDag t2
-  unify t1' t2'
+  unifiesOrUnsatisfiable t1' t2'
   next
 
 solveFocus (CAnd l r) = do
@@ -237,21 +244,23 @@ solveFocus (CAnd l r) = do
 solveFocus (CEx ns c) =
   openExist ns (newGoal c)
 
-solveFocus (CNew x) = do
+solveFocus (CNew x d) = do
   t  ← resolve x
-  u  ← newNode Nothing
+  d  ← toDag d
+  u  ← newNode d
   t' ← construct (Tm (SNodeF u))
   catchError
     (unify t t')
-    (\ err → throwError (Unsatisfiable "Not fresh!"))
+    (\ err → unsatisfiable "Cannot get ownership of existing node")
   next
 
-solveFocus (CEdge x l y) = do
+solveFocus (CEdge x (Label l t) y) = do
   t₁ ← resolve x >>= getSchema
   t₂ ← resolve y >>= getSchema
   case (t₁ , t₂) of
     (SNode n, SNode m) → do
-      newEdge (n, l, m)
+      t ← mapM toDag t
+      newEdge (n, l, t, m)
       next
     (U.Var _, _)  → throwError StuckError
     (_ , U.Var _) → throwError StuckError
@@ -288,12 +297,12 @@ solveFocus c@(COne x t) = do
       throwError StuckError
     (SAns (p : [])) → do
       pref ← reifyPath p
-      unify pref t
+      unifiesOrUnsatisfiable pref t
       next
     (SAns []) →
-      throwError (Unsatisfiable $ show c ++ " (No paths)")
+      unsatisfiable "No paths in answer set"
     (SAns ps) →
-      throwError (Unsatisfiable $ show c ++ " (More than one path: " ++ show ps ++ ")")
+      unsatisfiable "More than one path in answer set"
     t →
       throwError TypeError
 
@@ -308,12 +317,8 @@ solveFocus (CData x t) = do
 
       -- check if a datum is already associated
       -- with the node
-      case t' of
-        Nothing →
-          setDatum n t
-        Just t' → do
-          unify t t'
-          next
+      unifiesOrUnsatisfiable t t'
+      next
     (U.Var x) → throwError StuckError
     _         → throwError TypeError
 
@@ -338,29 +343,26 @@ solveFocus (CApply p ts) = do
    ts' ← mapM toDag ts
 
    -- bind the parameters
-   enters (List.zip (fmap fst σ) ts') $ do
+   enters (FrPred p) (List.zip (fmap fst σ) ts') $ do
      -- solve the body
      tracer ("unfold " ++ show p ++ " with " ++ show ts) $ newGoal c
 
 solveFocus (CMatch t bs) = do
   t' ← tracer ("matching " ++ show t) $ toDag t
-  σ  ← getSchema t'
-  case σ of
-    (U.Var x) → throwError StuckError
-    (U.Tm f)  → solveBranch t' bs
+  solveBranch t' bs
 
   where
     solveBranch :: STmRef s → [Branch₁] → SolverM s ()
     solveBranch t' []                    = do
       t' ← toTree t'
-      throwError $ Unsatisfiable $ "No match for '" ++ show t' ++ "'"
+      unsatisfiable $ "No match for '" ++ show t' ++ "'"
     solveBranch t' ((Branch match c):br) = do
       -- determine if the matcher matches the term
       -- and schedule the body of the branch in that environment
       catchError (matches t' match (newGoal c))
         (\case
-          Unsatisfiable s → solveBranch t' br
-          e               → throwError e
+          UnificationError _ → solveBranch t' br
+          e                  → throwError e
         )
 
 solveFocus (CMin x lt z) = do
@@ -375,7 +377,7 @@ solveFocus (CMin x lt z) = do
       next
     _          → throwError TypeError
   where
-    comp :: PathComp → Rel (SPath s) (SPath s)
+    comp :: PathComp → Rel (SPath s t) (SPath s t)
     comp (Lex lt) p q =
       reflexiveClosure
         (pathLT (transitiveClosure (finite lt)))
@@ -394,19 +396,17 @@ solveFocus (CFilter x m z) = do
       next
     _          → throwError TypeError
   where
-    filt :: PathFilter Term₁ → SPath s → SolverM s Bool
+    filt :: PathFilter Term₁ → SPath s t → SolverM s Bool
     filt (MatchDatum m) p = do
       let tgt = target p
       t ← getDatum tgt
 
-      case t of
-        Nothing  → return False -- TODO issue #17
-        (Just t) → catchError
-          (matches t m (return True))
-          (\case
-            Unsatisfiable s → return False
-            e               → throwError e
-          )
+      catchError
+        (matches t m (return True))
+        (\case
+          UnificationError _ → return False
+          e                  → throwError e
+        )
 
 type Unifier s = HashMap Ident (STree s)
 
@@ -414,20 +414,13 @@ type Unifier s = HashMap Ident (STree s)
 unifier :: SolverM s (Unifier s)
 unifier = do
   env ← view locals
-  mapM toTree (head env)
-
-formatUnifier :: Unifier s → String
-formatUnifier fr =
-  let bs = fmap formatBinding (HM.toList fr)
-  in intercalate "\n" bs
-  where
-    formatBinding (k , t) = "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
+  mapM toTree (binders $ head env)
 
 -- | Constraint scheduler
 -- | The solver loop just continuously checks the work queue,
 -- steals an item and focuses it down, until nothing remains.
 -- When the work is done it grounds the solution and returns it.
-schedule :: SolverM s (String, IntGraph Label String)
+schedule :: SolverM s (Unifier s)
 schedule = do
   st ← get
   c  ← popGoal
@@ -437,22 +430,20 @@ schedule = do
         catchError (solveFocus c)
           (\case
             -- reschedule stuck goals
-            StuckError      → local (const env) (delay c)
-            Unsatisfiable s → throwError $ Unsatisfiable $ "constraint " ++ show c ++ " failed with: " ++ s
-            e          → throwError e
+            StuckError              → delay c
+            Unsatisfiable tr msg → do
+              c ← instantConstraint 3 c
+              throwError $ Unsatisfiable (Within c:tr) msg
+            e → throwError e
           )
       schedule
 
     -- done, gather up the solution (graph and top-level unifier)
     Nothing → do
-      graph ← use graph
-      graph ← liftST $ toIntGraph graph
-      graph ← forM graph (\n → show <$> toTree n)
-      φ     ← unifier
-      return (formatUnifier φ, graph)
+      unifier
 
 -- | Construct a solver for a raw constraint
-kick :: SymbolTable → Constraint₁ → (forall s. SolverM s (String, IntGraph Label String))
+kick :: SymbolTable → Constraint₁ → SolverM s (Unifier s)
 kick sym c =
   -- convert the raw constraint to the internal representatio
   local (\_ → set symbols sym def) $ do
@@ -466,10 +457,40 @@ kick sym c =
         newGoal c
         schedule
 
--- | Construct and run a solver for a constraint
-solve :: SymbolTable → Constraint₁ → Solution
-solve p c = runSolver (kick p c)
+data Result s
+  = IsSatisfied (Unifier s) (IntGraph Label String)
+  | IsUnsatisfiable StatixError (IntGraph Label String)
+  | IsStuck [String]
+
+dumpgraph =  do
+  gr ← use graph
+  gr ← liftST $ toIntGraph gr
+  mapM (instantTerm 3) gr
+
+-- | Construct and run a solver for a constraint and
+-- extract an ST free solution
+solve :: SymbolTable → Constraint₁ → ST s (Result s)
+solve symtab c = do
+  solution ← runSolver' $ do
+    catchError
+      (do unifier ← kick symtab c 
+          graph ← dumpgraph
+          return (IsSatisfied unifier graph))
+      (\case 
+          StuckError → do
+            q ← formatQueue
+            return $ IsStuck q
+          e → do
+            graph ← dumpgraph
+            return (IsUnsatisfiable e graph))
+
+  -- TODO improve once we factor SolverM into an interface...
+  return $ either undefined (\r → r) $ fst $ solution
 
 -- | Check satisfiability of a program
 check :: SymbolTable → Constraint₁ → Bool
-check p c = isRight $ solve p c
+check p c = runST $ do
+                  sol ← solve p c
+                  case sol of
+                    (IsSatisfied _ _) → return True
+                    otherwise         → return False

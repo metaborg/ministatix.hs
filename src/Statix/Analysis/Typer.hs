@@ -20,7 +20,7 @@ import Control.Monad.State
 import Control.Monad.Unique
 import Control.Applicative
 
-import Statix.Syntax.Constraint as Term
+import Statix.Syntax as Syn
 import Statix.Analysis.Types
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical as Lex
@@ -35,6 +35,7 @@ class
   , MonadUnique Integer m
   , MonadError TCError m
   , MonadReader (TyEnv n) m
+  , FrameDesc m ~ ()
   ) ⇒ MonadTyper n m | m → n where
 
 getFormals :: MonadTyper n m ⇒ QName → m (PreFormals n)
@@ -101,8 +102,8 @@ solution = do
       return (param, τ)
 
 termTypeAnalysis :: MonadTyper n m ⇒ Term₁ → m n
-termTypeAnalysis (Term.Var x) = resolve x
-termTypeAnalysis (Label _)    = construct (Tm (Const TLabel))
+termTypeAnalysis (Syn.Var x)  = resolve x
+termTypeAnalysis (Label _ _)  = construct (Tm (Const TLabel))
 termTypeAnalysis (PathCons _ _ _) = construct (Tm (Const TPath))
 termTypeAnalysis (PathEnd _)  = construct (Tm (Const TPath))
 termTypeAnalysis _            = construct (Tm (Const TBot))
@@ -115,7 +116,7 @@ mkBinder n = do
 typeMatch  :: MonadTyper n m ⇒ Matcher Term₁ → m a → m a
 typeMatch (Matcher ps t eqs) ma = do
   bs ← mapM mkBinder ps
-  enters bs ma
+  enters () bs ma
 
 typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
 typeBranch (Branch m c) = do
@@ -127,24 +128,26 @@ typeAnalysis CTrue  = return ()
 typeAnalysis CFalse = return ()
 typeAnalysis (CEx ns c) = do
   bs ← mapM mkBinder ns
-  enters bs (typeAnalysis c)
+  enters () bs (typeAnalysis c)
 typeAnalysis (CAnd c d) = do
   typeAnalysis c
   typeAnalysis d
 typeAnalysis (CEq t s) =
   return ()
-typeAnalysis (CEdge n l m)  = do
-  n  ← resolve n
-  n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
-  m  ← resolve m
-  m' ← construct (Tm (Const (TNode None)))
-  unify n n'
-  void $ unify m m'
-typeAnalysis (CNew n)       = do
+typeAnalysis (CEdge n e m)
+  | Label l t ← e = do
+      n  ← resolve n
+      n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
+      m  ← resolve m
+      m' ← construct (Tm (Const (TNode None)))
+      unify n n'
+      void $ unify m m'
+  | otherwise = throwError $ TypeError "Expected label"
+typeAnalysis (CNew n t) = do
   n  ← resolve n
   m  ← construct (Tm (Const (TNode Out)))
   void $ unify n m
-typeAnalysis (CData x t)       = do
+typeAnalysis (CData x t) = do
   n  ← resolve x
   m  ← construct (Tm (Const (TNode None)))
   void $ unify n m
@@ -202,5 +205,5 @@ typecheckConstraint c = do
 typecheckPredicate :: (MonadTyper n m) ⇒ Predicate₁ → m ()
 typecheckPredicate p = do
   bs ← getFormals (qname p)
-  enters bs $ do
+  enters () bs $ do
     void $ typecheckConstraint (body p)

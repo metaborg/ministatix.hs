@@ -27,6 +27,7 @@ dependencies:
 - hashable
 - haskeline
 - lens
+- utf8-string
 
 build-tools:
 - alex
@@ -46,6 +47,7 @@ default-extensions:
 - PatternSynonyms
 - RankNTypes
 - ScopedTypeVariables
+- StandaloneDeriving
 - TemplateHaskell
 - TypeApplications
 - TypeFamilies
@@ -57,9 +59,10 @@ library:
   - -fwarn-tabs
   - -fwarn-incomplete-patterns
   - -fwarn-incomplete-uni-patterns
+  - -optP-Wno-nonportable-include-path
 
 executables:
-  statix-exe:
+  statix:
     main: Main.hs
     source-dirs: app
     ghc-options:
@@ -69,6 +72,7 @@ executables:
     - -fwarn-tabs
     - -fwarn-incomplete-patterns
     - -fwarn-incomplete-uni-patterns
+    - -optP-Wno-nonportable-include-path
     dependencies:
     - statix
 
@@ -80,6 +84,7 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -optP-Wno-nonportable-include-path
     dependencies:
     - statix
     - hspec

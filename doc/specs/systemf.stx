@@ -14,75 +14,75 @@ src(p,s) :- p match
 datum(p,d) :- {s} tgt(p, s), s -> d.
 
 // declares term variable (x:t) in scope s
-decl(s,x,t)   :- {sd} new sd, s -[ Decl ]-> sd, sd -> pair(x,t).
-newTVar(s,X,Y) :- new Y, s -[ TyDecl ]-> Y, Y -> X.
+decl(s,x,t)   :- {sd} new sd, s -[ `Decl ]-> sd, sd -> Pair(x,t).
+newTyVar(s,X,Y) :- new Y, s -[ `TyDecl ]-> Y, Y -> X.
 
 // (x:ty) is the only reachable declaration over `P*`Decl with name x from scope s
 lookup(s,x,ty) :- {dec, ans, ps, qs, p}
     query s `P*`Decl as ans
-  , filter ans (pair(y, ty) where y = x) ps
-  , min ps lexico(Decl < P) qs
+  , filter ans (Pair(y, ty) where y = x) ps
+  , min ps lexico(`Decl < `P) qs
   , only(qs, p)
   , datum(p, dec)
-  , dec match {pair(y,typ) -> ty = typ}.
+  , dec match {Pair(y,typ) -> ty = typ}.
 
-lookupTVar(s,X,T) :- {tys, matches, closest, p, X'}
+lookupTyVar(s,X,T) :- {tys, matches, closest, p, X'}
         query s `P*`TyDecl as tys
       , filter tys (Z where Z = X) matches
-      , min matches lexico(NewTVar < P) closest
+      , min matches lexico(`TyDecl < `P) closest
       , only(closest, p)
       , tgt(p, X')
-      , T = TVar(X').
+      , T = TyVar(X').
 
 typeOf(s, e, ty) :- e match
   // variables
   { var(x) -> lookup(s, x, ty)
 
-  // lambda abstraction
-  | lam(x, ta, body) -> {TA, sbody, TB}
+  // Absbda abstraction
+  | Abs(x, ta, body) -> {TA, sbody, TB}
           new sbody
-	, sbody -[ P ]-> s
+	, sbody -[ `P ]-> s
 	, decl(sbody, x, TA)
 	, typeOf(sbody, body, TB)
 	, interp(s, ta, TA)
 	, ty = Fun(TA, TB)
 
-  // lambda application
-  | app(f, e) -> {ta}
+  // Absbda Application
+  | App(f, e) -> {ta}
           typeOf(s, f, Fun(ta, ty))
 	, typeOf(s, e, ta)
 
   // type abstraction
-  | Lam(X, body) -> {sbody, TA, Q} 
+  | TAbs(X, body) -> {sbody, TA, Q} 
           new sbody
-	, sbody -[ P ]-> s
-	, newTVar(sbody, X, Q)
+	, sbody -[ `P ]-> s
+	, newTyVar(sbody, X, Q)
 	, typeOf(sbody, body, TA)
 	, ty = Forall(Q, TA)
 
-  // type application
-  | App(F, t) -> {X, T, A} 
+  // type Application
+  | TApp(F, t) -> {X, T, A} 
           interp(s, t, T)
         , typeOf(s, F, Forall(X, A))
 	, subst(X, A, T, ty)
 
   // natural numbers
-  | zero() -> ty = Nat()
-  | suc(x) -> typeOf(s, x, Nat()), ty = Nat()
+  | Zero() -> ty = Nat()
+  | Suc(x) -> typeOf(s, x, Nat()), ty = Nat()
   }.
 
 // interpret syntactic types
 interp(s,ty,ty') :- ty match 
-  { tvar(X) -> {tys, matches, closest, p}
-        lookupTVar(s, X, ty')
+  { TyVar(X) -> {tys, matches, closest, p}
+        lookupTyVar(s, X, ty')
   | fun(a, b) -> {A, B}
         interp(s, a, A)
       , interp(s, b, B)
       , ty' = Fun(A, B)
   | forall(X, a) -> {A, s', X'}
         new s'
-      , s' -[ P ]-> s
-      , newTVar(s', X, X')
+      , s' -[ `P ]-> s
+      , newTyVar(s', X, X')
       , interp(s', a, a)
       , ty' = Forall(X', A)
   | nat() -> ty' = Nat()
@@ -100,61 +100,61 @@ subst(N, t, s, out) :- t match
       , out = Fun(A, B)
   | Nat() ->
         out = Nat()
-  | TVar(X) where X = N ->
+  | TyVar(X) where X = N ->
         out = s
-  | TVar(X) ->
+  | TyVar(X) ->
         out = X
   }.
 
-// ty is the type of *closed* lambda expression e
+// ty is the type of *closed* Absbda expression e
 typeClosed(e, ty) :- {top} new top, typeOf(top, e, ty).
 
 //---------------------------------------------------------------------
 // some unit tests
 
-// [] ⊢ (Λ X . λ x:X . zero) [ nat ] : nat → nat
-testApp1(ty) :- typeClosed(
-  App(
-   Lam(X(),
-    lam(x(), tvar(X()), zero())),
+// [] ⊢ (Λ X . λ x:X . Zero) [ nat ] : nat → nat
+testTApp1(ty) :- typeClosed(
+  TApp(
+   TAbs(X(),
+    Abs(x(), TyVar(X()), Zero())),
    nat()),
   ty).
 
-// [] ⊢ (Λ X . λ x:X . Λ Y . λ y:Y. zero) [ nat ] : nat → ∀ Y . Y → nat
-testApp2(ty) :- typeClosed(
-  App(
-   Lam(X(),
-    lam(x(), tvar(X()),
-     Lam(Y(),
-      lam(y(), tvar(Y()), zero())))),
+// [] ⊢ (Λ X . λ x:X . Λ Y . λ y:Y. Zero) [ nat ] : nat → ∀ Y . Y → nat
+testTApp2(ty) :- typeClosed(
+  TApp(
+   TAbs(X(),
+    Abs(x(), TyVar(X()),
+     TAbs(Y(),
+      Abs(y(), TyVar(Y()), Zero())))),
    nat()),
   ty).
 
-// [] ⊢ (Λ X . Λ Y . λ y:Y . zero) [ nat ] : ∀ Y . Y → nat
-testApp3(ty) :- typeClosed(
-  App(
-   Lam(X(),
-    Lam(Y(),
-     lam(y(), tvar(Y()), zero()))),
+// [] ⊢ (Λ X . Λ Y . λ y:Y . Zero) [ nat ] : ∀ Y . Y → nat
+testTApp3(ty) :- typeClosed(
+  TApp(
+   TAbs(X(),
+    TAbs(Y(),
+     Abs(y(), TyVar(Y()), Zero()))),
    nat()),
   ty).
 
-// [] ⊢ (Λ X . λ x:nat. Λ X . λ (y:X) . zero) [ nat ] : nat → ∀ X . X → nat
-testApp4(ty) :- typeClosed(
-  App(
-   Lam(X(),
-    lam(x(), nat(),
-     Lam(X(),
-      lam(y(), tvar(X()), zero())))),
+// [] ⊢ (Λ X . λ x:nat. Λ X . λ (y:X) . Zero) [ nat ] : nat → ∀ X . X → nat
+testTApp4(ty) :- typeClosed(
+  TApp(
+   TAbs(X(),
+    Abs(x(), nat(),
+     TAbs(X(),
+      Abs(y(), TyVar(X()), Zero())))),
     nat()),
   ty).
 
-// [] ⊢ Λ X . (Λ Y. λ y:Y . zero) [ X ] : ∀ X . X → nat
-testApp5(ty) :- typeClosed(
-  Lam(X(),
-    App(
-      Lam(Y(), lam(y(), tvar(Y()), zero())),
-      tvar(X())
+// [] ⊢ Λ X . (Λ Y. λ y:Y . Zero) [ X ] : ∀ X . X → nat
+testTApp5(ty) :- typeClosed(
+  TAbs(X(),
+    TApp(
+      TAbs(Y(), Abs(y(), TyVar(Y()), Zero())),
+      TyVar(X())
     )
   ),
   ty

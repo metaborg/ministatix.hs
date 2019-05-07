@@ -16,7 +16,7 @@ import Control.Monad.State
 import Control.Monad.ST
 import Control.Monad.Equiv
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 import Unification
@@ -70,7 +70,7 @@ data TyEnv n = TyEnv
   }
 
 instance Default (TyEnv n) where
-  def = TyEnv (pack "") HM.empty HM.empty [HM.empty]
+  def = TyEnv "" HM.empty HM.empty [HM.empty]
 
 makeLenses ''TyEnv
 
