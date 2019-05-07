@@ -41,10 +41,8 @@ checkTermF (TTmF at)      = return $ TTmF at
 checkTermF (TLabelF l t)  = do
   return $ TLabelF l t
 checkTermF (TPathConsF n l p) = do
-  n ← resolve n
   return $ TPathConsF n l p
 checkTermF (TPathEndF n)  = do
-  n ← resolve n
   return $ TPathEndF n
 checkTermF (TVarF x)      = do
   p ← resolve x

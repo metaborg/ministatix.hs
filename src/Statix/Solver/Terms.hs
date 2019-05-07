@@ -32,13 +32,13 @@ toDag (Label l t) = do
   newClass (Rep (SLabel l t) id)
 toDag (PathCons x l t₂) = do
   id ← fresh
-  n  ← resolve x
+  n  ← toDag x
   t₂ ← toDag t₂
   l  ← toDag l
   newClass (Rep (SPathCons n l t₂) id)
 toDag (PathEnd x) = do
   id ← fresh
-  n ← resolve x
+  n ← toDag x
   newClass (Rep (SPathEnd n) id)
 
 -- | Convert a solver term to a tree of limited depth.

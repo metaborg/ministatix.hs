@@ -29,8 +29,8 @@ data TermF ℓ r
   = TTmF (ATermF r)
   | TLabelF Label (Maybe r)
   | TVarF ℓ 
-  | TPathConsF ℓ r r
-  | TPathEndF ℓ
+  | TPathConsF r r r
+  | TPathEndF r
   deriving (Eq, Functor, Foldable, Traversable)
 
 instance (Show ℓ, Show r) ⇒ Show (TermF ℓ r) where
@@ -79,9 +79,9 @@ fv = cata fvF
     fvTmF ANilF                = HSet.empty
     fvTmF (ATupleF ts)         = HSet.unions ts
 
-    fvF (TTmF t)             = fvTmF t
-    fvF (TVarF ℓ)            = HSet.singleton ℓ
-    fvF (TPathConsF ℓ r₁ r₂) = HSet.singleton ℓ `HSet.union` r₁ `HSet.union` r₂
-    fvF (TPathEndF ℓ)        = HSet.singleton ℓ
-    fvF (TLabelF l (Just r)) = r
-    fvF _                    = HSet.empty
+    fvF (TTmF t)              = fvTmF t
+    fvF (TVarF l)             = HSet.singleton l
+    fvF (TPathConsF r₀ r₁ r₂) = r₀ `HSet.union` r₁ `HSet.union` r₂
+    fvF (TPathEndF r)         = r
+    fvF (TLabelF l (Just r))  = r
+    fvF _                     = HSet.empty

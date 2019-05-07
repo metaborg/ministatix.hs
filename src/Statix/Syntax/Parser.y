@@ -102,8 +102,8 @@ WhereClause     :                                       { [] }
 
 Pattern         : Label						{ PatTm $ TLabelF $1 Nothing }
                 | Label '(' Pattern ')'				{ PatTm $ TLabelF $1 (Just $3) }
-                | edge '(' name ',' Pattern ',' Pattern ')'	{ PatTm $ TPathConsF $3 $5 $7 }
-                | end  '(' name ')'				{ PatTm $ TPathEndF $3 }
+                | edge '(' Pattern ',' Pattern ',' Pattern ')'	{ PatTm $ TPathConsF $3 $5 $7 }
+                | end  '(' Pattern ')'				{ PatTm $ TPathEndF $3 }
                 | name						{ PatTm $ TVarF $1 }
 
                 | constructor '(' Patterns ')'			{ funcPat $1 (reverse $3) }
@@ -176,8 +176,6 @@ Label           : '`' constructor                       { Lab $2 }
 
 Term            : Label                                 { Label $1 Nothing }
                 | Label '(' Term ')'                    { Label $1 (Just $3) }
-                | edge '(' name ',' Term ',' Term ')'   { PathCons $3 $5 $7 }
-                | end  '(' name ')'                     { PathEnd $3 }
                 | constructor '(' Terms ')'             { funcTm $1 (reverse $3) }
                 | name                                  { Var $1 }
                 | Term colon Term                       { consTm $1 $3 }
