@@ -21,12 +21,20 @@ To build this project, you need to have the [Haskell Toolstack][1]
 
 Enter the project's REPL using:
 
-    make run
+    ./statix
+
+Check a file `input.aterm` against the specification `spec.stx` using:
+
+    ./statix spec.stx input.aterm
 
 Other makefile targets are:
-- `test` to run the test specification in `test/`;
+- `setup` to setup the build environment;
+- `build` to build the project;
+- `test` to run the test specifications in `test/`;
 - `clean` to remove the build artifacts;
-- `doc` to build and show the generated documentation.
+- `doc` to build and show the generated documentation;
+- `ghci` to open a Haskell Interactive propt in the project directory;
+- `install` to install the built artifacts.
 
 
 [1]: https://www.haskellstack.org/
