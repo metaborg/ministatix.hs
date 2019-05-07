@@ -95,7 +95,7 @@ printGraph (IntGraph sg) =
         >> printDatum d
         >> putStr " ]-> " >> print n
   where
-    printDatum = maybe (return ()) putStr
+    printDatum = maybe (return ()) (\t → putStr $ "(" ++ t ++ ")")
 
 
 printResult :: Result s → IO ()
