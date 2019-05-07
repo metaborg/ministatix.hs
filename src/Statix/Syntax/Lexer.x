@@ -38,8 +38,8 @@ tokens :-
   <0> min                           { plain TokMin }
   <0> filter                        { plain TokFilter }
   <0> match                         { plain TokMatch }
-  <0> edge                          { plain TokEdge }
-  <0> end                           { plain TokEnd }
+  <0> Edge                          { plain TokEdge }
+  <0> End                           { plain TokEnd }
   <0> lexico                        { plain TokPathLT }
   <0> eps                           { plain TokEpsilon }
 

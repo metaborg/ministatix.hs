@@ -1,3 +1,5 @@
+-- | The surface syntax is defined literally as an extension of the core
+-- constraint language using Data.Functor.Sum and then taking the fixedpoint.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Syntax.Surface where

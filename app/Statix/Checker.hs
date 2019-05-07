@@ -73,6 +73,6 @@ main spec file = runREPL HM.empty $ do
       liftIO $ printResult result
 
       liftIO $ case result of
-        IsUnsatisfiable _ → exitFailure
+        IsUnsatisfiable _ _ → exitFailure
         IsStuck _ → exitFailure
         _ → exitSuccess

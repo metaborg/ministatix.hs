@@ -437,7 +437,7 @@ schedule = do
         catchError (solveFocus c)
           (\case
             -- reschedule stuck goals
-            StuckError           → delay c
+            StuckError              → delay c
             Unsatisfiable tr msg → do
               c ← instantConstraint 3 c
               throwError $ Unsatisfiable (Within c:tr) msg
@@ -465,9 +465,14 @@ kick sym c =
         schedule
 
 data Result s
-  = IsSatisfied (Unifier s) (IntGraph Label Text)
-  | IsUnsatisfiable StatixError
+  = IsSatisfied (Unifier s) (IntGraph Label (Maybe Text))
+  | IsUnsatisfiable StatixError (IntGraph Label (Maybe Text))
   | IsStuck [Text]
+
+dumpgraph =  do
+  gr ← use graph
+  gr ← liftST $ toIntGraph gr
+  mapM (instantTerm 3) gr
 
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
@@ -476,19 +481,18 @@ solve symtab c = do
   solution ← runSolver' $ do
     catchError
       (do unifier ← kick symtab c 
-          gr ← use graph
-          gr ← liftST $ toIntGraph gr
-          gr' ← mapM (instantTerm 3) gr
-          return (IsSatisfied unifier gr'))
+          graph ← dumpgraph
+          return (IsSatisfied unifier graph))
       (\case 
           StuckError → do
             q ← formatQueue
             return $ IsStuck q
           e → do
-            return (IsUnsatisfiable e))
+            graph ← dumpgraph
+            return (IsUnsatisfiable e graph))
 
   -- TODO improve once we factor SolverM into an interface...
-  return $ either (\e → IsUnsatisfiable e) (\r → r) $ fst $ solution
+  return $ either undefined (\r → r) $ fst $ solution
 
 -- | Check satisfiability of a program
 check :: SymbolTable → Constraint₁ → Bool

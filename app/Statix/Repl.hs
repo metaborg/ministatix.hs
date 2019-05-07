@@ -11,6 +11,7 @@ import System.Exit
 import Data.Default
 import Data.List
 import Data.HashMap.Strict as HM
+import Data.IntMap.Strict as IM
 import Data.Functor.Identity
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text.IO as TIO
@@ -25,6 +26,8 @@ import Control.Monad.ST
 import Control.Monad.Unique as Unique
 
 import Debug.Trace
+
+import Statix.Graph
 
 import Statix.Syntax
 import Statix.Syntax.Surface
@@ -79,26 +82,37 @@ prompt = do
     Nothing  → prompt
     Just cmd → handleErrors (readEither cmd)
 
+printGraph :: IntGraph Label Text → IO ()
+printGraph (IntGraph sg) = forM_ (IM.elems sg) $ \(IntNode id es d) → do
+  putStr $ "∇ " ++ show id ++ " ─◾ " ++ unpack t
+
 printResult :: Result s → IO ()
 printResult (IsSatisfied φ sg) = do
   setSGR [SetColor Foreground Dull Green]
   putStrLn "⟨✓⟩ Satisfiable"
-  setSGR [SetColor Foreground Vivid White]
-  putStrLn "⟪ Unifier ⟫"
   setSGR [Reset]
+  putStrLn "⟪ Unifier ⟫"
   putStrLn (formatUnifier φ)
-printResult (IsUnsatisfiable e) = do
+  putStrLn ""
+  putStrLn "⟪ Graph ⟫"
+  print sg
+  putStrLn ""
+printResult (IsUnsatisfiable e gr) = do
   setSGR [SetColor Foreground Vivid Red]
   putStrLn "⟨×⟩ Unsatisfiable"
+  setSGR [Reset]
+  putStrLn "⟪ Trace ⟫"
   report e
   putStrLn ""
-  setSGR [Reset]
+  putStrLn "⟪ Graph ⟫"
+  print gr
+  putStrLn ""
 printResult (IsStuck q) = do
   setSGR [SetColor Foreground Vivid Yellow]
   putStrLn "⟨×⟩ Stuck, with queue:"
+  setSGR [Reset]
   mapM_ (TIO.putStrLn) q
   putStrLn ""
-  setSGR [Reset]
 
 withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a
 withErrors c = do
