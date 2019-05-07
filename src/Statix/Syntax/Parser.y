@@ -28,7 +28,6 @@ import Statix.Syntax.Lexer
 %token
   NAME          { TokName $$ }
   QNAME         { TokQName $$ }
-  RPATH         { TokRPath $$ }
   true          { TokTrue }
   false         { TokFalse }
   ','           { TokComma }
@@ -133,12 +132,9 @@ Predicates      : list(Predicate)                       { $1 }
 
 Import          : import  NAME Eol                      { $2 }
                 | import QNAME Eol                      { $2 }
-                | import RPATH Eol                      { $2 }
 Imports         : list(Import)                          { $1 }
 
--- TODO: newline is lexed and ignored, make it explicit?
-Eol             : nl                                    { $1 }
-                | semicolon                             { $1 }
+Eol             : semicolon                             { $1 }
 
 Module          : Imports Predicates                    {%
     do

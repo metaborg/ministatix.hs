@@ -197,15 +197,6 @@ importspec = describe "import" $ do
     , "test() <- {x} new x."
     ]
 
-  runMod True $ unlines
-    [ "import .common;"
-    , "test() <- {x} new x."
-    ]
-  
-  runMod True $ unlines
-    [ "import ..utils.common;"
-    , "test() <- {x} new x."
-    ]
   input <- runIO $ readTestInput "test1.stx"
   runMod True input
 
