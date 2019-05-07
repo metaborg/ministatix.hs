@@ -129,6 +129,46 @@ importMod i mod = do
   modify (over imports (i:))
   modify (over globals (HM.insert i mod))
 
+-- importModule :: REPL a -> Ident -> REPL a
+-- importModule κ modName = do
+--   symtab <- use globals
+
+--   let worklist = [modName]
+
+--   -- add the identifier to the worklist
+--   -- 1) pop an identifier from the worklist
+--   -- if the identifier is in the REPLState _imports,
+--   -- we assume it has been parsed, analayzed, and added to the symbol table,
+--   -- and that this is also the case for the modules on which it depends (imports).
+--   -- so then we skip this one.
+--   -- otherwise:
+--   -- 2) find and parse the module
+--   -- 3) add it to the list of modules
+--   -- 4) add its imports to the worklist
+--   -- when the worklist is empty, we have a list of modules
+--   -- 6) order the modules topologically
+--   -- 7) for each module in the list:
+--   -- 7a) analyze
+--   -- 7b) add to symbol table (importMod)
+--   -- the list of modules is now empty
+
+
+--   -- parse the module
+--   here     ← liftIO getCurrentDirectory
+--   let modName = Text.pack path
+--   let modPath = resolveModule here modName
+--   r <- liftIO $ readModuleIO modName modPath
+--   rawmod <- handleErrors $ r
+
+--   -- Typecheck the module
+--   mod ← withErrors $ analyze symtab rawmod
+
+--   -- Import the typechecked module into the symboltable
+--   importMod modName mod
+
+--   -- rinse and repeat
+--   κ
+
 handler :: REPL a → Cmd → REPL a
 handler κ (Main rawc) = do
   main   ← use main
@@ -177,11 +217,9 @@ handler κ (Import path) = do
   here     ← liftIO getCurrentDirectory
   let modName = Text.pack path
   let modPath = resolveModule here modName
-  r <- liftIO $ readModuleIO modName modPath
-  rawmod <- handleErrors $ r
-  -- toks   ← handleErrors $ lexer content
-  -- rawmod ← liftParser modName $ parseModule $ toks
-
+  rawmod <- (liftIO $ runExceptT $ readModuleIO modName modPath) >>= handleErrors
+  -- r <- liftIO $ readModuleIO modName modPath
+  -- rawmod <- handleErrors $ r
   -- Typecheck the module
   mod ← withErrors $ analyze symtab rawmod
 

@@ -15,25 +15,12 @@ import Data.Text (pack, unpack, stripSuffix)
 import Statix.Syntax.Parser
 import Statix.Syntax.Lexer
 import Data.Maybe (fromJust)
-
-
-
--- Converts an imported name into a tuple
--- of a module name, module path,
--- and whether it is relative (True) or absolute (False).
--- Examples:
---   "common.utils"   -> Import "common.utils"    "common/utils.stx" False
---   ".common.utils"  -> Import "common.utils"    "common/utils.stx" True
---   "..common.utils" -> Import "common.utils" "../common/utils.stx" True
--- NOTE: It is possible for two paths to refer to the same module
--- without Ministatix being able to deduce this. For example,
--- if the base directory is "/home/user/common/" the following two
--- imports resolve to the same file: ".utils" and "..common.utils"
--- whereas they do not in the base directory "/home/user/extra/".
--- However, Ministatix will deduce that the first module's name is "utils"
--- and find the exact duplicate module with the name "common.utils".
--- Similarly, two different relative imports ".utils" will resolve to the same module.
--- The fix is to use the base path to determine the absolute module name (TBD).
+import Control.Monad.Except
+import Data.Either (fromRight)
+import Control.Monad.State
+import Data.Text (Text)
+import qualified Data.Text as T
+-- import Control.Error.Safe (tryRight)
 
 
 -- Import algorithm
@@ -93,19 +80,27 @@ simplifyPath p = joinPath $ reverse newDirs where
 -- | Reads a module with the specified name from the specified path
 readModuleIO :: Ident                         -- ^ The name of the module.
              -> FilePath                      -- ^ The path to the module.
-             -> IO (Either String RawModule)  -- ^ IO monad wrapping either an error or the parse module.
+             -> ExceptT String IO RawModule   -- ^ IO monad wrapping either an error or the parse module.
 readModuleIO modName modPath = do
-  content <- readFile modPath
-  return $ readModule modName content
+  content <- liftIO $ readFile modPath
+  liftEither $ readModule modName content
+
+-- -- | Reads a module with the specified name from the specified path
+-- readModuleIO :: Ident                         -- ^ The name of the module.
+--              -> FilePath                      -- ^ The path to the module.
+--              -> IO (Either String RawModule)  -- ^ IO monad wrapping either an error or the parse module.
+-- readModuleIO modName modPath = do
+--   content <- readFile modPath
+--   return $ readModule modName content
 
 
 -- | Reads a module with the specified name and content.
 readModule :: Ident                   -- ^ The name of the module.
            -> String                  -- ^ The raw content of the module.
            -> Either String RawModule -- ^ Either an error or the parsed module.
-readModule modName content =
-  let tokens = lexer content in
-  (tokens >>= runParser modName . parseModule)
+readModule modName content = do
+  tokens <- lexer content
+  runParser modName . parseModule $ tokens
 
 
 -- | Produces a topological sort of a list of modules
@@ -118,4 +113,123 @@ moduleTopSort modules =
   let (graph, vertexToNode, _) = G.graphFromEdges edges in
   let sorted = (reverse . G.topSort) graph in
     [mod | (mod, _, _) <- map vertexToNode sorted]
+
+-- -- | Imports the module with the specified name and path,
+-- -- | and any modules on which it depends.
+-- importModuleFromFile :: [Ident]
+--                      -> Ident
+--                      -> FilePath
+--                      -> IO Either String [Ident]
+-- importModule existingImports mod = do
+--   return existingImports
+
+-- importModule :: [Ident]
+--              -> Ident
+--              -> String
+--              -> IO Either String [Ident]
+-- importModule
+
+
+-- add the identifier to the worklist
+-- 1) pop an identifier from the worklist
+-- if the identifier is in the REPLState _imports,
+-- we assume it has been parsed, analayzed, and added to the symbol table,
+-- and that this is also the case for the modules on which it depends (imports).
+-- so then we skip this one.
+-- otherwise:
+-- 2) find and parse the module
+-- 3) add it to the list of modules
+-- 4) add its imports to the worklist
+-- when the worklist is empty, we have a list of modules
+-- 6) order the modules topologically
+-- 7) for each module in the list:
+-- 7a) analyze
+-- 7b) add to symbol table (importMod)
+-- the list of modules is now empty
+-- gatherModules :: [Ident] -> Ident -> IO [RawModule]
+-- Recursive is not going to work: there may be cycles in the import graph
+-- gatherModules imported modName = do
+--   -- if modName `elem` imported then
+--   here       <- getCurrentDirectory
+--   let modPath = resolveModule here modName
+--   -- FIXME: How to deal with IO Either neatly?
+--   r <- readModuleIO modName modPath
+--   let rawmod = fromRight (Mod "" [] []) r
+
+--   rm <- gatherModules imported 
+
+--   return []
+  -- r' <- fromRight rm r
+  -- case r of
+  --   Left err                -> return $ []
+  --   Right (Mod _ imports _) -> return $ []
+-- gatherModules :: [Ident] -> Ident -> IO (Either String [RawModule])
+-- gatherModules imported modName = do
+--   -- if modName `elem` imported then
+--   here       <- getCurrentDirectory
+--   let modPath = resolveModule here modName
+--   r <- readModuleIO modName modPath
+--   case r of
+--     Left err                -> return $ Left err
+--     Right (Mod _ imports _) -> return $ Left "ss"
+
+-- handleIOErrors :: Either String a -> IO a
+-- handleIOErrors (Right a)  = return a
+-- handleIOErrors (Left err) = runExceptT $ do
+--   ExceptT $ putStrLn err
+  -- loop
+
+type IdentStack = [Ident]
+-- -- pop :: StateT IdentStack (ExceptT String IO) Ident
+-- -- pop = state $ \(x:xs) -> (x,xs)
+-- push :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
+-- push a = state $ \(imps, xs) -> ((),(imps, a:xs))
+-- pushAll :: [Ident] -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
+-- pushAll ax = state $ \(imps, xs) -> ((), (imps, ax ++ xs))
+-- pop :: StateT ([Ident], IdentStack) (ExceptT String IO) (Maybe Ident)
+-- pop = state $ f
+--   where
+--     f (imps, (x:xs)) = ( Just x, (imps, xs))
+--     f (imps,     xs) = (Nothing, (imps, xs))
+-- addImported :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
+-- addImported i = state $ \(imps, xs) -> ((), (i:imps, xs))
+
+-- | Gathers the module with the specified identifier,
+-- | and any modules it imports.
+gatherModules :: [Ident]                        -- ^ Set of already imported modules
+              -> FilePath                       -- ^ Base directory of the project
+              -> Ident                          -- ^ Identifier of the module to gather
+              -> ExceptT String IO [RawModule]  -- ^ Either an error or a set of gathered modules
+gatherModules imports p i = flip evalStateT (imports, [i]) $ step p
+  where
+    step :: FilePath -> StateT ([Ident], IdentStack) (ExceptT String IO) [RawModule]
+    step p = do
+      i <- pop
+      (imps, _) <- get
+      case i of
+        Just i  | i `elem` imps -> step p -- Already imported, continue.
+        Just i -> do                      -- Not yet imported:
+          r <- lift $ readModuleIO i $ resolveModule p i
+          let (Mod _ imports _) = r
+          addImported i
+          pushAll imports
+          rs <- step p
+          return (r:rs)
+        Nothing -> return []              -- We're done!
+
+    push :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
+    push a = state $ \(imps, xs) -> ((),(imps, a:xs))
+
+    pushAll :: [Ident] -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
+    pushAll ax = state $ \(imps, xs) -> ((), (imps, ax ++ xs))
+
+    pop :: StateT ([Ident], IdentStack) (ExceptT String IO) (Maybe Ident)
+    pop = state $ f
+      where
+        f (imps, (x:xs)) = ( Just x, (imps, xs))
+        f (imps,     xs) = (Nothing, (imps, xs))
+        
+    addImported :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
+    addImported i = state $ \(imps, xs) -> ((), (i:imps, xs))
+  
 
