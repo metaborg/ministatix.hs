@@ -4,7 +4,6 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Syntax.Surface where
 
-import Data.Text (pack, append)
 import Data.Functor.Fixedpoint
 import Data.Functor.Sum
 
@@ -83,7 +82,7 @@ desugarPattern :: Pattern → DesugarM Term₀
 desugarPattern (PatTm tm) = desugarPatTm tm
 desugarPattern Wildcard = do
     x :: Integer ← fresh
-    let name = pack $ "_" ++ show x
+    let name = "_" ++ show x
     tell [name]
     return (Var name)
 

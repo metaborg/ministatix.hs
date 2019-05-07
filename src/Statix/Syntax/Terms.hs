@@ -1,6 +1,5 @@
 module Statix.Syntax.Terms where
 
-import Data.Text (Text, unpack)
 import Data.Hashable
 import Data.Functor.Fixedpoint
 
@@ -13,15 +12,15 @@ import Statix.Analysis.Lexical as Lexical
 -- | Some primitives
 
 type Node  = String
-type Ident = Text
+type Ident = String
 type IPath = Lexical.Path Ident
-newtype Label = Lab Text deriving (Eq, Ord)
+newtype Label = Lab String deriving (Eq, Ord)
 
 instance Hashable Label where
   hashWithSalt salt (Lab txt) = hashWithSalt salt txt
 
 instance Show Label where
-  show (Lab l) = unpack l
+  show (Lab l) = l
 
 ------------------------------------------------------------------
 -- | The term language
@@ -50,7 +49,7 @@ type TermF₁ r         = TermF IPath r
 type Term₀            = Fix (TermF Ident)
 type Term₁            = Fix (TermF IPath)
 
-funcTm :: Text → [Fix (TermF ℓ)] → Fix (TermF ℓ)
+funcTm :: String → [Fix (TermF ℓ)] → Fix (TermF ℓ)
 funcTm c ts = Fix (TTmF (AFuncF c ts))
 
 consTm :: Fix (TermF ℓ) → Fix (TermF ℓ) → Fix (TermF ℓ)

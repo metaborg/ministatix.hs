@@ -1,8 +1,9 @@
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Solver.Types where
 
 import Prelude hiding (lookup, null)
-import Data.Text
+import Data.Text as T
 import Data.List as List
 import Data.Map.Strict as Map hiding (map, null)
 import Data.STRef
@@ -26,7 +27,8 @@ import Statix.Syntax
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 
-import ATerms.Syntax.ATerm
+import ATerms.Syntax.ATerm hiding (pretty)
+import qualified ATerms.Syntax.ATerm as ATerm
 
 import Unification
 import Unification.ST
@@ -43,7 +45,7 @@ deriving instance Foldable (SPath s)
 deriving instance Traversable (SPath s)
 
 -- | Some information about the source of variables
-type VarInfo = Text
+type VarInfo = String
 
 -- | Solver DAG in ST
 type STmRef s = Class s (STermF s) VarInfo
@@ -63,13 +65,23 @@ data STermF s c =
   | SPathEndF c
   | SPathConsF c c c deriving (Functor, Foldable, Traversable)
 
+pretty :: (c → String) → STermF s c → String
+pretty f (SNodeF n)         = "new " ++ (show n)
+pretty f (SLabelF (Lab l) t)= l ++ (prettyDatum t)
+  where
+    prettyDatum = maybe ("") (\t → "(" ++ f t ++ ")")
+pretty f (STmF t)           = ATerm.pretty f t
+pretty f (SAnsF _)          = "{...}"
+pretty f (SPathConsF n l p) =
+  "Edge(" ++ f n ++
+  ", "    ++ f l ++
+  ", "    ++ f p ++
+  ")"
+pretty f (SPathEndF n)      =
+  "End(" ++ f n ++ ")"
+
 instance (Show c) ⇒ Show (STermF s c) where
-  show (SNodeF n)         = "new " ++ show n
-  show (SLabelF l t)      = show l ++ "(" ++ show t ++ ")"
-  show (STmF t)           = show t
-  show (SAnsF _)          = "{...}"
-  show (SPathConsF n l p) = show n ++ " ▻ " ++ show l ++ " ▻ " ++ show p
-  show (SPathEndF n)      = show n ++ " ◅ "
+  show = pretty show
  
 pattern STm t           = Tm (STmF t)
 pattern SNode n         = Tm (SNodeF n)
@@ -126,7 +138,7 @@ instance Default (Frame s) where
 instance Default (Env s) where
   def = Env HM.empty [def]
 
-data Traceline = Call QName [String] | Within Text
+data Traceline = Call QName [String] | Within String
 data StatixError
   = Unsatisfiable [Traceline] String -- trace, reason
   | StuckError

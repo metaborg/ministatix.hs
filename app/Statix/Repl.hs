@@ -13,7 +13,6 @@ import Data.List
 import Data.HashMap.Strict as HM
 import Data.IntMap.Strict as IM
 import Data.Functor.Identity
-import Data.Text (Text, pack, unpack)
 import qualified Data.Text.IO as TIO
 import Text.Read hiding (lift, get, lex)
 
@@ -58,11 +57,11 @@ data REPLState = REPLState
 makeLenses ''REPLState
 
 -- | The module name for the current generation of the REPL
-self :: Getting Text REPLState Text
-self = gen . (to $ \g → "repl-" ++ show g) . to pack
+self :: Getting String REPLState String
+self = gen . (to $ \g → "repl-" ++ show g)
 
-main :: Getting Text REPLState Text
-main = gen . (to $ \g → "main" ++ show g) . to pack
+main :: Getting String REPLState String
+main = gen . (to $ \g → "main" ++ show g)
 
 runREPL :: SymbolTable → REPL a → IO a
 runREPL sym c = runInputT (defaultSettings { historyFile = Just ".statix" }) $ evalStateT c (REPLState sym 0 [] 0)
@@ -82,9 +81,22 @@ prompt = do
     Nothing  → prompt
     Just cmd → handleErrors (readEither cmd)
 
-printGraph :: IntGraph Label Text → IO ()
-printGraph (IntGraph sg) = forM_ (IM.elems sg) $ \(IntNode id es d) → do
-  putStr $ "∇ " ++ show id ++ " ─◾ " ++ unpack t
+printGraph :: IntGraph Label String → IO ()
+printGraph (IntGraph sg) =
+  forM_ (IM.elems sg) $ \(IntNode id es d) → do
+    putStr "∇ "
+      >> putStr (show id)
+      >> putStr " ─◾ " >> putStr d
+      >> putStr "\n"
+
+    forM_ es $ \(IntEdge l d n) → do
+      putStr "\t-[ "
+        >> putStr (show l)
+        >> printDatum d
+        >> putStr " ]-> " >> print n
+  where
+    printDatum = maybe (return ()) putStr
+
 
 printResult :: Result s → IO ()
 printResult (IsSatisfied φ sg) = do
@@ -92,10 +104,10 @@ printResult (IsSatisfied φ sg) = do
   putStrLn "⟨✓⟩ Satisfiable"
   setSGR [Reset]
   putStrLn "⟪ Unifier ⟫"
-  putStrLn (formatUnifier φ)
+  -- TODO putStrLn (formatUnifier φ)
   putStrLn ""
   putStrLn "⟪ Graph ⟫"
-  print sg
+  printGraph sg
   putStrLn ""
 printResult (IsUnsatisfiable e gr) = do
   setSGR [SetColor Foreground Vivid Red]
@@ -105,13 +117,13 @@ printResult (IsUnsatisfiable e gr) = do
   report e
   putStrLn ""
   putStrLn "⟪ Graph ⟫"
-  print gr
+  printGraph gr
   putStrLn ""
 printResult (IsStuck q) = do
   setSGR [SetColor Foreground Vivid Yellow]
   putStrLn "⟨×⟩ Stuck, with queue:"
   setSGR [Reset]
-  mapM_ (TIO.putStrLn) q
+  mapM_ putStrLn q
   putStrLn ""
 
 withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a
@@ -180,7 +192,7 @@ handler κ (Import file) = do
   here     ← liftIO getCurrentDirectory
   let path = here </> file
   content  ← liftIO $ readFile path
-  let modname = pack file
+  let modname = file
 
   symtab ← use globals
 
@@ -204,12 +216,12 @@ handler κ (Type pred) = do
 
   case (symtab !!!) <$> HM.lookup pred q of
     Just p  → liftIO $ putStrLn $
-      unpack pred
+      pred
         ++ " :: "
         ++ (intercalate " → "
-            (fmap (\(n,t) → "(" ++ unpack n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
+            (fmap (\(n,t) → "(" ++ n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
         ++ " → Constraint"
-    Nothing → liftIO $ putStrLn $ "No predicate named: " ++ unpack pred
+    Nothing → liftIO $ putStrLn $ "No predicate named: " ++ pred
 
   κ
 

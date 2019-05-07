@@ -2,7 +2,6 @@
 module Statix.Syntax.Parser (parseConstraint, parsePredicate, parseModule) where
 
 import Data.List
-import qualified Data.Text as Text
 import Data.Char
 import Data.Default
 import Data.Functor.Sum

@@ -1,6 +1,5 @@
 module Statix.Syntax.Types where
 
-import Data.Text (Text)
 import Data.Default
 
 import Control.Monad.Reader
@@ -12,7 +11,7 @@ import Statix.Syntax.Constraint
 import ATerms.Syntax.Types (remainder, input, ParseState)
 
 data Token
-  = TokName Text | TokConstructor Text
+  = TokName String | TokConstructor String
   | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
   | TokIn | TokAs | TokWhere
   | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT

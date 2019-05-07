@@ -70,7 +70,7 @@ data TyEnv n = TyEnv
   }
 
 instance Default (TyEnv n) where
-  def = TyEnv (pack "") HM.empty HM.empty [HM.empty]
+  def = TyEnv "" HM.empty HM.empty [HM.empty]
 
 makeLenses ''TyEnv
 

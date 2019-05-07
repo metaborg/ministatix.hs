@@ -1,8 +1,6 @@
 {
 module Statix.Syntax.Lexer (lexer, Token(..)) where
 
-import Data.Text (Text, pack)
-
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -82,10 +80,10 @@ plain :: Token → LexAction
 plain tok _ _ = return (Just tok)
 
 name :: LexAction
-name _ str = return (Just (TokName (pack str)))
+name _ str = return (Just (TokName str))
 
 constructor :: LexAction
-constructor _ str = return (Just (TokConstructor (pack str)))
+constructor _ str = return (Just (TokConstructor str))
 
 /* beginString :: LexAction */
 /* beginString _ _ = do */

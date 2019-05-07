@@ -10,7 +10,7 @@ import Data.Default
 import Codec.Binary.UTF8.String (encode)
 
 data AToken
-  = TokSymbol Text.Text | TokString Text.Text
+  = TokSymbol String | TokString String 
   | TokColon | TokComma | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB | TokQuote
   | TokEOF
   deriving Show

@@ -2,7 +2,6 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Solver.Terms where
 
-import Data.Text (Text, pack)
 import Data.Functor.Fixedpoint
 import Control.Monad.State
 import Control.Monad.Unique
@@ -13,7 +12,7 @@ import ATerms.Syntax.ATerm
 
 import Unification as U hiding (TTm)
 
-import Statix.Solver.Types
+import Statix.Solver.Types as Solver
 import Statix.Solver.Monad
 import Statix.Analysis.Lexical
 import Statix.Syntax as Syn
@@ -44,7 +43,7 @@ toDag (PathEnd x) = do
 
 -- | Convert a solver term to a tree of limited depth.
 -- When the maximum depth is reached, terms become wildcards.
-instantTerm :: Int → STmRef s → SolverM s Text
+instantTerm :: Int → STmRef s → SolverM s String
 instantTerm depth n
   | depth >= 1 = do
       t ← getSchema n
@@ -52,7 +51,7 @@ instantTerm depth n
         U.Var v → return v
         U.Tm tm → do
           tm ← mapM (instantTerm (depth - 1)) tm
-          return $ pack $ show tm
+          return $ Solver.pretty id tm
   | otherwise = return "_"
 
 instantVariable d x = do
@@ -60,12 +59,12 @@ instantVariable d x = do
   t ← lift $ instantTerm d t
   tell t
 
-instantConstraint :: Int → Constraint₁ → SolverM s Text
+instantConstraint :: Int → Constraint₁ → SolverM s String
 instantConstraint d c = execWriterT (insta d c)
   where
-    insta :: Int → Constraint₁ → WriterT Text (SolverM s) ()
+    insta :: Int → Constraint₁ → WriterT String (SolverM s) ()
     insta d (Fix c) = prettyF
-      (\qn → tell $ pack $ showQName qn)
+      (\qn → tell $ showQName qn)
       (instantVariable d)
       (\t → do
           t ← lift (toDag t)

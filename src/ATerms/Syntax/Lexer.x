@@ -1,7 +1,6 @@
 {
 module ATerms.Syntax.Lexer (lexer, AToken(..)) where
 
-import Data.Text (Text, pack)
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad
@@ -41,7 +40,7 @@ plain :: AToken → LexAction
 plain tok _ _ = return (Just tok)
 
 symbol :: LexAction
-symbol _ str = return (Just (TokSymbol (pack str)))
+symbol _ str = return (Just (TokSymbol str))
 
 beginString :: LexAction
 beginString _ _ = do
@@ -62,7 +61,7 @@ endString :: LexAction
 endString _ _ = do
   s ← gets stringBuf
   modify (\st → st { lexState = 0, stringBuf = "" })
-  return (Just (TokString (pack (reverse s)))) 
+  return (Just (TokString (reverse s))) 
 
 readToken :: ParserM AToken
 readToken = do

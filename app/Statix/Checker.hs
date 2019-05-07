@@ -8,7 +8,6 @@ import System.Console.Haskeline
 import System.Console.Haskeline.History
 import System.Exit
 
-import Data.Text (Text, pack)
 import Data.HashMap.Strict as HM
 import Data.Functor.Fixedpoint
 
@@ -48,7 +47,7 @@ main spec file = runREPL HM.empty $ do
   here     ← liftIO getCurrentDirectory
   let path = here </> spec
   content  ←  liftIO $ readFile path
-  let modname = pack spec
+  let modname = spec
 
   -- parse the module
   rawmod ← handleErrors $ StxParser.parseModule modname content
@@ -62,7 +61,7 @@ main spec file = runREPL HM.empty $ do
   aterm ← handleErrors $ AParser.parse doc
 
   -- solve the main - if it is defined
-  let main   = (modname, pack "main")
+  let main   = (modname, "main")
   let symtab = HM.singleton modname mod
   let wrapper = CApply main [fromATerm aterm]
 

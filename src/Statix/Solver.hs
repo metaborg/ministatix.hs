@@ -50,12 +50,12 @@ __trace__ = False
 tracer :: String → a → a
 tracer s a = if __trace__ then trace s a else a
 
-formatGoal :: Goal s → SolverM s Text
+formatGoal :: Goal s → SolverM s String
 formatGoal (env, c, _) = do
   local (const env) $ do
     instantConstraint 3 c
 
-formatQueue :: SolverM s [Text]
+formatQueue :: SolverM s [String]
 formatQueue = do
   q ← use queue
   mapM formatGoal (Fold.toList q)
@@ -86,7 +86,7 @@ unsatisfiable :: String → SolverM s a
 unsatisfiable msg = do
   trace ← getTrace
   trace ← mapM (\(qn, params) → do
-                   params ← mapM (fmap unpack . instantTerm 3) params
+                   params ← mapM (instantTerm 3) params
                    return $ Call qn params) trace
   throwError (Unsatisfiable trace msg)
 
@@ -416,13 +416,6 @@ unifier = do
   env ← view locals
   mapM toTree (binders $ head env)
 
-formatUnifier :: Unifier s → String
-formatUnifier fr =
-  let bs = fmap formatBinding (HM.toList fr)
-  in intercalate "\n" bs
-  where
-    formatBinding (k , t) = "  " ++ Text.unpack k ++ " ↦ " ++ (show t)
-
 -- | Constraint scheduler
 -- | The solver loop just continuously checks the work queue,
 -- steals an item and focuses it down, until nothing remains.
@@ -465,9 +458,9 @@ kick sym c =
         schedule
 
 data Result s
-  = IsSatisfied (Unifier s) (IntGraph Label (Maybe Text))
-  | IsUnsatisfiable StatixError (IntGraph Label (Maybe Text))
-  | IsStuck [Text]
+  = IsSatisfied (Unifier s) (IntGraph Label String)
+  | IsUnsatisfiable StatixError (IntGraph Label String)
+  | IsStuck [String]
 
 dumpgraph =  do
   gr ← use graph

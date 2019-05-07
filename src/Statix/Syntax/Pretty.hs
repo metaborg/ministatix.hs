@@ -2,7 +2,6 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Syntax.Pretty where
 
-import Data.Text (Text, pack)
 import Data.List
 
 import Control.Monad.State
@@ -12,11 +11,11 @@ import Statix.Syntax.Terms
 import Statix.Syntax.Typing
 import Statix.Syntax.Constraint
 
-prettyBranch :: forall t c m. (MonadWriter Text m) ⇒ (t → m ()) → (Maybe [Ident] → c → m ()) → Branch t c → m ()
+prettyBranch :: forall t c m. (MonadWriter String m) ⇒ (t → m ()) → (Maybe [Ident] → c → m ()) → Branch t c → m ()
 prettyBranch tm id (Branch mtch c) = do
   tell "_ -> _"
 
-prettyF :: forall p t l m c. (MonadWriter Text m) ⇒ (p → m ()) → (l → m ()) → (t → m ()) → (Maybe [Ident] → c → m ()) → ConstraintF p l t c → m ()
+prettyF :: forall p t l m c. (MonadWriter String m) ⇒ (p → m ()) → (l → m ()) → (t → m ()) → (Maybe [Ident] → c → m ()) → ConstraintF p l t c → m ()
 prettyF pr id tm constr c = prettyF_ c
   where
     prettyF_ :: ConstraintF p l t c → m ()
@@ -49,7 +48,7 @@ prettyF pr id tm constr c = prettyF_ c
     prettyF_ (CQueryF x r y)  = do
       tell "query " 
       id x
-      tell $ pack $ show r
+      tell $ show r
       tell " as "
       id y
     prettyF_ (COneF x t)      = do

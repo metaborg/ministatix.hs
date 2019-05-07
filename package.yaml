@@ -51,6 +51,9 @@ default-extensions:
 - DeriveTraversable
 - DeriveFunctor
 - DeriveFoldable
+- StandaloneDeriving
+- OverloadedStrings
+- ExtendedDefaultRules
 
 library:
   source-dirs: src

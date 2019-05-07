@@ -1,13 +1,12 @@
 module ATerms.Syntax.ATerm where
 
-import Data.Text (Text, unpack)
 import Data.List
 import Data.Functor.Fixedpoint
 
 import Unification
 
-data ATermF r = AFuncF Text [r]
-              | AStrF Text
+data ATermF r = AFuncF String [r]
+              | AStrF String
               | AConsF r r
               | ANilF
               | ATupleF [r]
@@ -37,10 +36,12 @@ instance Unifiable ATermF where
   -- symbol clashes
   zipMatch _ _                              = Nothing
 
-instance (Show r) ⇒ Show (ATermF r) where
+pretty :: (r → String) → ATermF r → String
+pretty f (AFuncF sym rs) = sym ++ "(" ++ intercalate "," (fmap f rs) ++ ")"
+pretty f (AStrF txt)     = "\"" ++ txt ++ "\""
+pretty f (AConsF r rs)   = f r ++ ":" ++ f rs
+pretty f ANilF           = "[]"
+pretty f (ATupleF ts)    = "(" ++ intercalate "," (fmap f ts) ++ ")"
 
-  show (AFuncF sym rs) = unpack sym ++ "(" ++ intercalate "," (fmap show rs) ++ ")"
-  show (AStrF txt)     = "\"" ++ unpack txt ++ "\""
-  show (AConsF r rs)   = show r ++ ":" ++ show rs
-  show ANilF           = "[]"
-  show (ATupleF ts)    = "(" ++ intercalate "," (fmap show ts) ++ ")"
+instance (Show r) ⇒ Show (ATermF r) where
+  show = pretty show

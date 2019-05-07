@@ -24,10 +24,10 @@ import ATerms.Syntax.ATerm
 import Unification
 
 type QName = (Ident, Ident)   -- qualified predicate names (module, raw)
-type ModPath   = Text
+type ModPath = String
 
 showQName :: QName → String
-showQName (mod, pred) = unpack mod ++ "." ++ unpack pred
+showQName (mod, pred) = mod ++ "." ++ pred
 
 ------------------------------------------------------------------
 -- | The constraint language
