@@ -121,53 +121,12 @@ reportImports mod = do
   putStrLn ""
   putStrLn $ "  ⟨✓⟩ Imported module "
   setSGR [Reset]
-  -- putStrLn $ showModuleContent mod
-  -- putStrLn ""
 
 importMod :: Ident → Module → REPL ()
 importMod i mod = do
   modify (over imports (i:))
   modify (over globals (HM.insert i mod))
 
--- importModule :: REPL a -> Ident -> REPL a
--- importModule κ modName = do
---   symtab <- use globals
-
---   let worklist = [modName]
-
---   -- add the identifier to the worklist
---   -- 1) pop an identifier from the worklist
---   -- if the identifier is in the REPLState _imports,
---   -- we assume it has been parsed, analayzed, and added to the symbol table,
---   -- and that this is also the case for the modules on which it depends (imports).
---   -- so then we skip this one.
---   -- otherwise:
---   -- 2) find and parse the module
---   -- 3) add it to the list of modules
---   -- 4) add its imports to the worklist
---   -- when the worklist is empty, we have a list of modules
---   -- 6) order the modules topologically
---   -- 7) for each module in the list:
---   -- 7a) analyze
---   -- 7b) add to symbol table (importMod)
---   -- the list of modules is now empty
-
-
---   -- parse the module
---   here     ← liftIO getCurrentDirectory
---   let modName = Text.pack path
---   let modPath = resolveModule here modName
---   r <- liftIO $ readModuleIO modName modPath
---   rawmod <- handleErrors $ r
-
---   -- Typecheck the module
---   mod ← withErrors $ analyze symtab rawmod
-
---   -- Import the typechecked module into the symboltable
---   importMod modName mod
-
---   -- rinse and repeat
---   κ
 
 handler :: REPL a → Cmd → REPL a
 handler κ (Main rawc) = do
@@ -211,32 +170,23 @@ handler κ (Define p) = do
   κ
 
 handler κ (Import path) = do
+    -- Gather the modules, then sort them topologically
     imps    <- use imports
     here    <- liftIO getCurrentDirectory
     rawmods <- (liftIO $ runExceptT $ gatherModules imps (addTrailingPathSeparator here) [Text.pack path]) >>= handleErrors
     let sortedmods = moduleTopSort rawmods
 
+    -- Typecheck and import the module into the symbol table
     symtab <- use globals
     mapM_ (analizeAndImport symtab) sortedmods
 
-    -- parse the module
-    -- here     ← liftIO getCurrentDirectory
-    -- let modName = Text.pack path
-    -- let modPath = resolveModule here modName
-    -- rawmod <- (liftIO $ runExceptT $ readModuleIO modName modPath) >>= handleErrors
-    -- r <- liftIO $ readModuleIO modName modPath
-    -- rawmod <- handleErrors $ r
-    -- Typecheck the module
-    -- mod ← withErrors $ analyze symtab rawmod
-
-    -- -- Import the typechecked module into the symboltable
-    -- importMod modName mod
-
-    -- rinse and repeat
+    -- Rinse and repeat
     κ
   where
     analizeAndImport symtab rawmod@(Mod name _ _) = do
+      -- Typecheck the module
       mod <- withErrors $ analyze symtab rawmod
+      -- Import the typechecked module into the symboltable
       importMod name mod
 
 handler κ (Type pred) = do
