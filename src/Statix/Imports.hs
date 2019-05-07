@@ -194,13 +194,13 @@ type IdentStack = [Ident]
 -- addImported :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
 -- addImported i = state $ \(imps, xs) -> ((), (i:imps, xs))
 
--- | Gathers the module with the specified identifier,
--- | and any modules it imports.
+-- | Gathers the modules with the specified identifiers,
+-- | and any modules they import.
 gatherModules :: [Ident]                        -- ^ Set of already imported modules
               -> FilePath                       -- ^ Base directory of the project
-              -> Ident                          -- ^ Identifier of the module to gather
+              -> [Ident]                        -- ^ Identifiers of the modules to gather
               -> ExceptT String IO [RawModule]  -- ^ Either an error or a set of gathered modules
-gatherModules imports p i = flip evalStateT (imports, [i]) $ step p
+gatherModules imports p ix = flip evalStateT (imports, ix) $ step p
   where
     step :: FilePath -> StateT ([Ident], IdentStack) (ExceptT String IO) [RawModule]
     step p = do

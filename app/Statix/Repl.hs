@@ -211,23 +211,33 @@ handler κ (Define p) = do
   κ
 
 handler κ (Import path) = do
-  symtab ← use globals
+    imps    <- use imports
+    here    <- liftIO getCurrentDirectory
+    rawmods <- (liftIO $ runExceptT $ gatherModules imps (addTrailingPathSeparator here) [Text.pack path]) >>= handleErrors
+    let sortedmods = moduleTopSort rawmods
 
-  -- parse the module
-  here     ← liftIO getCurrentDirectory
-  let modName = Text.pack path
-  let modPath = resolveModule here modName
-  rawmod <- (liftIO $ runExceptT $ readModuleIO modName modPath) >>= handleErrors
-  -- r <- liftIO $ readModuleIO modName modPath
-  -- rawmod <- handleErrors $ r
-  -- Typecheck the module
-  mod ← withErrors $ analyze symtab rawmod
+    symtab <- use globals
+    mapM_ (analizeAndImport symtab) sortedmods
 
-  -- Import the typechecked module into the symboltable
-  importMod modName mod
+    -- parse the module
+    -- here     ← liftIO getCurrentDirectory
+    -- let modName = Text.pack path
+    -- let modPath = resolveModule here modName
+    -- rawmod <- (liftIO $ runExceptT $ readModuleIO modName modPath) >>= handleErrors
+    -- r <- liftIO $ readModuleIO modName modPath
+    -- rawmod <- handleErrors $ r
+    -- Typecheck the module
+    -- mod ← withErrors $ analyze symtab rawmod
 
-  -- rinse and repeat
-  κ
+    -- -- Import the typechecked module into the symboltable
+    -- importMod modName mod
+
+    -- rinse and repeat
+    κ
+  where
+    analizeAndImport symtab rawmod@(Mod name _ _) = do
+      mod <- withErrors $ analyze symtab rawmod
+      importMod name mod
 
 handler κ (Type pred) = do
   imps   ← use imports
