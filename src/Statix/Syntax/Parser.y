@@ -89,6 +89,8 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
 %left '*'
 %left '~'
 
+%right colon
+
 %%
 
 Eq              : Term '=' Term                         { ($1, $3) }
@@ -107,12 +109,15 @@ Pattern         : Label						{ PatTm $ TLabelF $1 Nothing }
                 | constructor '(' Patterns ')'			{ funcPat $1 (reverse $3) }
                 | Pattern colon Pattern				{ consPat $1 $3 }
                 | '[' ']'					{ nilPat }
-                | '(' Patterns ')'				{ tuplePat (reverse $2) }
+                | '(' Pattern ',' PatternsPlus ')'	        { tuplePat ($2:(reverse $4)) }
 
                 | '_'						{ Wildcard }
 
 Patterns        :                                       { []  }
                 | Pattern                               { [$1] }
+                | Patterns ',' Pattern                  { $3 : $1 }
+
+PatternsPlus    : Pattern                               { [$1] }
                 | Patterns ',' Pattern                  { $3 : $1 }
 
 Matcher         : Pattern WhereClause                   { Surf.Matcher [] $1 $2 }
@@ -177,10 +182,14 @@ Term            : Label                                 { Label $1 Nothing }
                 | name                                  { Var $1 }
                 | Term colon Term                       { consTm $1 $3 }
                 | '[' ']'                               { nilTm }
-                | '(' Terms ')'                         { tupleTm (reverse $2) }
+                | '(' Term ',' TermsPlus ')'            { tupleTm ($2:(reverse $4)) }
+                | '(' Term ')'                          { $2 }
 
 Terms           :                                       { []  }
                 | Term                                  { [$1] }
+                | Terms ',' Term                        { $3 : $1 }
+
+TermsPlus       : Term                                  { [$1] }
                 | Terms ',' Term                        { $3 : $1 }
 
 Predicate       :
