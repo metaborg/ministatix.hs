@@ -3,7 +3,7 @@
 module Statix.Solver.Types where
 
 import Prelude hiding (lookup, null)
-import Data.Text as T
+import Data.Text (unpack)
 import Data.List as List
 import Data.Map.Strict as Map hiding (map, null)
 import Data.STRef
@@ -22,6 +22,7 @@ import Control.Monad.Trans
 
 import Statix.Regex
 import Statix.Graph
+import Statix.Graph.Paths as Paths
 import Statix.Graph.Types as Graph
 import Statix.Syntax
 import Statix.Analysis.Symboltable
@@ -71,7 +72,7 @@ pretty f (SLabelF (Lab l) t)= l ++ (prettyDatum t)
   where
     prettyDatum = maybe ("") (\t → "(" ++ f t ++ ")")
 pretty f (STmF t)           = ATerm.pretty f t
-pretty f (SAnsF _)          = "{...}"
+pretty f (SAnsF ans)        = "{" ++ intercalate ", " (fmap (prettyPath show show f) ans) ++ "}"
 pretty f (SPathConsF n l p) =
   "Edge(" ++ f n ++
   ", "    ++ f l ++
