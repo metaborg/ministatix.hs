@@ -27,6 +27,7 @@ import Statix.Analysis.Namer.Simple
 import Statix.Syntax.Parser (parseModule)
 import Statix.Syntax.Surface (desugarMod)
 
+import Debug.Trace
 
 -- | Loads a module, and any modules on which it depends.
 loadModule :: [FilePath]                              -- ^ The root paths against which imports are resolved.
@@ -56,7 +57,7 @@ loadModuleFromText rootpaths name content = do
   -- Gather the modules, then sort them topologically
   rawmod  <- liftEither $ desugarMod <$> parseModule name content
   imps    <- use imports
-  let resolver i = if (i == name) then return rawmod else readRawModule rootpaths name
+  let resolver i = if (i == name) then return rawmod else readRawModule rootpaths i
   allrawmods <- mapExceptT liftIO $ gatherModules imps resolver [name]
   let sortedrawmods = moduleTopSort allrawmods
   -- Typecheck and import the module into the symbol table
@@ -78,7 +79,8 @@ readRawModule :: [FilePath]                           -- ^ The root paths agains
               -> ExceptT String IO RawModule₀         -- ^ The loaded module.
 readRawModule rootpaths name = do
   path <- mapExceptT liftIO $ resolveModule rootpaths name
-  readRawModuleFromFile name path
+  rawmod <- readRawModuleFromFile name path
+  return rawmod
 
 
 -- | Reads a single raw module from the specified path.
@@ -106,8 +108,8 @@ resolveModule rootpaths name = do
   foundpaths <- liftIO $ filterM doesFileExist paths
   case foundpaths of
     [path] -> return path
-    []     -> throwError $ "Module " ++ name ++ " not found in root paths: " ++ (intercalate ", " rootpaths)
-    paths  -> throwError $ "Module " ++ name ++ " found in multiple places: " ++ (intercalate ", " paths)
+    []     -> throwError $ "Module " ++ name ++ " not found at: " ++ (intercalate ", " paths)
+    mpaths -> throwError $ "Module " ++ name ++ " found in multiple places: " ++ (intercalate ", " mpaths)
   where
     -- | Gets the absolute path of a module from its module name and root path.
     getModulePath :: FilePath                             -- ^ The root path.
@@ -119,8 +121,10 @@ resolveModule rootpaths name = do
         abspath = simplifyPath $ dropFileName basePath </> relpath
         buildModulePath p = fmap repl p ++ ".stx"
           where
-            repl '.' = '/'
-            repl x   = x
+            repl '/'  = '_'
+            repl '\\' = '_'
+            repl '.'  = '/'
+            repl x    = x
 
 
 -- | Simplifies a path by removing  "./" and "../"
@@ -158,15 +162,21 @@ gatherModules imports resolver ix = flip evalStateT (imports, ix) $ step resolve
       i <- pop
       (imps, _) <- get
       case i of
-        Just i  | i `elem` imps -> step resolver  -- Already imported, continue.
+        Just i  | i `elem` imps -> do
+          liftIO $ traceIO ("Already imported: " ++ show i)
+          step resolver  -- Already imported, continue.
         Just i -> do                              -- Not yet imported:
+          liftIO $ traceIO ("Not yet imported: " ++ show i)
           r <- lift $ resolver i
+          liftIO $ traceIO ("Resolver returned " ++ show i ++ ": " ++ show r)
           let (Mod _ imports _) = r
           addImported i
           pushAll imports
           rs <- step resolver
           return (r:rs)
-        Nothing -> return []                      -- We're done!
+        Nothing -> do
+          liftIO $ traceIO ("Done!")
+          return []                      -- We're done!
 
     push :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
     push a = state $ \(imps, xs) -> ((),(imps, a:xs))
