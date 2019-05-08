@@ -25,7 +25,7 @@
         `(
           (,x-builtins-regexp . font-lock-constant-face)
           (,x-keywords-regexp . font-lock-keyword-face)
-	  (,"=\\|->\\|\\-\\[\\|\\]->\\|:-\\||" . font-lock-keyword-face)
+	  (,"==\\|!=\\|->\\|\\-\\[\\|\\]->\\|:-\\||" . font-lock-keyword-face)
 	  (,"\\b\\([[:lower:]][-[:word:]]+\\)(" (1 font-lock-function-name-face))
 	  (,"\\b\\([[:upper:]][-[:word:]]+\\)(" (1 font-lock-type-face))
 	  (,"\`[[:word:]_*+]+" . font-lock-string-face)
