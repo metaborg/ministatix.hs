@@ -19,8 +19,6 @@ import Statix.Analysis.Symboltable
 import Statix.Syntax.Parser (parseModule)
 import Statix.Syntax.Surface (desugarMod)
 
-import Debug.Trace
-
 -- | Loads a module, and any modules on which it depends.
 loadModule :: [FilePath]                              -- ^ The root paths against which imports are resolved.
            -> Ident                                   -- ^ The name of the module.
@@ -155,20 +153,16 @@ gatherModules imports resolver ix = flip evalStateT (imports, ix) $ step resolve
       (imps, _) <- get
       case i of
         Just i  | i `elem` imps -> do
-          liftIO $ traceIO ("Already imported: " ++ show i)
           step resolver  -- Already imported, continue.
-        Just i -> do                              -- Not yet imported:
-          liftIO $ traceIO ("Not yet imported: " ++ show i)
+        Just i -> do     -- Not yet imported:
           r <- lift $ resolver i
-          liftIO $ traceIO ("Resolver returned " ++ show i ++ ": " ++ show r)
           let (Mod _ imports _) = r
           addImported i
           pushAll imports
           rs <- step resolver
           return (r:rs)
         Nothing -> do
-          liftIO $ traceIO ("Done!")
-          return []                      -- We're done!
+          return []      -- We're done!
 
     push :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
     push a = state $ \(imps, xs) -> ((),(imps, a:xs))
