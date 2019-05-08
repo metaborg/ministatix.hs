@@ -2,8 +2,6 @@
 
 module Statix.Repl.Command where
 
-import Text.Read hiding (lift, get, lex)
-
 import Data.Maybe
 import Data.Char
 import Data.Text hiding (all, span)

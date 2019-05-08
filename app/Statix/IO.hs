@@ -6,10 +6,7 @@ import qualified Data.Graph as G
 import Data.List (intercalate)
 
 import Control.Monad.State
-import Control.Monad.Reader
-import Control.Monad.Unique
 import Control.Monad.Except
-import Control.Monad.ST
 import Control.Lens
 
 import System.Directory (doesFileExist)
@@ -19,11 +16,6 @@ import Statix.Syntax
 import Statix.Repl.Types (REPL, imports, globals, importMod)
 import Statix.Analysis (analyze)
 import Statix.Analysis.Symboltable
-import Statix.Analysis.Types
-import Statix.Analysis.Typer
-import Statix.Analysis.Typer.ST
-import Statix.Analysis.Namer
-import Statix.Analysis.Namer.Simple
 import Statix.Syntax.Parser (parseModule)
 import Statix.Syntax.Surface (desugarMod)
 

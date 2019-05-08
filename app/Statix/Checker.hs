@@ -1,37 +1,23 @@
 module Statix.Checker where
 
-import System.IO hiding (liftIO)
-import System.Console.ANSI
 import System.Directory
 import System.FilePath
-import System.Console.Haskeline
-import System.Console.Haskeline.History
 import System.Exit
 
 import Data.HashMap.Strict as HM
-import Data.Functor.Fixedpoint
 
 import Control.Monad.Except
 import Control.Monad.ST.Unsafe
 
 import Statix.Syntax
-import Statix.Syntax.Surface
-import Statix.Syntax.Parser as StxParser
-import Statix.Analysis
 
 import Statix.Repl (runREPL, printResult)
 import Statix.Repl.Types (REPL)
 import Statix.Repl.Errors
 import Statix.Solver
-import Statix.Graph
 import Statix.IO
-import Statix.Solver.Monad
-import Statix.Solver.Types
 
-import ATerms.Syntax.Lexer as ALex
 import ATerms.Syntax.Parser as AParser
-
-import Debug.Trace
 
 handleErrors :: (ReplError e) ⇒ Either e a → REPL a
 handleErrors (Right a) = return a

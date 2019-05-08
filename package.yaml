@@ -70,6 +70,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -fwarn-tabs
+    - -fwarn-unused-imports
     - -fwarn-incomplete-patterns
     - -fwarn-incomplete-uni-patterns
     - -optP-Wno-nonportable-include-path
