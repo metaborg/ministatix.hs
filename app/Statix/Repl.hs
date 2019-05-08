@@ -41,22 +41,24 @@ import Statix.Analysis
 
 import Statix.Repl.Command
 import Statix.Repl.Errors
+import Statix.IO
 
 import Statix.Imports
+import Statix.ReplTypes
 
--- | The REPL Monad.
-type REPL =
-  ( StateT REPLState
-  ( InputT IO ))
+-- -- | The REPL Monad.
+-- type REPL =
+--   ( StateT REPLState
+--   ( InputT IO ))
 
-data REPLState = REPLState
-  { _globals :: SymbolTable
-  , _freshId :: Integer
-  , _imports :: [Ident]
-  , _gen     :: Integer
-  }
+-- data REPLState = REPLState
+--   { _globals   :: SymbolTable
+--   , _freshId   :: Integer
+--   , _imports   :: [Ident]
+--   , _gen       :: Integer
+--   }
 
-makeLenses ''REPLState
+-- makeLenses ''REPLState
 
 -- | The module name for the current generation of the REPL
 self :: Getting String REPLState String
@@ -68,13 +70,6 @@ main = gen . (to $ \g → "main" ++ show g)
 runREPL :: SymbolTable → REPL a → IO a
 runREPL sym c = runInputT (defaultSettings { historyFile = Just ".statix" }) $ evalStateT c (REPLState sym 0 [] 0)
 
-instance MonadUnique Integer REPL where
-  fresh = do
-    i ← use freshId
-    freshId %= (+1)
-    return i
-
-  updateSeed i = modify (set freshId i)
 
 prompt :: REPL Cmd
 prompt = do
@@ -146,11 +141,6 @@ reportImports mod = do
   putStrLn $ "⟨✓⟩ Imported module "
   setSGR [Reset]
 
-importMod :: Ident → Module → REPL ()
-importMod i mod = do
-  modify (over imports (i:))
-  modify (over globals (HM.insert i mod))
-
 
 handler :: REPL a → Cmd → REPL a
 handler κ (Main rawc) = do
@@ -189,25 +179,12 @@ handler κ (Define p) = do
   -- rinse and repeat
   κ
 
-handler κ (Import path) = do
-    -- Gather the modules, then sort them topologically
-    imps    <- use imports
-    here    <- liftIO getCurrentDirectory
-    rawmods <- (liftIO $ runExceptT $ gatherModules imps (addTrailingPathSeparator here) [path]) >>= handleErrors
-    let sortedmods = moduleTopSort rawmods
-
-    -- Typecheck and import the module into the symbol table
-    symtab <- use globals
-    mapM_ (analyzeAndImport symtab) sortedmods
-
-    -- Rinse and repeat
-    κ
-  where
-    analyzeAndImport symtab rawmod@(Mod name _ _) = do
-      -- Typecheck the module
-      mod <- withErrors $ analyze symtab rawmod
-      -- Import the typechecked module into the symboltable
-      importMod name mod
+handler κ (Import name) = do
+  -- Load the imported module
+  here    <- liftIO getCurrentDirectory
+  withErrors $ loadModule [addTrailingPathSeparator here] name
+  -- Rinse and repeat
+  κ
 
 handler κ (Type pred) = do
   imps   ← use imports

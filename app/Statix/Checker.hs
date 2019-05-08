@@ -19,7 +19,8 @@ import Statix.Syntax.Surface
 import Statix.Syntax.Parser as StxParser
 import Statix.Analysis
 
-import Statix.Repl (REPL, runREPL, printResult)
+import Statix.Repl (runREPL, printResult)
+import Statix.ReplTypes (REPL)
 import Statix.Repl.Errors
 import Statix.Solver
 import Statix.Graph
