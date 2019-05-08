@@ -51,6 +51,16 @@ checkTermF (TVarF x)      = do
 checkTerm :: (MonadNamer m) ⇒ Term₀ → m Term₁
 checkTerm = hmapM checkTermF
 
+checkGuard  :: MonadNamer m ⇒ Guard Term₀ → m (Guard Term₁)
+checkGuard (GEq lhs rhs) = do
+  lhs ← checkTerm lhs
+  rhs ← checkTerm rhs
+  return $ GEq lhs rhs
+checkGuard (GNotEq lhs rhs) = do
+  lhs ← checkTerm lhs
+  rhs ← checkTerm rhs
+  return $ GNotEq lhs rhs
+
 checkMatch  :: MonadNamer m ⇒ Matcher Term₀ → m a → m (Matcher Term₁, a)
 checkMatch (Matcher _ g eqs) ma = do
   -- first extract free variables from g
@@ -60,10 +70,7 @@ checkMatch (Matcher _ g eqs) ma = do
   enters () ns $ do
     g ← checkTerm g
     a ← ma
-    eqs ← forM eqs $ \(lhs, rhs) → do
-      lhs ← checkTerm lhs
-      rhs ← checkTerm rhs
-      return (lhs, rhs)
+    eqs ← forM eqs checkGuard
     return (Matcher ns g eqs, a)
 
 checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
@@ -82,6 +89,10 @@ checkConstraint (CEq t₁ t₂) = do
   t₃ ← checkTerm t₁ 
   t₄ ← checkTerm t₂
   return (CEq t₃ t₄)
+checkConstraint (CNotEq t₁ t₂) = do
+  t₃ ← checkTerm t₁ 
+  t₄ ← checkTerm t₂
+  return (CNotEq t₃ t₄)
 checkConstraint (CAnd c d) = do
   cc ← checkConstraint c
   cd ← checkConstraint d
@@ -111,6 +122,9 @@ checkConstraint (COne x t) = do
   p  ← resolve x
   ct ← checkTerm t
   return (COne p ct)
+checkConstraint (CNonEmpty x) = do
+  p  ← resolve x
+  return (CNonEmpty p)
 checkConstraint (CEvery x br) = do
   p ← resolve x
   br ← checkBranch br

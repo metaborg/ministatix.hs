@@ -32,12 +32,18 @@ showQName (mod, pred) = mod ++ "." ++ pred
 ------------------------------------------------------------------
 -- | The constraint language
 
-data Matcher t    = Matcher [Ident] t [(t , t)]
+data Guard t = GEq t t | GNotEq t t
   deriving (Functor, Foldable, Traversable, Show)
+
+data Matcher t    = Matcher [Ident] t [Guard t]
+  deriving (Functor, Foldable, Traversable, Show)
+
 data Branch t c   = Branch (Matcher t) c
   deriving (Functor, Foldable, Traversable, Show)
+
 data PathComp     = Lex [(Label,Label)]
   deriving (Show)
+
 data PathFilter t = MatchDatum (Matcher t)
   deriving (Functor, Foldable, Traversable, Show)
 
@@ -46,12 +52,14 @@ data ConstraintF p ℓ t r
   | CFalseF
   | CAndF r r
   | CEqF t t
+  | CNotEqF t t
   | CExF [Ident] r
   | CNewF ℓ t
   | CDataF ℓ t
   | CEdgeF ℓ t ℓ
   | CQueryF ℓ (Regex Label) ℓ
   | COneF ℓ t
+  | CNonEmptyF ℓ
   | CEveryF ℓ (Branch t r)
   | CMinF ℓ PathComp ℓ
   | CFilterF ℓ (PathFilter t) ℓ
@@ -63,12 +71,14 @@ pattern CTrue         = Fix CTrueF
 pattern CFalse        = Fix CFalseF
 pattern CAnd l r      = Fix (CAndF l r)
 pattern CEq l r       = Fix (CEqF l r)
+pattern CNotEq l r    = Fix (CNotEqF l r)
 pattern CEx ns c      = Fix (CExF ns c)
 pattern CNew t t'     = Fix (CNewF t t')
 pattern CData x t     = Fix (CDataF x t)
 pattern CEdge n l m   = Fix (CEdgeF n l m)
 pattern CQuery t re x = Fix (CQueryF t re x)
 pattern COne x t      = Fix (COneF x t)
+pattern CNonEmpty x   = Fix (CNonEmptyF x)
 pattern CEvery x b    = Fix (CEveryF x b)
 pattern CMin x p t    = Fix (CMinF x p t)
 pattern CFilter x p t = Fix (CFilterF x p t)
@@ -80,7 +90,8 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show CTrueF          = "⊤"
   show CFalseF         = "⊥"
   show (CAndF c₁ c₂)   = show c₁ ++ ", " ++ show c₂
-  show (CEqF t₁ t₂)    = show t₁ ++ " = " ++ show t₂
+  show (CEqF t₁ t₂)    = show t₁ ++ " == " ++ show t₂
+  show (CNotEqF t₁ t₂) = show t₁ ++ " != " ++ show t₂
   show (CExF ns c)     = "{ " ++ intercalate ", " (fmap show ns) ++ "} " ++ show c
   show (CNewF t t')    = "new " ++ show t ++ " -> " ++ show t'
   show (CDataF l t)    = show l ++ " ↦ " ++ show t
@@ -89,9 +100,10 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (CMatchF t bs)  = show t ++ " match " ++ (List.concatMap show bs)
   show (CQueryF t r s) = "query " ++ show t ++ " " ++ show r ++ " as " ++ show s
   show (COneF x t)     = "only(" ++ show x ++ "," ++ show t ++ ")"
+  show (CNonEmptyF x)  = "inhabited(" ++ show x ++ ")"
   show (CEveryF y br)  = "every " ++ show y ++ "(" ++ show br ++ ")"
   show (CMinF x e v)   = "min " ++ show x ++ " " ++ show e ++ " " ++ show v
-  show (CFilterF x e v) = "filter " ++ show x ++ " " ++ show e ++ " " ++ show v
+  show (CFilterF x e v)= "filter " ++ show x ++ " " ++ show e ++ " " ++ show v
 
 type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
 
@@ -102,6 +114,7 @@ tmapc f = cata (tmapc_ f)
     tmapc_ f (CTrueF)         = CTrue
     tmapc_ f (CFalseF)        = CFalse
     tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
+    tmapc_ f (CNotEqF t₁ t₂)  = CNotEq (f t₁) (f t₂)
     tmapc_ f (CNewF n t)      = CNew n (f t)
     tmapc_ f (CDataF l t)     = CData l (f t)
     tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ (f l) n₂
@@ -109,6 +122,7 @@ tmapc f = cata (tmapc_ f)
     tmapc_ f (CExF ns c)      = CEx ns c
     tmapc_ f (CQueryF x r y)  = CQuery x r y
     tmapc_ f (COneF x t)      = COne x (f t)
+    tmapc_ f (CNonEmptyF x)   = CNonEmpty x
     tmapc_ f (CEveryF x (Branch m c)) = CEvery x (Branch (fmap f m) c)
     tmapc_ f (CMinF x p t)    = CMin x p t
     tmapc_ f (CFilterF x p t) = CFilter x (fmap f p) t
@@ -126,6 +140,7 @@ tsequencec = cata tsequencec_
     tsequencec_ (CTrueF)         = pure CTrue
     tsequencec_ (CFalseF)        = pure CFalse
     tsequencec_ (CEqF t₁ t₂)     = liftA2 CEq t₁ t₂
+    tsequencec_ (CNotEqF t₁ t₂)  = liftA2 CNotEq t₁ t₂
     tsequencec_ (CNewF n t)      = pure (CNew n) <*> t
     tsequencec_ (CDataF l t)     = pure (CData l) <*> t
     tsequencec_ (CEdgeF n₁ l n₂) = pure (\t → CEdge n₁ t n₂) <*> l
@@ -133,6 +148,7 @@ tsequencec = cata tsequencec_
     tsequencec_ (CExF ns c)      = pure (CEx ns) <*> c
     tsequencec_ (CQueryF x r y)  = pure (CQuery x r y)
     tsequencec_ (COneF x t)      = pure (COne x) <*> t
+    tsequencec_ (CNonEmptyF x)   = pure (CNonEmpty x)
     tsequencec_ (CEveryF x b)    = pure (CEvery x) <*> (tseqb b)
     tsequencec_ (CMinF x p t)    = pure (CMin x p t)
     tsequencec_ (CFilterF x p t) = pure (\p → CFilter x p t) <*> sequenceA p

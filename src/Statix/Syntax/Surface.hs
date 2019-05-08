@@ -30,7 +30,7 @@ nilPat       = PatTm (TTmF ANilF)
 tuplePat ts  = PatTm (TTmF (ATupleF ts))
 unitPat      = PatTm (TTmF (ATupleF []))
 
-data Matcher    = Matcher [Ident] Pattern [(Term₀ , Term₀)] deriving (Show)
+data Matcher    = Matcher [Ident] Pattern [Guard Term₀] deriving (Show)
 data Branch c   = Branch Matcher c deriving (Functor, Foldable, Traversable, Show)
 data PathFilter = MatchDatum Matcher
 

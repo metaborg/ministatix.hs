@@ -12,9 +12,9 @@ import ATerms.Syntax.Types (remainder, input, ParseState)
 
 data Token
   = TokName String | TokConstructor String
-  | TokFalse | TokTrue | TokEq | TokNew | TokQuery | TokMatch
+  | TokFalse | TokTrue | TokEq | TokNotEq | TokNew | TokQuery | TokMatch
   | TokIn | TokAs | TokWhere
-  | TokOne | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
+  | TokOne | TokNonEmpty | TokEvery | TokMin | TokFilter | TokEdge | TokEnd | TokPathLT
   | TokEpsilon | TokRegexQuote | TokStar | TokPlus | TokTick | TokColon | TokPeriod
   | TokUnderscore | TokComma | TokOpenBr | TokCloseBr | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB
   | TokOpenArr | TokCloseArr | TokQuote | TokLeftArrow | TokRightArrow | TokBar | TokAmp | TokTilde | TokQuestionmark

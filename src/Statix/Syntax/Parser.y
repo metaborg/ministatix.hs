@@ -39,8 +39,9 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
   modpath       { TokModpath $$ }
   true          { TokTrue }
   false         { TokFalse }
+  eq            { TokEq }
+  ineq          { TokNotEq }
   ','           { TokComma }
-  '='           { TokEq }
   '{'           { TokOpenBr }
   '}'           { TokCloseBr }
   '('           { TokOpenB }
@@ -68,6 +69,7 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
   quote         { TokQuote }
   one           { TokOne }
   every         { TokEvery }
+  nempty        { TokNonEmpty }
   min           { TokMin }
   filter        { TokFilter }
   leftarrow     { TokLeftArrow }
@@ -93,12 +95,13 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
 
 %%
 
-Eq              : Term '=' Term                         { ($1, $3) }
-Eqs             :                                       { [] }
-                | Eq                                    { [ $1 ] }
-                | Eqs ',' Eq                            { $3 : $1 }
-WhereClause     :                                       { [] }
-                | where Eqs                             { $2 }
+Guard           : Term eq Term                                  { GEq $1 $3 }
+                | Term ineq Term                                { GNotEq $1 $3 } 
+Guards          :                                               { [] }
+                | Guard                                         { [ $1 ] }
+                | Guards ',' Guard                              { $3 : $1 }
+WhereClause     :                                               { [] }
+                | where Guards                                  { $2 }
 
 Pattern         : Label						{ PatTm $ TLabelF $1 Nothing }
                 | Label '(' Pattern ')'				{ PatTm $ TLabelF $1 (Just $3) }
@@ -137,7 +140,8 @@ PathComp        : lexico '(' LabelLTs ')'               { Lex $3 }
 
 Constraint      : '{' Names '}' Constraint              { core $ CExF (reverse $2) $4 }
                 | Constraint ',' Constraint             { core $ CAndF $1 $3 }
-                | Term '=' Term                         { core $ CEqF $1 $3 }
+                | Term eq Term                          { core $ CEqF $1 $3 }
+                | Term ineq Term                        { core $ CNotEqF $1 $3 }
                 | true                                  { core $ CTrueF }
                 | false                                 { core $ CFalseF }
                 | new name rightarrow Term              { core $ CNewF $2 $4 }
@@ -146,6 +150,7 @@ Constraint      : '{' Names '}' Constraint              { core $ CExF (reverse $
                 | name arrL Term arrR name              { core $ CEdgeF $1 $3 $5 }
                 | query name Regex as name              { core $ CQueryF $2 $3 $5 }
                 | one  '(' name ',' Term ')'            { core $ COneF $3 $5 }
+                | nempty '(' name  ')'                  { core $ CNonEmptyF $3 }
                 | min name PathComp name                { core $ CMinF $2 $3 $4 }
                 | name '(' Terms ')'                    { core $ CApplyF $1 (reverse $3) }
 

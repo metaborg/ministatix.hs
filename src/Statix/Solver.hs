@@ -202,6 +202,19 @@ queryGuard ce = do
   cs ← use queue
   Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c) cs
 
+passesGuard :: Guard Term₁ → SolverM s ()
+passesGuard (GEq lhs rhs) = do
+  lhs ← toDag lhs
+  rhs ← toDag rhs
+  void $ lhs `equiv` rhs
+passesGuard (GNotEq lhs rhs) = do
+  lhs ← toDag lhs
+  rhs ← toDag rhs
+
+  -- invert equiv
+  neq ← notequiv lhs rhs
+  if neq then next else unsatisfiable "Terms are not not equal"
+
 matches :: STmRef s → Matcher Term₁ → SolverM s a → SolverM s a
 matches t (Matcher ns g eqs) ma = 
   tracer ("branch: " ++ show g) $ openExist ns $ do
@@ -209,11 +222,7 @@ matches t (Matcher ns g eqs) ma =
     g `subsumes` t -- check if we have a match, will throw otherwise
 
     -- check the equalities
-    forM eqs $ \(lhs, rhs) → do
-      lhs ← toDag lhs
-      rhs ← toDag rhs
-      lhs `equiv` rhs
-
+    forM eqs passesGuard
     ma
 
 unifiesOrUnsatisfiable :: STmRef s → STmRef s → SolverM s ()
@@ -235,6 +244,10 @@ solveFocus (CEq t1 t2) = do
   t1' ← toDag t1
   t2' ← toDag t2
   unifiesOrUnsatisfiable t1' t2'
+  next
+
+solveFocus (CNotEq t1 t2) = do
+  passesGuard (GNotEq t1 t2)
   next
 
 solveFocus (CAnd l r) = do
@@ -305,6 +318,14 @@ solveFocus c@(COne x t) = do
       unsatisfiable "More than one path in answer set"
     t →
       throwError TypeError
+
+solveFocus c@(CNonEmpty x) = do
+  ans ← resolve x >>= getSchema
+  case ans of
+    (U.Var x)      → throwError StuckError
+    (SAns [])      → unsatisfiable "No paths in answer set"
+    (SAns (p : _)) → next
+    t              → throwError TypeError
 
 solveFocus (CData x t) = do
   x ← resolve x >>= getSchema

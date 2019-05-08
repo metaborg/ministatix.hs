@@ -25,6 +25,10 @@ prettyF pr id tm constr c = prettyF_ c
       tm t₁
       tell " == "
       tm t₂
+    prettyF_ (CNotEqF t₁ t₂)     = do
+      tm t₁
+      tell " != "
+      tm t₂
     prettyF_ (CNewF n t)      = do
       tell "new "
       id n
@@ -53,6 +57,8 @@ prettyF pr id tm constr c = prettyF_ c
       id y
     prettyF_ (COneF x t)      = do
       tell "single(" >> id x >> tell ", " >> tm t >> tell ")"
+    prettyF_ (CNonEmptyF x)   = do
+      tell "inhabited(" >> id x >> tell ")"
     prettyF_ (CEveryF x b)    = do
       tell "every " >> id x >> tell "(" >> prettyBranch tm constr b >> tell ")"
     prettyF_ (CMinF x p t)    = do
