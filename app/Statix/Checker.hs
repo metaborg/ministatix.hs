@@ -20,10 +20,11 @@ import Statix.Syntax.Parser as StxParser
 import Statix.Analysis
 
 import Statix.Repl (runREPL, printResult)
-import Statix.ReplTypes (REPL)
+import Statix.Repl.Types (REPL)
 import Statix.Repl.Errors
 import Statix.Solver
 import Statix.Graph
+import Statix.IO
 import Statix.Solver.Monad
 import Statix.Solver.Types
 
@@ -44,30 +45,25 @@ withErrors c = do
   handleErrors err
 
 main :: String → String → IO ()
-main spec file = runREPL HM.empty $ do
-  here     ← liftIO getCurrentDirectory
-  let path = here </> spec
-  content  ←  liftIO $ readFile path
-  let modname = spec
+main specfile file = runREPL HM.empty $ do
+  here'  <- liftIO getCurrentDirectory
+  let here = addTrailingPathSeparator here'
 
-  -- parse the module
-  rawmod ← handleErrors $ StxParser.parseModule modname content
-  let rawmod' = desugarMod rawmod
-
-  -- Typecheck the module
-  mod ← withErrors $ analyze HM.empty rawmod'
+  -- Parse and typecheck the specification module
+  let modname = specfile
+  mod   <- withErrors $ loadModuleFromFile [here] modname specfile
 
   -- Parse the aterm file
   doc   ← liftIO $ readFile (here </> file)
   aterm ← handleErrors $ AParser.parse doc
 
-  -- solve the main - if it is defined
+  -- Solve the main - if it is defined
   let main   = (modname, "main")
   let symtab = HM.singleton modname mod
   let wrapper = CApply main [fromATerm aterm]
 
   case HM.lookup (snd main) mod of
-    Nothing → handleErrors $ Left $ "Missing main in module " ++ spec
+    Nothing → handleErrors $ Left $ "Missing main in module " ++ modname
     Just p  → do
       result ← liftIO $ unsafeSTToIO $ solve symtab wrapper
       liftIO $ printResult result

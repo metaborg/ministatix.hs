@@ -1,4 +1,4 @@
-module Statix.ReplTypes where
+module Statix.Repl.Types where
 
 import System.Console.ANSI
 import System.Directory

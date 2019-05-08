@@ -44,21 +44,8 @@ import Statix.Repl.Errors
 import Statix.IO
 
 import Statix.Imports
-import Statix.ReplTypes
+import Statix.Repl.Types
 
--- -- | The REPL Monad.
--- type REPL =
---   ( StateT REPLState
---   ( InputT IO ))
-
--- data REPLState = REPLState
---   { _globals   :: SymbolTable
---   , _freshId   :: Integer
---   , _imports   :: [Ident]
---   , _gen       :: Integer
---   }
-
--- makeLenses ''REPLState
 
 -- | The module name for the current generation of the REPL
 self :: Getting String REPLState String

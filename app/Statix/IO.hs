@@ -16,7 +16,7 @@ import System.Directory (doesFileExist)
 import System.FilePath
 
 import Statix.Syntax
-import Statix.ReplTypes (REPL, imports, globals, importMod)
+import Statix.Repl.Types (REPL, imports, globals, importMod)
 import Statix.Analysis (analyze)
 import Statix.Analysis.Symboltable
 import Statix.Analysis.Types
