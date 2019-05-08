@@ -15,7 +15,7 @@
              ;; define several category of keywords
              (x-keywords '("import" "match" "true" "false"
 			   "in" "as" "query" "new" "using" "where" ))
-             (x-builtins '("edge" "end" "only" "every" "min" "filter" "lexico"))
+             (x-builtins '("edge" "end" "only" "inhabited" "every" "min" "filter" "lexico"))
 
              ;; generate regex string for each category of keywords
              (x-keywords-regexp (regexp-opt x-keywords 'words))
@@ -25,7 +25,7 @@
         `(
           (,x-builtins-regexp . font-lock-constant-face)
           (,x-keywords-regexp . font-lock-keyword-face)
-	  (,"=\\|->\\|\\-\\[\\|\\]->\\|:-\\||" . font-lock-keyword-face)
+	  (,"==\\|!=\\|->\\|\\-\\[\\|\\]->\\|:-\\||" . font-lock-keyword-face)
 	  (,"\\b\\([[:lower:]][-[:word:]]+\\)(" (1 font-lock-function-name-face))
 	  (,"\\b\\([[:upper:]][-[:word:]]+\\)(" (1 font-lock-type-face))
 	  (,"\`[[:word:]_*+]+" . font-lock-string-face)

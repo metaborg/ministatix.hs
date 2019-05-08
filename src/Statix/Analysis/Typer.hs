@@ -134,6 +134,8 @@ typeAnalysis (CAnd c d) = do
   typeAnalysis d
 typeAnalysis (CEq t s) =
   return ()
+typeAnalysis (CNotEq t s) =
+  return ()
 typeAnalysis (CEdge n e m)
   | Label l t ← e = do
       n  ← resolve n
@@ -164,6 +166,10 @@ typeAnalysis (CEvery x br) = do
   unify x x'
   typeBranch br 
 typeAnalysis (COne x t) = do
+  x  ← resolve x
+  x' ← construct (Tm (Const TAns))
+  unify x x'
+typeAnalysis (CNonEmpty x) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   unify x x'

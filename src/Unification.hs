@@ -2,7 +2,6 @@
 -- (Implementation informed by wrengr/unification-fd)
 module Unification where
 
-import Data.Text
 import Data.Hashable
 import Data.Either
 import Data.Default
@@ -165,6 +164,27 @@ equiv s t = do
               union s t
               modifyDesc s (\_ → Rep (Tm σ) i) 
               return s
+
+notequiv :: (HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m Bool
+notequiv s t = do
+  (Rep st _, s) ← repr s
+  (Rep tt i, t) ← repr t
+
+  if (s == t)
+    then return False
+    else do
+      case (st, tt) of
+        (Var x, Var y) → do
+          throwError $ doesNotSubsume
+        (Var _, Tm tm) → do
+          throwError $ doesNotSubsume
+        (Tm tm, Var _) → do
+          throwError $ doesNotSubsume
+        (Tm tm₁, Tm tm₂) →
+          case zipMatch tm₁ tm₂ of
+            Nothing → return True
+            Just tm₃ → do
+              any id <$> mapM (uncurry notequiv) tm₃
 
 data VisitState = Visitor
   { visited :: HashSet Integer

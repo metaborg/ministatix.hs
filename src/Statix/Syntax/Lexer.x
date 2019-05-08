@@ -39,6 +39,7 @@ tokens :-
   <0> query                         { plain TokQuery }
   <0> only                          { plain TokOne }
   <0> every                         { plain TokEvery }
+  <0> inhabited                     { plain TokNonEmpty }
   <0> min                           { plain TokMin }
   <0> filter                        { plain TokFilter }
   <0> match                         { plain TokMatch }
@@ -73,7 +74,8 @@ tokens :-
   <0> \[                            { plain TokOpenSB }
   <0> \]                            { plain TokCloseSB }
   <0> \'                            { plain TokQuote }
-  <0> \=                            { plain TokEq }
+  <0> \=\=                          { plain TokEq }
+  <0> \!\=                          { plain TokNotEq }
   <0> [`]                           { plain TokTick }
   <0> [\*]                          { plain TokStar }
   <0> [\+]                          { plain TokPlus }
