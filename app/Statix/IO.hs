@@ -109,7 +109,7 @@ resolveModule rootpaths name = do
       where
         relpath = buildModulePath $ name
         abspath = simplifyPath $ dropFileName basePath </> relpath
-        buildModulePath p = fmap repl p ++ ".stx"
+        buildModulePath p = fmap repl p ++ ".mstx"
           where
             repl '/'  = '_'
             repl '\\' = '_'

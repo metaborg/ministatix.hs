@@ -28,6 +28,7 @@ dependencies:
 - haskeline
 - lens
 - utf8-string
+- optparse-applicative
 
 build-tools:
 - alex

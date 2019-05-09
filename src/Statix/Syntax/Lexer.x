@@ -107,14 +107,14 @@ qname _ str = return (Just (TokQName str))
 importing :: LexAction
 importing _ str = do
   modify (\st → st { lexState = 0 })
-  return $ trace ("Importing " ++ str) (Just (TokImports str))
+  return $ Just (TokImports str)
 
 constructor :: LexAction
 constructor _ str = return (Just (TokConstructor str))
 
 beginImport :: LexAction
 beginImport _ _ = do
-  modify (\st → st { lexState = trace "BEGIN" imports })
+  modify (\st → st { lexState = imports })
   return Nothing
 
 beginNormal :: LexAction
