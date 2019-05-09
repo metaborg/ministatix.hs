@@ -86,31 +86,31 @@ runMod o m = do
 corespec :: Spec
 corespec = do
   describe "equality" $ do
-    run True  "{x} x = x"
-    run True  "{x, y} x = y"
-    run True  "{x} F(x) = F(x)"
-    run True  "{x, y} F(x) = y"
-    run True  "{x, y} F(x) = F(G(y))"
+    run True  "{x} x == x"
+    run True  "{x, y} x == y"
+    run True  "{x} F(x) == F(x)"
+    run True  "{x, y} F(x) == y"
+    run True  "{x, y} F(x) == F(G(y))"
 
     describe "occurs check" $ do
-      run False "{x} F(x) = x"
-      run False "{x} F(x) = G(x)"
-      run False "{x, y} F(x) = G(y)"
-      run False "{x, y} F(x) = F(G(x))"
-      run False "{x, y} F(x) = G(F(x))"
+      run False "{x} F(x) == x"
+      run False "{x} F(x) == G(x)"
+      run False "{x, y} F(x) == G(y)"
+      run False "{x, y} F(x) == F(G(x))"
+      run False "{x, y} F(x) == G(F(x))"
 
     describe "n-ary" $ do
-      run False "{x, y} F(x) = F(x, y)"
-      run True  "{x, y} F(x, y) = F(y, x)"
-      run False "{x, y} F(x, y) = F(y, x), x = F(y)"
-      run False "{x, y} F(x, y) = G(x, y)"
+      run False "{x, y} F(x) == F(x, y)"
+      run True  "{x, y} F(x, y) == F(y, x)"
+      run False "{x, y} F(x, y) == F(y, x), x == F(y)"
+      run False "{x, y} F(x, y) == G(x, y)"
   
     describe "transitive" $ do
-      run True "{x, y} F() = x, x = y, y = F()"
-      run False "{x, y} F() = x, x = y, y = G()"
-      run False "{x, y} F(y) = x, x = y"
-      run False "{x, y, z} F(x) = z, x = y, y = z"
-      run True  "{x, y, z} F(x) = z, x = y, F(y) = z"
+      run True "{x, y} F() == x, x == y, y == F()"
+      run False "{x, y} F() == x, x == y, y == G()"
+      run False "{x, y} F(y) == x, x == y"
+      run False "{x, y, z} F(x) == z, x == y, y == z"
+      run True  "{x, y, z} F(x) == z, x == y, F(y) == z"
 
   describe "stuckness detection" $ do
     run False "{x, z} query x `P as z"
@@ -181,7 +181,7 @@ queryspec = describe "query" $ do
 
     run True $ unlines
       [ "{x,y,z} new x, new y -> F(), new z -> G(), x -[ `A ]-> y, x -[ `A ]-> z"
-      , ", {ans, ps, p} query x `A as ans, filter ans (d where d = F()) ps, only(ps, p)"
+      , ", {ans, ps, p} query x `A as ans, filter ans (d where d == F()) ps, only(ps, p)"
       ]
 
   describe "lists" $ do

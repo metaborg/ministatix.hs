@@ -100,6 +100,7 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
 Guard           : Term eq Term                                  { GEq $1 $3 }
                 | Term ineq Term                                { GNotEq $1 $3 }
 WhereClause     :                                               { [] }
+
                 | where sep(Guard, ',')                         { $2 }
 
 Pattern         : Label                                         { PatTm $ TLabelF $1 Nothing }
@@ -114,6 +115,7 @@ Pattern         : Label                                         { PatTm $ TLabel
                 | '(' Pattern ',' PatternsPlus ')'              { tuplePat ($2:$4) }
 
                 | '_'                                           { Wildcard }
+                | '(' Pattern ')'                               { $2 }
 
 Patterns        : sep(Pattern, ',')                             { $1 }
 PatternsPlus    : sep1(Pattern, ',')                            { $1 }
@@ -128,7 +130,6 @@ Lambda          : '(' Branch ')'                                { $2 }
 LabelLT         : Label '<' Label                               { ($1, $3) }
 LabelLTs        : sep(LabelLT, ',')                             { $1 }
 PathComp        : lexico '(' LabelLTs ')'                       { Lex $3 }
-
 Constraint      : '{' Names '}' Constraint                      { core $ CExF $2 $4 }
                 | Constraint ',' Constraint                     { core $ CAndF $1 $3 }
                 | Term eq Term                                  { core $ CEqF $1 $3 }

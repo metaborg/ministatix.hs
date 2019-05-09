@@ -22,10 +22,14 @@ target :: Path n l t → n
 target (End n)   = n
 target (Via _ p) = target p
 
-instance (Show n, Show l, Show t) ⇒ Show (Path n l t) where
+prettyPath :: (n → String) → (l → String) → (t → String) → Path n l t → String
+prettyPath n l t (End no) = n no
+prettyPath n l t (Via (no, la, tm) p) =
+  let prettyDatum = maybe "" (\tm → "(" ++ t tm ++ ")") in
+    n no ++ " -[ " ++ l la ++ prettyDatum tm ++ " ]-> " ++ prettyPath n l t p
 
-  show (End n) = show n
-  show (Via (n,l,t) p) = show n ++ " ─⟨ " ++ show l ++ "(" ++ show t ++ ") ⟩⟶ " ++ show p
+instance (Show n, Show l, Show t) ⇒ Show (Path n l t) where
+  show = prettyPath show show show
 
 pathLT :: Rel a a → Rel [a] [a]
 pathLT lt (a:as) (b:bs) =

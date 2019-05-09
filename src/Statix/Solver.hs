@@ -213,7 +213,9 @@ passesGuard (GNotEq lhs rhs) = do
 
   -- invert equiv
   neq ← notequiv lhs rhs
-  if neq then next else unsatisfiable "Terms are not not equal"
+  if neq
+    then next
+    else throwError $ UnificationError "Terms are not not equal"
 
 matches :: STmRef s → Matcher Term₁ → SolverM s a → SolverM s a
 matches t (Matcher ns g eqs) ma = 
@@ -225,9 +227,9 @@ matches t (Matcher ns g eqs) ma =
     forM eqs passesGuard
     ma
 
-unifiesOrUnsatisfiable :: STmRef s → STmRef s → SolverM s ()
-unifiesOrUnsatisfiable t1 t2 =
-  catchError (unify t1 t2)
+escalateUnificationError :: SolverM s a → SolverM s a
+escalateUnificationError ma =
+  catchError ma
     (\case
         UnificationError e → unsatisfiable $ "unification error (" ++ e ++ ")"
         e                  → throwError e
@@ -243,11 +245,11 @@ solveFocus CFalse = unsatisfiable "Say hello to Falso"
 solveFocus (CEq t1 t2) = do
   t1' ← toDag t1
   t2' ← toDag t2
-  unifiesOrUnsatisfiable t1' t2'
+  escalateUnificationError $ unify t1' t2'
   next
 
 solveFocus (CNotEq t1 t2) = do
-  passesGuard (GNotEq t1 t2)
+  escalateUnificationError $ passesGuard (GNotEq t1 t2)
   next
 
 solveFocus (CAnd l r) = do
@@ -310,7 +312,7 @@ solveFocus c@(COne x t) = do
       throwError StuckError
     (SAns (p : [])) → do
       pref ← reifyPath p
-      unifiesOrUnsatisfiable pref t
+      escalateUnificationError $ unify pref t
       next
     (SAns []) →
       unsatisfiable "No paths in answer set"
@@ -338,7 +340,7 @@ solveFocus (CData x t) = do
 
       -- check if a datum is already associated
       -- with the node
-      unifiesOrUnsatisfiable t t'
+      escalateUnificationError $ unify t t'
       next
     (U.Var x) → throwError StuckError
     _         → throwError TypeError
