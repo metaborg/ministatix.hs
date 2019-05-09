@@ -4,7 +4,6 @@ import Data.HashMap.Strict as HM
 import Data.Default
 
 import Control.Monad.State
-import Control.Monad.Reader
 import Control.Monad.Unique
 import Control.Monad.Except
 import Control.Monad.ST

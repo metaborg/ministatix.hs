@@ -32,10 +32,9 @@ import Statix.Analysis
 
 import Statix.Repl.Command
 import Statix.Repl.Errors
-import Statix.IO
 
 import Statix.Repl.Types
-
+import Statix.Importer
 
 -- | The module name for the current generation of the REPL
 self :: Getting String REPLState String
@@ -159,7 +158,7 @@ handler κ (Define p) = do
 handler κ (Import name) = do
   -- Load the imported module
   here    <- liftIO getCurrentDirectory
-  withErrors $ loadModule [addTrailingPathSeparator here] name
+  importModule [addTrailingPathSeparator here] name
   -- Rinse and repeat
   κ
 

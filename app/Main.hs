@@ -6,16 +6,17 @@ import System.Exit
 
 import Data.HashMap.Strict as HM
 
+import Control.Lens hiding (argument)
 import Control.Monad.Except
 import Control.Monad.ST.Unsafe
 
 import Statix.Syntax
 
 import Statix.Repl (runREPL, printResult)
-import Statix.Repl.Types (REPL)
+import Statix.Repl.Types
 import Statix.Repl.Errors
 import Statix.Solver
-import Statix.IO
+import Statix.Importer
 
 import ATerms.Syntax.Parser as AParser
 
@@ -55,17 +56,21 @@ statix params = void $ runREPL HM.empty $ do
   here ← addTrailingPathSeparator <$> liftIO getCurrentDirectory
   let path = here : includes params
 
-  mod ← withErrors $ loadModule path (spec params)
+  liftIO $ putStrLn "Loading specification..."
+  importModule path (spec params)
 
   -- Parse and typecheck the specification module
   forM (files params) $ \file → do
+    liftIO $ putStrLn $ "Checking " ++ file ++ "..."
+
     -- Parse the aterm file
     doc   ← liftIO $ readFile (here </> file)
     aterm ← handleErrors $ AParser.parse doc
 
     -- Solve the main - if it is defined
+    symtab ← use globals
+    let mod = symtab HM.! (spec params)
     let main   = (spec params, "main")
-    let symtab = HM.singleton (spec params) mod
     let wrapper = CApply main [fromATerm aterm]
 
     case HM.lookup (snd main) mod of
