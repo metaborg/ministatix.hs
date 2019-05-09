@@ -1,5 +1,9 @@
 -- Module Header ---------------------------------------------------------------
 {
+{-# LANGUAGE CPP #-}
+
+#undef __GLASGOW_HASKELL__
+#define __GLASGOW_HASKELL__ 709
 module Statix.Syntax.Parser (parseConstraint, parsePredicate, parseModule) where
 
 import Data.List
@@ -81,9 +85,8 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
   match         { TokMatch }
   end           { TokEnd }
   edge          { TokEdge }
-  import        { TokImport }
+  import        { TokImports $$ }
   lexico        { TokPathLT }
-  nl            { TNL }
 
 %left '|'
 %left '&'
@@ -100,7 +103,6 @@ import ATerms.Syntax.Types (input, remainder, line, prev)
 Guard           : Term eq Term                                  { GEq $1 $3 }
                 | Term ineq Term                                { GNotEq $1 $3 }
 WhereClause     :                                               { [] }
-
                 | where sep(Guard, ',')                         { $2 }
 
 Pattern         : Label                                         { PatTm $ TLabelF $1 Nothing }
@@ -144,7 +146,7 @@ Constraint      : '{' Names '}' Constraint                      { core $ CExF $2
                 | one  '(' NAME ',' Term ')'                    { core $ COneF $3 $5 }
                 | nempty '(' NAME  ')'                          { core $ CNonEmptyF $3 }
                 | min NAME PathComp NAME                        { core $ CMinF $2 $3 $4 }
-                | NAME '(' Terms ')'                            { core $ CApplyF $1 $3 }
+                | NAME '('  sep(Term, ',') ')'                  { core $ CApplyF $1 $3 }
 
                 | every NAME Lambda                             { ext $ SEveryF $2 $3 }
                 | filter NAME '(' Matcher ')' NAME              { ext $ SFilterF $2 (Surf.MatchDatum $4) $6 }
@@ -171,15 +173,12 @@ Label           : '`' CONSTRUCTOR                               { Lab $2 }
 
 Term            : Label                                         { Label $1 Nothing }
                 | Label '(' Term ')'                            { Label $1 (Just $3) }
-                | CONSTRUCTOR '(' Terms ')'                     { funcTm $1 $3 }
+                | CONSTRUCTOR '(' sep(Term, ',') ')'            { funcTm $1 $3 }
                 | NAME                                          { Var $1 }
                 | Term colon Term                               { consTm $1 $3 }
                 | '[' ']'                                       { nilTm }
-                | '(' Term ',' TermsPlus ')'                    { tupleTm ($2:$4) }
+                | '(' Term ',' sep1(Term, ',') ')'              { tupleTm ($2:$4) }
                 | '(' Term ')'                                  { $2 }
-
-Terms           : sep(Term, ',')                                { $1 }
-TermsPlus       : sep1(Term, ',')                               { $1 }
 
 Predicate       :
   NAME '(' Names ')' leftarrow Constraint period                {%
@@ -189,20 +188,14 @@ Predicate       :
   }
 Predicates      : list(Predicate)                               { $1 }
 
-Import          : import  NAME Eol                              { $2 }
-                | import QNAME Eol                              { $2 }
+Import          : import                                        { $1 }
 Imports         : list(Import)                                  { $1 }
-
-Eol             : semicolon                                     { $1 }
 
 Module          : Imports Predicates                            {%
     do
       mod <- ask
       return (Mod mod $1 $2)
   }
-
-
--- Common Rule Patterns --------------------------------------------------------
 
 either(p, q)    : p                                             { Left  $1 }
                 | q                                             { Right $1 }
@@ -226,8 +219,6 @@ list(p)         : {- empty -}                                   { [] }
 rev_list1(p)    : p                                             { [$1] }
                 | rev_list1(p) p                                { $2 : $1 }
 
-
--- Module Trailer --------------------------------------------------------------
 {
 
 core = \c → Fix (InL c)

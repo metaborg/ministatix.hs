@@ -8,18 +8,22 @@ import Control.Monad.Reader
 import Statix.Syntax.Types
 import Statix.Syntax.Terms
 
+import Debug.Trace
+
 import ATerms.Syntax.Types
   ( AlexInput(..), ParseState
   , alexGetByte, lexState, stringBuf, input)
 
 }
 
+$space       = [\ ]
 $white       = [\ \t\f\v]
 $nl          = [\r\n]
 $digit       = 0-9
 $alpha       = [a-zA-Z]
 $upper       = [A-Z]
 $lower       = [a-z]
+
 @name        = $lower [$alpha $digit \_ \- ']*
 @constructor = $upper [$alpha $digit \_ \- ']*
 @qname       = (@name [\.])+ @name
@@ -45,9 +49,13 @@ tokens :-
   <0> match                         { plain TokMatch }
   <0> Edge                          { plain TokEdge }
   <0> End                           { plain TokEnd }
-  <0> import                        { plain TokImport }
   <0> lexico                        { plain TokPathLT }
   <0> eps                           { plain TokEpsilon }
+
+  <0> import                        { beginImport }
+  <imports> $space+                 ;
+  <imports> @qname                  { importing }
+  <imports> @name                   { importing }
 
   <0> @qname                        { qname }
   <0> @name                         { name }
@@ -96,8 +104,23 @@ name _ str = return (Just (TokName str))
 qname :: LexAction
 qname _ str = return (Just (TokQName str))
 
+importing :: LexAction
+importing _ str = do
+  modify (\st → st { lexState = 0 })
+  return $ trace ("Importing " ++ str) (Just (TokImports str))
+
 constructor :: LexAction
 constructor _ str = return (Just (TokConstructor str))
+
+beginImport :: LexAction
+beginImport _ _ = do
+  modify (\st → st { lexState = trace "BEGIN" imports })
+  return Nothing
+
+beginNormal :: LexAction
+beginNormal _ _ = do
+  modify (\st → st { lexState = 0 })
+  return Nothing
 
 /* beginString :: LexAction */
 /* beginString _ _ = do */
@@ -126,7 +149,9 @@ readToken = do
 
   case alexScan (input s) (lexState s) of
     AlexEOF        → return TEOF
-    AlexError inp' → throwError $ "Lexical error on line " ++ (show $ line inp')      
+    AlexError inp' → 
+      throwError $ "Lexical error on line " ++ (show $ line inp') 
+      		 ++ "(\"" ++ (take 5 (remainder inp')) ++ "\")"
     AlexSkip inp' _ → do    
       put s { input = inp' }
       readToken

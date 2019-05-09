@@ -13,17 +13,14 @@ import ATerms.Syntax.Types (remainder, input, ParseState)
 data Token
   = TokTrue | TokFalse | TokNew | TokIn | TokAs | TokWhere | TokQuery | TokOne
   | TokEvery | TokNonEmpty | TokMin | TokFilter | TokMatch | TokEdge | TokEnd
-  | TokImport | TokPathLT | TokEpsilon
-  | TokQName String
-  | TokName String
-  | TokConstructor String
+  | TokPathLT | TokEpsilon
+  | TokImports String | TokQName String | TokName String | TokConstructor String
   | TokTilde | TokUnderscore | TokLAngle | TokRAngle | TokBar | TokAmp
   | TokLeftArrow | TokRightArrow | TokColon | TokSemicolon
   | TokOpenArr | TokCloseArr | TokRegexQuote
   | TokOpenB | TokCloseB | TokOpenBr | TokCloseBr | TokOpenSB | TokCloseSB
   | TokQuote | TokEq | TokNotEq | TokTick | TokStar | TokPlus | TokPeriod
   | TokComma | TokQuestionmark
-  | TNL
   | TEOF
   deriving Show
 

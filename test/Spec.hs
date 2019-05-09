@@ -197,17 +197,17 @@ queryspec = describe "query" $ do
 importspec :: Spec
 importspec = describe "import" $ do
   runMod True $ unlines
-    [ "import common;"
+    [ "import common"
     , "test() <- true."
     ]
 
   runMod True $ unlines
-    [ "import utils.common;"
+    [ "import utils.common"
     , "test() <- true."
     ]
   
   runMod True $ unlines
-    [ "import utils.extra.numbers;"
+    [ "import utils.extra.numbers"
     , "test() <- {x} new x."
     ]
 
