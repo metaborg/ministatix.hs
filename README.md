@@ -23,9 +23,9 @@ Enter the project's REPL using:
 
     ./statix
 
-Check a file `input.aterm` against the specification `spec.stx` using:
+Check a file `input.aterm` against the specification `spec.mstx` using:
 
-    ./statix spec.stx input.aterm
+    ./statix spec.mstx input.aterm
 
 Other makefile targets are:
 - `setup` to setup the build environment;
