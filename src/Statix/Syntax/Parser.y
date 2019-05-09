@@ -115,6 +115,7 @@ Pattern         : Label						{ PatTm $ TLabelF $1 Nothing }
                 | '(' Pattern ',' PatternsPlus ')'	        { tuplePat ($2:(reverse $4)) }
 
                 | '_'						{ Wildcard }
+                | '(' Pattern ')'                               { $2 }
 
 Patterns        :                                       { []  }
                 | Pattern                               { [$1] }
