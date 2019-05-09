@@ -16,13 +16,18 @@ import Statix.Syntax
 import Statix.Repl.Types (REPL, imports, globals, importMod)
 import Statix.Analysis (analyze)
 import Statix.Analysis.Symboltable
+import Statix.Analysis.Types
 import Statix.Syntax.Parser (parseModule)
 import Statix.Syntax.Surface (desugarMod)
+
+data LoadError
+  = LoadErr Ident String
+  | TypeErr Ident TCError
 
 -- | Loads a module, and any modules on which it depends.
 loadModule :: [FilePath]                              -- ^ The root paths against which imports are resolved.
            -> Ident                                   -- ^ The name of the module.
-           -> ExceptT String REPL Module              -- ^ The loaded module.
+           -> ExceptT LoadError REPL Module              -- ^ The loaded module.
 loadModule rootpaths name = do
   path <- mapExceptT liftIO $ resolveModule rootpaths name
   loadModuleFromFile rootpaths name path
@@ -32,7 +37,7 @@ loadModule rootpaths name = do
 loadModuleFromFile :: [FilePath]                      -- ^ The root paths against which imports are resolved.
                    -> Ident                           -- ^ The name of the module.
                    -> FilePath                        -- ^ The path to the module.
-                   -> ExceptT String REPL Module      -- ^ The loaded module.
+                   -> ExceptT LoadError REPL Module      -- ^ The loaded module.
 loadModuleFromFile rootpaths name path = do
   content <- liftIO $ readFile path
   loadModuleFromText rootpaths name content
@@ -42,10 +47,10 @@ loadModuleFromFile rootpaths name path = do
 loadModuleFromText :: [FilePath]                      -- ^ The root paths against which imports are resolved.
                    -> Ident                           -- ^ The name of the module.
                    -> String                          -- ^ The textual content of the module.
-                   -> ExceptT String REPL Module      -- ^ The loaded module.
+                   -> ExceptT LoadError REPL Module      -- ^ The loaded module.
 loadModuleFromText rootpaths name content = do
   -- Gather the modules, then sort them topologically
-  rawmod  <- liftEither $ desugarMod <$> parseModule name content
+  rawmod  <- withExceptT (LoadErr name) $ liftEither $ desugarMod <$> parseModule name content
   imps    <- use imports
   let resolver i = if (i == name) then return rawmod else readRawModule rootpaths i
   allrawmods <- mapExceptT liftIO $ gatherModules imps resolver [name]
@@ -57,7 +62,7 @@ loadModuleFromText rootpaths name content = do
     where
       analyzeAndImport symtab rawmod@(Mod name _ _) = do
         -- Typecheck the module
-        mod <- withExceptT show $ analyze symtab rawmod
+        mod <- withExceptT (TypeErr name) $ analyze symtab rawmod
         -- Import the typechecked module into the symboltable
         lift $ importMod name mod
         return (name, mod)
@@ -66,7 +71,7 @@ loadModuleFromText rootpaths name content = do
 -- | Reads a single raw module.
 readRawModule :: [FilePath]                           -- ^ The root paths against which imports are resolved.
               -> Ident                                -- ^ The name of the module.
-              -> ExceptT String IO RawModule₀         -- ^ The loaded module.
+              -> ExceptT LoadError IO RawModule₀         -- ^ The loaded module.
 readRawModule rootpaths name = do
   path <- mapExceptT liftIO $ resolveModule rootpaths name
   rawmod <- readRawModuleFromFile name path
@@ -76,7 +81,7 @@ readRawModule rootpaths name = do
 -- | Reads a single raw module from the specified path.
 readRawModuleFromFile :: Ident                        -- ^ The name of the module.
                       -> FilePath                     -- ^ The path to the module.
-                      -> ExceptT String IO RawModule₀ -- ^ The loaded module.
+                      -> ExceptT LoadError IO RawModule₀ -- ^ The loaded module.
 readRawModuleFromFile name path = do
   content <- liftIO $ readFile path
   readRawModuleFromText name content
@@ -85,21 +90,26 @@ readRawModuleFromFile name path = do
 -- | Reads a single raw module from the specified content.
 readRawModuleFromText :: Ident                        -- ^ The name of the module.
                       -> String                       -- ^ The textual content of the module.
-                      -> ExceptT String IO RawModule₀  -- ^ The loaded module.
-readRawModuleFromText name content = liftEither $ desugarMod <$> parseModule name content
+                      -> ExceptT LoadError IO RawModule₀  -- ^ The loaded module.
+readRawModuleFromText name content =
+  withExceptT (LoadErr name) $ liftEither $ desugarMod <$> parseModule name content
 
 
 -- | Resolves a module to its absolute path, if any.
 resolveModule :: [FilePath]                           -- ^ The root paths.
               -> Ident                                -- ^ The module name.
-              -> ExceptT String IO FilePath           -- ^ The module's absolute path, if found.
+              -> ExceptT LoadError IO FilePath           -- ^ The module's absolute path, if found.
 resolveModule rootpaths name = do
   let paths = fmap (flip getModulePath name) rootpaths
   foundpaths <- liftIO $ filterM doesFileExist paths
   case foundpaths of
     [path] -> return path
-    []     -> throwError $ "Module " ++ name ++ " not found at: " ++ (intercalate ", " paths)
-    mpaths -> throwError $ "Module " ++ name ++ " found in multiple places: " ++ (intercalate ", " mpaths)
+    []     -> throwError $
+      LoadErr name
+        ("Module " ++ name ++ " not found at: " ++ (intercalate ", " paths))
+    mpaths -> throwError $
+      LoadErr name
+        ("Ambiguous module " ++ name ++ ": " ++ (intercalate ", " mpaths))
   where
     -- | Gets the absolute path of a module from its module name and root path.
     getModulePath :: FilePath                             -- ^ The root path.
@@ -141,13 +151,13 @@ type IdentStack = [Ident]
 -- | Gathers the modules with the specified identifiers,
 -- | and any modules they import.
 gatherModules :: [Ident]                                  -- ^ Set of already imported modules
-              -> (Ident -> ExceptT String IO RawModule₀)  -- ^ Function that provides the raw module with the specified name.
+              -> (Ident -> ExceptT LoadError IO RawModule₀)  -- ^ Function that provides the raw module with the specified name.
               -> [Ident]                                  -- ^ Identifiers of the modules to gather
-              -> ExceptT String IO [RawModule₀]           -- ^ Either an error or a set of gathered modules
+              -> ExceptT LoadError IO [RawModule₀]           -- ^ Either an error or a set of gathered modules
 gatherModules imports resolver ix = flip evalStateT (imports, ix) $ step resolver
   where
-    step :: (Ident -> ExceptT String IO RawModule₀)
-         -> StateT ([Ident], IdentStack) (ExceptT String IO) [RawModule₀]
+    step :: (Ident -> ExceptT LoadError IO RawModule₀)
+         -> StateT ([Ident], IdentStack) (ExceptT LoadError IO) [RawModule₀]
     step resolver = do
       i <- pop
       (imps, _) <- get
@@ -164,19 +174,14 @@ gatherModules imports resolver ix = flip evalStateT (imports, ix) $ step resolve
         Nothing -> do
           return []      -- We're done!
 
-    push :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
     push a = state $ \(imps, xs) -> ((),(imps, a:xs))
 
-    pushAll :: [Ident] -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
     pushAll ax = state $ \(imps, xs) -> ((), (imps, ax ++ xs))
 
-    pop :: StateT ([Ident], IdentStack) (ExceptT String IO) (Maybe Ident)
-    pop = state $ f
-      where
-        f (imps, (x:xs)) = ( Just x, (imps, xs))
-        f (imps,     xs) = (Nothing, (imps, xs))
+    pop = state $ \case
+        (imps, (x:xs)) → ( Just x, (imps, xs))
+        (imps,     []) → (Nothing, (imps, []))
         
-    addImported :: Ident -> StateT ([Ident], IdentStack) (ExceptT String IO) ()
     addImported i = state $ \(imps, xs) -> ((), (i:imps, xs))
 
 

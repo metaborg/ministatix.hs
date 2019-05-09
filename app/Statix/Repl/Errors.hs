@@ -5,10 +5,19 @@ import Data.List
 import Statix.Syntax.Constraint
 import Statix.Analysis.Types
 import Statix.Solver.Types as RT
+import Statix.IO
 
 -- |A means to handling various errors in the REPL
 class ReplError e where
   report :: e → IO ()
+
+instance ReplError LoadError where
+  report (LoadErr mod e) = do
+    putStrLn $ "Loading " ++ mod ++ " failed."
+    report e
+  report (TypeErr mod e) = do
+    putStrLn $ "Loading " ++ mod ++ " failed."
+    report e
 
 instance ReplError TCError where
   report e = do
