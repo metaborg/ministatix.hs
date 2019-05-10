@@ -11,8 +11,10 @@ import Unification.ST
 
 data TCError
   =
+  ModuleLocal String TCError
+  
   -- namer errors
-    DuplicatePredicate Ident
+  | DuplicatePredicate Ident
   | UnboundPredicate Ident
   | UnboundVariable Ident
   | MatchCaptures Ident

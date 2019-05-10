@@ -39,11 +39,19 @@ import Statix.Analysis.Namer.Simple
 namecheck :: (MonadError TCError m) ⇒ SymbolTable₀ → m SymbolTable₁
 namecheck symtab = do
   forM symtab $ \(Mod name imps defs) → do
-    let q = importQualifier imps symtab
+    -- build a qualifier for the predicate names in scope;
+    -- which is everything imported
+    let importQ = importQualifier imps symtab
+    -- and everything in the module
+    let localQ = fmap _qname defs
+    let q = localQ `HM.union` importQ
 
     -- namecheck it
     defs ← forM defs $ \pred → do
-      liftEither $ runNC (set qualifier q def) (checkPredicate pred)
+      catchError (liftEither $ runNC (set qualifier q def) (checkPredicate pred)) $
+        -- localize errors
+        throwError . ModuleLocal name
+      
 
     return (Mod name imps defs)
 
@@ -60,7 +68,11 @@ typecheck mods = do
 
     -- run the type analysis
     local (over symtab $ const table) $ do
-      forM mods typecheckModule
+      -- typecheck all the modules
+      forM mods $ \mod → do
+        catchError (typecheckModule mod) $
+          -- localize errors
+          throwError . ModuleLocal (mod^.moduleName)
       solution
 
   updateSeed i'
