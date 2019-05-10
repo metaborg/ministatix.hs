@@ -1,14 +1,10 @@
 module Statix.Solver where
 
 import Prelude hiding (lookup, null)
-import Data.Map.Strict as Map hiding (map, null)
-import Data.HashMap.Strict as HM
-import Data.Set as Set
 import Data.List as List
 import Data.Default
-import Data.Sequence as Seq
-import Data.Foldable as Fold
 import Data.Relation as Rel
+import Data.HashMap.Strict as HM
 
 import Control.Lens
 import Control.Monad.ST
@@ -16,42 +12,22 @@ import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
 
-import Debug.Trace
-
-import Statix.Regex as Re
 import Statix.Syntax as Syn
 import Statix.Graph
 import Statix.Graph.Paths
 import Statix.Graph.Types as Graph
 import Statix.Analysis.Lexical
+
 import Statix.Solver.Types
 import Statix.Solver.Monad
 import Statix.Solver.Terms
+import Statix.Solver.Guard
+import Statix.Solver.Errors
+import Statix.Solver.Scheduler
+import Statix.Solver.Debug
 
 import Unification as U hiding (TTm)
 
-__trace__ = False
-
-tracer :: String → a → a
-tracer s a = if __trace__ then trace s a else a
-
-formatGoal :: Goal s → SolverM s String
-formatGoal (env, c, _) = do
-  local (const env) $ do
-    instantConstraint 3 c
-
-formatQueue :: SolverM s [String]
-formatQueue = do
-  q ← use queue
-  mapM formatGoal (Fold.toList q)
-
-tracerWithQueue :: SolverM s a → SolverM s a
-tracerWithQueue c = do
-  q ← formatQueue
-  let q' = fmap show q
-  tracer (intercalate "\n, " q') c
-
--- TODO make Reifiable a typeclass again
 reifyPath :: SPath s (STmRef s) → SolverM s (STmRef s)
 reifyPath (Graph.Via (n, l, t) p) = do
   n  ← construct (Tm (SNodeF n))
@@ -61,75 +37,6 @@ reifyPath (Graph.Via (n, l, t) p) = do
 reifyPath (Graph.End n) = do
   n ← construct (Tm (SNodeF n))
   construct (Tm (SPathEndF n))
-
-panic :: String → SolverM s a
-panic s = throwError (Panic s)
-
--- | Throw an Unsatisfiable error containing the trace
--- as extracted from the lexical environment.
-unsatisfiable :: String → SolverM s a
-unsatisfiable msg = do
-  trace ← getTrace
-  trace ← mapM (\(qn, params) → do
-                   params ← mapM (instantTerm 5) params
-                   return $ Call qn params) trace
-  throwError (Unsatisfiable trace msg)
-
--- | Push a goal to the queue with a given generation number.
-pushGoal :: SGen → Constraint₁ → SolverM s ()
-pushGoal i c = do
-  env ← ask
-  queue %= (\q → q Seq.|> (env, c, i))
-
--- | Delay a constraint by pushing it back on the work queue.
--- The constraint gets tagged by the current solver generation,
--- marking the fact that we have tried solving it in this generation,
--- but could not.
-delay :: Constraint₁ → SolverM s ()
-delay c = do
-  gen ← use generation
-  tracer ("Delaying " ++ show c) $ pushGoal gen c
-
-newGoal :: Constraint₁ → SolverM s ()
-newGoal c = do
-  pushGoal minBound c
-  next -- fresh meat
-
--- | Pop a constraint from the work queue if it is non-empty,
--- and if the constraint was put in the queue before the current solver
--- generation.
--- 
--- If the queue contains only goals that were created in the current
--- generation of the solver, the solver has made no progress and
--- cannot make progress: the solver is stuck.
-popGoal :: SolverM s (Maybe (Goal s))
-popGoal = do
-  q   ← use queue
-  gen ← use generation
-
-  -- If we pop a goal and we find that its generation is
-  -- at or after the solver's current generation,
-  -- then the solver has made no progress and we are stuck.
-  -- As the generation is monotonically increasing for goals
-  -- pushed to the end of the queue, we know the queue contains
-  -- no more goals from an earlier generation.
-  case Seq.viewl $ q of
-    Seq.EmptyL           → return Nothing
-    c@(_, _, lasttry) Seq.:< cs
-      | lasttry >= gen → do
-          throwError StuckError
-      | otherwise          → do
-          queue %= const cs
-          return (Just c)
-
--- | Continue with the next goal.
--- As we are making progress, we increment
--- the solver's generation counter by one.
-next :: SolverM s ()
-next = do
-  st <- get
-  generation %= (+1)
-  return ()
 
 -- | Open existential quantifier and run the continuation in the
 -- resulting context
@@ -142,66 +49,6 @@ openExist ns c = do
     mkBinder name = do
       v ← freshVar name
       return (name, v)
-
-checkNode ces n ls =
-  case ces Map.!? n of
-    Nothing  → Set.empty
-    Just re  →
-      let checkLabel = \l → if not $ Re.empty $ match l re then Set.singleton (n, l) else Set.empty
-          critics = checkLabel <$> (Set.toList ls)
-      in Set.unions critics
-
-checkVar ces p ls i = do
-  -- Drop i lexical frames from the path
-  -- corresponding to the number of binders we moved under during the
-  -- critical occurence checking.
-  -- This is safe, since those cannot possibly be instantiated to nodes.
-  case (suffix i p) of
-    Nothing → return Set.empty
-    Just p → do
-      tm ← resolve p >>= getSchema
-      case tm of
-        (SNode n) → return $ checkNode ces n ls
-        _         → return $ Set.empty
-
-checkTerm :: Map (SNode s) (Regex Label) → Term₁ → Set Label → Int → SolverM s (Set (SNode s, Label))
-checkTerm ces t ls i =
-  case t of
-    (Syn.Var p) → checkVar ces p ls i
-    _           → return Set.empty
-
-checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → Int → SolverM s (Set (SNode s, Label))
-checkCritical ces (CAnd l r) i = do
-  lc ← checkCritical ces l i
-  rc ← checkCritical ces r i
-  return (lc `Set.union` rc)
-checkCritical ces (CEx xs c) i = do
-  checkCritical ces c (i + 1)
-checkCritical ces (CEdge x e y) i
-  | (Label l _) ← e = checkVar ces x (Set.singleton l) i
-  | otherwise       = throwError TypeError
-checkCritical ces (CApply qn ts) i = do
-  -- get type information for p
-  formals  ← view (symbols.sigOf qn)
-  critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
-  return $ Set.unions critters
-  where
-    checkParam t ty
-      | TNode (In ls)    ← ty = checkTerm ces t ls i
-      | TNode (InOut ls) ← ty = checkTerm ces t ls i
-      | otherwise             = return Set.empty
-checkCritical ces (CEvery z (Branch _ c)) i = do
-  checkCritical ces c (i + 1)
-checkCritical ces (CMatch t brs) i = do
-  sets ← forM brs $ \(Branch _ c) → checkCritical ces c (i + 1)
-  return $ Set.unions sets
-checkCritical _ _ _ =
-  return Set.empty
-
-queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
-queryGuard ce = do
-  cs ← use queue
-  Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c 0) cs
 
 passesGuard :: Guard Term₁ → SolverM s ()
 passesGuard (GEq lhs rhs) = do
@@ -227,14 +74,6 @@ matches t (Matcher ns g eqs) ma =
     -- check the equalities
     forM eqs passesGuard
     ma
-
-escalateUnificationError :: SolverM s a → SolverM s a
-escalateUnificationError ma =
-  catchError ma
-    (\case
-        UnificationError e → unsatisfiable $ "unification error (" ++ e ++ ")"
-        e                  → throwError e
-    )
 
 -- | Try to solve a focused constraint.
 -- This should not be a recursive function, as not to infer with scheduling.
@@ -432,40 +271,6 @@ solveFocus (CFilter x m z) = do
           e                  → throwError e
         )
 
-type Unifier s = HashMap Ident (STree s)
-
--- | A simple means to getting a unifier out of ST, convert everything to a string
-unifier :: SolverM s (Unifier s)
-unifier = do
-  env ← view locals
-  mapM toTree (binders $ head env)
-
--- | Constraint scheduler
--- | The solver loop just continuously checks the work queue,
--- steals an item and focuses it down, until nothing remains.
--- When the work is done it grounds the solution and returns it.
-schedule :: SolverM s (Unifier s)
-schedule = do
-  st ← get
-  c  ← popGoal
-  case c of
-    Just (env, c, _) → do
-      local (const env) $ do
-        catchError (solveFocus c)
-          (\case
-            -- reschedule stuck goals
-            StuckError              → delay c
-            Unsatisfiable tr msg → do
-              c ← instantConstraint 3 c
-              throwError $ Unsatisfiable (Within c:tr) msg
-            e → throwError e
-          )
-      schedule
-
-    -- done, gather up the solution (graph and top-level unifier)
-    Nothing → do
-      unifier
-
 -- | Construct a solver for a raw constraint
 kick :: SymbolTable₂ → Constraint₁ → SolverM s (Unifier s)
 kick sym c =
@@ -475,21 +280,18 @@ kick sym c =
       -- open the top level exists if it exists
       (CEx ns b) → openExist ns $ do
         newGoal b
-        schedule
+        schedule solveFocus
+        unifier
 
       c → do
         newGoal c
-        schedule
+        schedule solveFocus
+        return HM.empty
 
 data Result s
   = IsSatisfied (Unifier s) (IntGraph Label String)
   | IsUnsatisfiable StatixError (IntGraph Label String)
   | IsStuck [String]
-
-dumpgraph =  do
-  gr ← use graph
-  gr ← liftST $ toIntGraph gr
-  mapM (instantTerm 5) gr
 
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
@@ -498,7 +300,7 @@ solve symtab c = do
   solution ← runSolver' $ do
     catchError
       (do unifier ← kick symtab c 
-          graph ← dumpgraph
+          graph   ← dumpgraph
           return (IsSatisfied unifier graph))
       (\case 
           StuckError → do
