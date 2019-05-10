@@ -19,6 +19,7 @@ data REPLState = REPLState
   { _globals   :: SymbolTable₂
   , _freshId   :: Integer
   , _imports   :: [Ident]
+  , _roots     :: [String]
   , _gen       :: Integer
   }
 

@@ -115,15 +115,14 @@ loadModuleFromString rootpaths name content = do
   return $ desugarMod rawmod
 
 -- | Recursively import modules into symboltable
-importModule :: [FilePath] → Ident → REPL ()
+importModule :: [FilePath] → Ident → ExceptT ImportError REPL ()
 importModule roots name = do
   -- recursively collect the modules to be analyzed
-  rawmods ← liftIO $ runImporter (loadModule roots name)
-  rawmods ← liftIO $ either panic (return . snd) rawmods
+  rawmods      ← liftIO $ runImporter (loadModule roots name)
+  (_, rawmods) ← liftEither rawmods
 
   -- analyze them
-  symtab  ← runExceptT $ withExceptT (TypeErr name) $ analyze rawmods
-  symtab  ← liftIO $ either panic return symtab
+  symtab ← withExceptT (TypeErr name) $ analyze rawmods
 
   -- import them
-  forM_ symtab importMod
+  lift $ forM_ symtab importMod

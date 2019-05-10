@@ -76,7 +76,7 @@ statix params = void $ runREPL HM.empty $ do
   let path = here : includes params
 
   liftIO $ putStrLn "Loading specification..."
-  importModule path (spec params)
+  withErrors $ importModule path (spec params)
 
   -- Parse and typecheck the specification module
   forM (files params) $ \file → do
@@ -107,5 +107,5 @@ main :: IO ()
 main = do
   cmd ← execParser (info commands idm)
   case cmd of
-    Repl params    → repl
+    Repl params    → repl (replIncludes params)
     Checker params → statix params

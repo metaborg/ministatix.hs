@@ -46,7 +46,7 @@ runREPL :: SymbolTable₂ → REPL a → IO a
 runREPL sym c =
   runInputT
     (defaultSettings { historyFile = Just ".statix" }) $
-    evalStateT c (REPLState sym 0 [] 0)
+    evalStateT c (REPLState sym 0 [] [] 0)
 
 prompt :: REPL Cmd
 prompt = do
@@ -157,8 +157,10 @@ handler κ (Define p) = do
 
 handler κ (Import name) = do
   -- Load the imported module
-  here    <- liftIO getCurrentDirectory
-  importModule [addTrailingPathSeparator here] name
+  here ← liftIO getCurrentDirectory
+  rts  ← use roots
+  withErrors $ importModule rts name
+
   -- Rinse and repeat
   κ
 
@@ -167,7 +169,7 @@ handler κ (Type pred) = do
   symtab ← use globals
   let q = importQualifier imps symtab
 
-  case (\p → symtab^.getPred p) <$> HM.lookup pred q of
+  case HM.lookup pred q >>= \qn → symtab^.lookupPred qn of
     Just p  → liftIO $ putStrLn $
       pred
         ++ " :: "
@@ -195,10 +197,12 @@ loop = do
   handler loop cmd
 
 -- | Run the repl in IO
-repl :: IO ()
-repl = do
-  liftIO $ putStrLn "Ministatix 0.1 (type :help for help)"
-  runREPL HM.empty loop
+repl :: [String] → IO ()
+repl rts = do
+  putStrLn "Ministatix 0.1 (type :help for help)"
+  runREPL HM.empty $ do
+    roots %= const rts
+    loop
  
 helpText :: String
 helpText = unlines [

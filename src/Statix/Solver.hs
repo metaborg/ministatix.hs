@@ -143,49 +143,65 @@ openExist ns c = do
       v ← freshVar name
       return (name, v)
 
-checkTerm ces n ls = do
-  t ← getSchema n
-  return $ case t of
-    (SNode n) →
-      case ces Map.!? n of
-        Nothing  → Set.empty
-        Just re  →
-          let critics = (\l →
-                           if not $ Re.empty $ match l re
-                           then Set.singleton (n, l)
-                           else Set.empty) <$> (Set.toList ls)
-          in Set.unions critics
-    _ → Set.empty
+checkNode ces n ls =
+  case ces Map.!? n of
+    Nothing  → Set.empty
+    Just re  →
+      let checkLabel = \l → if not $ Re.empty $ match l re then Set.singleton (n, l) else Set.empty
+          critics = checkLabel <$> (Set.toList ls)
+      in Set.unions critics
 
-checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → SolverM s (Set (SNode s, Label))
-checkCritical ces (CAnd l r) = do
-  lc ← checkCritical ces l
-  rc ← checkCritical ces r
+checkVar ces p ls i = do
+  -- Drop i lexical frames from the path
+  -- corresponding to the number of binders we moved under during the
+  -- critical occurence checking.
+  -- This is safe, since those cannot possibly be instantiated to nodes.
+  case (suffix i p) of
+    Nothing → return Set.empty
+    Just p → do
+      tm ← resolve p >>= getSchema
+      case tm of
+        (SNode n) → return $ checkNode ces n ls
+        _         → return $ Set.empty
+
+checkTerm :: Map (SNode s) (Regex Label) → Term₁ → Set Label → Int → SolverM s (Set (SNode s, Label))
+checkTerm ces t ls i =
+  case t of
+    (Syn.Var p) → checkVar ces p ls i
+    _           → return Set.empty
+
+checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → Int → SolverM s (Set (SNode s, Label))
+checkCritical ces (CAnd l r) i = do
+  lc ← checkCritical ces l i
+  rc ← checkCritical ces r i
   return (lc `Set.union` rc)
-checkCritical ces (CEx xs c) = do
-  openExist xs $ checkCritical ces c
-checkCritical ces (CEdge x e y)
-  | (Label l _) ← e = do
-      t₁ ← resolve x
-      checkTerm ces t₁ (Set.singleton l)
-  | otherwise = throwError TypeError
-checkCritical ces (CApply qn ts) = do
-  ts ← mapM toDag ts
+checkCritical ces (CEx xs c) i = do
+  checkCritical ces c (i + 1)
+checkCritical ces (CEdge x e y) i
+  | (Label l _) ← e = checkVar ces x (Set.singleton l) i
+  | otherwise       = throwError TypeError
+checkCritical ces (CApply qn ts) i = do
   -- get type information for p
   formals  ← view (symbols.sigOf qn)
   critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
   return $ Set.unions critters
   where
     checkParam t ty
-      | TNode (In ls)    ← ty = checkTerm ces t ls
-      | TNode (InOut ls) ← ty = checkTerm ces t ls
+      | TNode (In ls)    ← ty = checkTerm ces t ls i
+      | TNode (InOut ls) ← ty = checkTerm ces t ls i
       | otherwise             = return Set.empty
-checkCritical _ _ = return Set.empty
+checkCritical ces (CEvery z (Branch _ c)) i = do
+  checkCritical ces c (i + 1)
+checkCritical ces (CMatch t brs) i = do
+  sets ← forM brs $ \(Branch _ c) → checkCritical ces c (i + 1)
+  return $ Set.unions sets
+checkCritical _ _ _ =
+  return Set.empty
 
 queryGuard :: Map (SNode s) (Regex Label) → SolverM s (Set (SNode s, Label))
 queryGuard ce = do
   cs ← use queue
-  Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c) cs
+  Set.unions <$> mapM (\(e, c, _) → local (const e) $ checkCritical ce c 0) cs
 
 passesGuard :: Guard Term₁ → SolverM s ()
 passesGuard (GEq lhs rhs) = do
@@ -266,7 +282,7 @@ solveFocus (CEdge x (Label l t) y) = do
     (_ , U.Var _) → throwError StuckError
     _             → throwError TypeError
 
-solveFocus (CQuery x r y) = do
+solveFocus c@(CQuery x r y) = do
   t ← resolve x >>= getSchema
   case t of
     -- If the source node is ground

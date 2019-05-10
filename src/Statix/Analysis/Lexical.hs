@@ -1,7 +1,5 @@
 module Statix.Analysis.Lexical where
 
-import Control.Monad.Reader
-
 data Path id = Skip (Path id) | End id deriving (Eq, Show)
 
 end :: Path id → id
@@ -22,5 +20,5 @@ enters fd is c = enter fd $ intros is c
 suffix :: Int → Path id → Maybe (Path id)
 suffix i p
   | i == 0             = Just p
-  | i > 0, Skip p' ← p = suffix i p
+  | i > 0, Skip p' ← p = suffix (i - 1) p'
   | otherwise          = Nothing
