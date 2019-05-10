@@ -12,7 +12,7 @@ import Control.Monad.ST.Unsafe
 
 import Statix.Syntax
 
-import Statix.Repl (runREPL, printResult)
+import Statix.Repl (runREPL, printResult, repl)
 import Statix.Repl.Types
 import Statix.Repl.Errors
 import Statix.Solver
@@ -23,22 +23,41 @@ import ATerms.Syntax.Parser as AParser
 import Options.Applicative
 import Data.Semigroup ((<>))
 
-data Params = Params
+data Command
+  = Checker CheckerOpts
+  | Repl ReplOpts
+
+data ReplOpts = ReplOpts
+  { replIncludes :: [String] }
+  
+data CheckerOpts = CheckerOpts
   { includes :: [String]
   , spec     :: String
   , files    :: [String]
   }
 
-params :: Parser Params
-params = Params
-      <$> many (option str (long "include" <> short 'I' <> help "extend include path"))
-      <*> argument str (metavar "SPEC" <> help "the statix specification")
-      <*> some (argument str (metavar "FILES..."))
+checkerOpts :: Parser Command
+checkerOpts = Checker <$>
+  (CheckerOpts
+    <$> many (option str (long "include" <> short 'I' <> help "extend include path"))
+    <*> argument str (metavar "SPEC" <> help "the statix specification")
+    <*> some (argument str (metavar "FILES...")))
 
-opts = info (params <**> helper)
-  ( fullDesc
-  <> progDesc "Check FILES against SPEC"
-  <> header "ministatix" )
+replOpts :: Parser Command
+replOpts = Repl <$>
+  (ReplOpts
+    <$> many (option str (long "include" <> short 'I' <> help "extend include path")))
+
+commands :: Parser Command
+commands = subparser
+   ( command "check"
+     (info (checkerOpts <**> helper)
+           (fullDesc <> progDesc "Check FILES against SPEC" <> header "ministatix" ))
+  <> command "repl"
+     (info (replOpts <**> helper) (fullDesc
+                                   <> progDesc "Run constraints interactively"
+                                   <> header "ministatix repl"))
+   )
 
 handleErrors :: (ReplError e) ⇒ Either e a → REPL a
 handleErrors (Right a) = return a
@@ -51,7 +70,7 @@ withErrors c = do
   err ← runExceptT c
   handleErrors err
 
-statix :: Params → IO ()
+statix :: CheckerOpts → IO ()
 statix params = void $ runREPL HM.empty $ do
   here ← addTrailingPathSeparator <$> liftIO getCurrentDirectory
   let path = here : includes params
@@ -86,5 +105,7 @@ statix params = void $ runREPL HM.empty $ do
 
 main :: IO ()
 main = do
-  params ← execParser opts
-  statix params
+  cmd ← execParser (info commands idm)
+  case cmd of
+    Repl params    → repl
+    Checker params → statix params
