@@ -73,7 +73,7 @@ statix params = void $ runREPL HM.empty $ do
     let main   = (spec params, "main")
     let wrapper = CApply main [fromATerm aterm]
 
-    case HM.lookup (snd main) mod of
+    case HM.lookup (snd main) (mod^.definitions) of
       Nothing → handleErrors $ Left $ "Missing main in module " ++ (spec params)
       Just p  → do
         result ← liftIO $ unsafeSTToIO $ solve symtab wrapper

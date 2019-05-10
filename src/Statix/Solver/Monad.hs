@@ -1,13 +1,8 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 module Statix.Solver.Monad where
 
 import Prelude hiding (lookup, null)
 import Data.HashMap.Strict as HM
-import Data.Either
 import Data.STRef
-import Data.Coerce
 import Data.Default
 import Data.Hashable
 import Data.Maybe
@@ -21,15 +16,12 @@ import Control.Monad.Unique
 import Control.Monad.Equiv as Equiv
 
 import Unification as U
-import Unification.ST
 
 import Statix.Analysis.Lexical as Lex
-import Statix.Analysis.Symboltable
 import Statix.Syntax
 import Statix.Solver.Types
 import Statix.Graph
 import Statix.Graph.Types
-import Statix.Graph.Paths
 
 -- | The SolverM type implement the graph manipulation operations
 instance MonadGraph (SNode s) Label (STmRef s) (SolverM s) where
@@ -101,9 +93,6 @@ instance MonadUnique Integer (SolverM s) where
 
 instance MonadUnify (STermF s) (STmRef s) VarInfo StatixError (SolverM s)
 
-getPredicate :: (MonadReader (Env s) m) ⇒ QName → m Predicate₁
-getPredicate qn = view (symbols . to (!!! qn))
-
 runSolver' :: SolverM s a → ST s (Either StatixError a, Solver s)
 runSolver' c = runStateT (runExceptT (runReaderT c def)) def
 
@@ -120,7 +109,7 @@ getCallTrace :: Frame s → SolverM s (Maybe (QName , [STmRef s]))
 getCallTrace fr = case desc fr of
   FrExist   → return Nothing
   FrPred qn → do
-      σ ← sig <$> getPredicate qn
+      σ ← view (symbols.sigOf qn)
       let bs = fmap (\(id, _) → (binders fr) HM.! id) σ
       return $ Just (qn, bs)
 

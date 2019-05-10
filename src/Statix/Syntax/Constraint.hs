@@ -1,27 +1,17 @@
 module Statix.Syntax.Constraint where
 
-import Data.Void
-import Data.Text as Text hiding (intercalate, reverse)
-import Data.Default
-import Data.List as List
-import Data.List.Extras.Pair
+import Prelude hiding (lookup)
+import Data.HashMap.Strict (HashMap, lookup)
+import Data.List (concatMap, intercalate)
 import Data.Functor.Fixedpoint
-import Data.HashMap.Strict as HM
-import Data.HashSet as HSet
-import Data.Hashable
-import Data.Set as Set
+import Data.Maybe
 
+import Control.Lens
 import Control.Applicative
 
 import Statix.Regex
 import Statix.Syntax.Terms
 import Statix.Syntax.Typing
-import Statix.Graph.Types
-import Statix.Graph.Paths
-import Statix.Analysis.Lexical as Lexical
-
-import ATerms.Syntax.ATerm
-import Unification
 
 type QName = (Ident, Ident)   -- qualified predicate names (module, raw)
 type ModPath = String
@@ -97,7 +87,7 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (CDataF l t)    = show l ++ " ↦ " ++ show t
   show (CEdgeF t l t') = show t ++ " ─[ " ++ show l ++ " ]-> " ++ show t'
   show (CApplyF p ts)  = show p ++ "(" ++ intercalate ", " (fmap show ts) ++ ")"
-  show (CMatchF t bs)  = show t ++ " match " ++ (List.concatMap show bs)
+  show (CMatchF t bs)  = show t ++ " match " ++ (concatMap show bs)
   show (CQueryF t r s) = "query " ++ show t ++ " " ++ show r ++ " as " ++ show s
   show (COneF x t)     = "only(" ++ show x ++ "," ++ show t ++ ")"
   show (CNonEmptyF x)  = "inhabited(" ++ show x ++ ")"
@@ -158,31 +148,59 @@ tsequencec = cata tsequencec_
 ------------------------------------------------------------------
 -- | Predicates and modules
 
-type Signature = [(Ident, Type)]
-
-data Predicate c = Pred
-  { qname    :: QName
-  , sig      :: Signature
-  , body     :: c
+data Predicate σ c = Pred
+  { _qname    :: QName
+  , _sig      :: [σ]
+  , _body     :: c
   } deriving (Show)
 
-data RawModule c = Mod 
-  { moduleName    :: Ident
-  , moduleImports :: [Ident]
-  , definitions   :: [Predicate c] }
+data Module σ c = Mod 
+  { _moduleName    :: Ident
+  , _moduleImports :: [Ident]
+  , _definitions   :: HashMap Ident (Predicate σ c) }
   deriving (Show)
 
-type ConstraintF₀ r   = ConstraintF Ident Ident Term₀ r -- parsed
-type ConstraintF₁ r   = ConstraintF QName IPath Term₁ r -- named
+type ConstraintF₀ r = ConstraintF Ident Ident Term₀ r     -- parsed
+type ConstraintF₁ r = ConstraintF QName IPath Term₁ r     -- named
 
-type Branch₀          = Branch Term₀ Constraint₀ -- parsed
-type Branch₁          = Branch Term₁ Constraint₁ -- named
+type Branch₀        = Branch Term₀ Constraint₀
+type Branch₁        = Branch Term₁ Constraint₁
 
-type Constraint₀      = Constraint Ident  Ident Term₀ -- parsed
-type Constraint₁      = Constraint QName  IPath Term₁ -- named
+type Constraint₀    = Constraint Ident  Ident Term₀
+type Constraint₁    = Constraint QName  IPath Term₁
 
-type Predicate₀       = Predicate Constraint₀
-type Predicate₁       = Predicate Constraint₁
+type Predicate₀     = Predicate Ident Constraint₀
+type Predicate₁     = Predicate Ident Constraint₁
+type Predicate₂     = Predicate (Ident,Type) Constraint₁
 
-type RawModule₀       = RawModule Constraint₀
-type RawModule₁       = RawModule Constraint₁
+type Module₀        = Module Ident Constraint₀
+type Module₁        = Module Ident Constraint₁
+type Module₂        = Module (Ident, Type) Constraint₁
+
+type SymbolTable σ c = HashMap Ident (Module σ c)
+type SymbolTable₀   = SymbolTable Ident Constraint₀
+type SymbolTable₁   = SymbolTable Ident Constraint₁
+type SymbolTable₂   = SymbolTable (Ident, Type) Constraint₁
+
+makeLenses ''Predicate
+makeLenses ''Module
+
+lookupPred :: QName → Getter (SymbolTable σ c) (Maybe (Predicate σ c))
+lookupPred (mod, pred) = to f
+  where
+    f symtab = do
+      (Mod _ _ defs) ← lookup mod symtab
+      lookup pred defs
+
+getPred :: QName → Getter (SymbolTable σ c) (Predicate σ c)
+getPred qn = lookupPred qn . to fromJust
+
+sigOf :: QName → Getter (SymbolTable σ c) [σ]
+sigOf q = getPred q . sig
+
+-- | Get the arity of a predicate
+arityOf :: QName → Getter (SymbolTable σ c) Int
+arityOf q = sigOf q.to length
+
+eachFormal :: Traversal (SymbolTable σ c) (SymbolTable τ c) σ τ
+eachFormal = each.definitions.each.sig.each

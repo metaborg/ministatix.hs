@@ -3,30 +3,21 @@
 module Statix.Solver.Types where
 
 import Prelude hiding (lookup, null)
-import Data.Text (unpack)
+import Data.Default
 import Data.List as List
-import Data.Map.Strict as Map hiding (map, null)
-import Data.STRef
 import qualified Data.Sequence as Seq
 import Data.HashMap.Strict as HM
-import Data.Coerce
-import Data.Functor.Fixedpoint
-import Data.Default
 
 import Control.Lens
 import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
-import Control.Monad.Trans
 
-import Statix.Regex
 import Statix.Graph
 import Statix.Graph.Paths as Paths
 import Statix.Graph.Types as Graph
 import Statix.Syntax
-import Statix.Analysis.Symboltable
-import Statix.Analysis.Lexical
 
 import ATerms.Syntax.ATerm hiding (pretty)
 import qualified ATerms.Syntax.ATerm as ATerm
@@ -127,7 +118,7 @@ data Frame s = Frame
   }
 
 data Env s = Env
- { _symbols :: SymbolTable
+ { _symbols :: SymbolTable₂
  , _locals  :: [Frame s]
  }
 

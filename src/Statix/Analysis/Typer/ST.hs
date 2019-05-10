@@ -1,8 +1,6 @@
 module Statix.Analysis.Typer.ST where
 
-import Data.Default
 import Data.HashMap.Strict as HM
-import qualified Data.Text as Text
 
 import Control.Lens
 import Control.Monad.Except
@@ -15,13 +13,9 @@ import Control.Monad.ST
 import Statix.Syntax
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
-import Statix.Analysis.Namer
-import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical as Lex
 
-
 import Unification as Unif
-import Unification.ST
 
 -- | Type checking monad
 type TCM s =

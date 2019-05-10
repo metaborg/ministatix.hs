@@ -1,20 +1,15 @@
 -- | The surface syntax is defined literally as an extension of the core
 -- constraint language using Data.Functor.Sum and then taking the fixedpoint.
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Syntax.Surface where
 
 import Data.Functor.Fixedpoint
 import Data.Functor.Sum
 
-import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Unique
 import Control.Monad.Writer.Strict hiding (Sum)
 
-import Statix.Syntax.Types
 import Statix.Syntax.Terms
-import Statix.Syntax.Typing
 import Statix.Syntax.Constraint hiding (Matcher, Branch, PathFilter(..))
 import qualified Statix.Syntax.Constraint as Syn
 
@@ -44,17 +39,17 @@ data Extensions r
 -- plus some extensions
 type SurfaceCF = Sum (ConstraintF Ident Ident Term₀) Extensions
 type SurfaceC  = Fix SurfaceCF
-type SurfaceP  = Predicate SurfaceC
-type SurfaceM  = RawModule SurfaceC
+type SurfaceP  = Predicate Ident SurfaceC
+data SurfaceM p = RawMod Ident [Ident] [p]
 
-desugar :: SurfaceC → Constraint Ident Ident Term₀
+desugar :: SurfaceC → Constraint₀
 desugar c = evalState (cataM desugarF c) 0
 
 desugarPred :: SurfaceP → Predicate₀
 desugarPred (Pred qn sig body) = Pred qn sig (desugar body)
 
-desugarMod :: SurfaceM → RawModule₀
-desugarMod (Mod name imps defs) = Mod name imps (fmap desugarPred defs)
+desugarMod :: SurfaceM SurfaceP → SurfaceM Predicate₀
+desugarMod (RawMod name imps defs) = RawMod name imps (fmap desugarPred defs)
 
 -- | Implementation of desguaring
 

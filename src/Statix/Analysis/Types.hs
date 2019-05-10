@@ -1,24 +1,11 @@
 module Statix.Analysis.Types where
 
 import Data.Default
-import Data.Text hiding (length, head, tail, find)
-import Data.HashMap.Strict as HM
-import Data.Coerce
-import Data.Functor.Identity
-import Data.Maybe
-import Data.List
-
+import Data.HashMap.Strict as HM hiding (map)
 import Control.Lens
-import Control.Applicative
-import Control.Monad.Except
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.ST
-import Control.Monad.Equiv
 
 import Statix.Syntax
-import Statix.Analysis.Symboltable
-import Statix.Analysis.Lexical
+
 import Unification
 import Unification.ST
 
@@ -58,27 +45,26 @@ instance Default NameContext where
 makeLenses ''NameContext
 
 type Scope n           = HashMap Ident n
-type PreFormals n      = [ (Ident, n) ]
-type PreModuleTyping n = HashMap Ident (PreFormals n)
+
+type PreSignature n    = [ (Ident, n) ]
+type PrePredicate n    = Predicate (Ident, n) Constraint₁
+type PreModule n       = Module Ident Constraint₁
+type PreSymbolTable n  = SymbolTable (Ident, n) Constraint₁
+
 type TyRef s           = Class s (Const Type) ()
 
 data TyEnv n = TyEnv
-  { _self     :: Ident
-  , _modtable :: PreModuleTyping n
-  , _symty    :: SymbolTable
-  , _scopes   :: [Scope n]
+  { _symtab :: PreSymbolTable n
+  , _scopes :: [Scope n]
   }
 
 instance Default (TyEnv n) where
-  def = TyEnv "" HM.empty HM.empty [HM.empty]
+  def = TyEnv HM.empty [HM.empty]
 
 makeLenses ''TyEnv
 
--- | Compute a qualifier for a module
-moduleQualifier :: Module → Qualifier
-moduleQualifier = fmap qname
+moduleQualifier :: Ident → SymbolTable σ c → Qualifier
+moduleQualifier mod syms = (syms HM.! mod) ^. (definitions . to (fmap _qname))
 
--- | Compute a qualifier for an import list.
--- Precedence is from high to low
-importsQualifier :: [Ident] → SymbolTable → Qualifier
-importsQualifier imps symtab = HM.unions (fmap (moduleQualifier . (symtab HM.!) ) imps)
+importQualifier :: [Ident] → SymbolTable σ c → Qualifier
+importQualifier mods syms = HM.unions $ fmap (flip moduleQualifier syms) (mods)

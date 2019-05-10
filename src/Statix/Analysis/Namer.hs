@@ -5,21 +5,14 @@ import Control.Lens
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
-import Control.Monad.Trans
 
-import Data.Default
 import Data.HashMap.Strict as HM
 import Data.HashSet as HSet
 import Data.Functor.Fixedpoint
-import Data.Coerce
-import qualified Data.Text as Text
 
 import Statix.Syntax
 import Statix.Analysis.Types
-import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
-
-import Debug.Trace
 
 class
   ( MonadLex Ident Ident IPath m
@@ -149,6 +142,6 @@ checkConstraint (CMatch t br) = do
 
 checkPredicate :: (MonadNamer m) ⇒ Predicate₀ → m Predicate₁
 checkPredicate (Pred qn σ body) = do
-  enters () (fmap fst σ) $ do
+  enters () σ $ do
     body' ← checkConstraint body
     return (Pred qn σ body')

@@ -10,15 +10,13 @@ import Control.Monad.Unique as Unique
 
 import Statix.Syntax
 
-import Statix.Analysis.Symboltable
-
 -- | The REPL Monad.
 type REPL =
   ( StateT REPLState
   ( InputT IO ))
 
 data REPLState = REPLState
-  { _globals   :: SymbolTable
+  { _globals   :: SymbolTable₂
   , _freshId   :: Integer
   , _imports   :: [Ident]
   , _gen       :: Integer
@@ -34,7 +32,8 @@ instance MonadUnique Integer REPL where
 
   updateSeed i = modify (set freshId i)
 
-importMod :: Ident → Module → REPL ()
-importMod i mod = do
-  modify (over imports (i:))
-  modify (over globals (HM.insert i mod))
+importMod :: Module₂ → REPL ()
+importMod mod = do
+  let name = mod^.moduleName
+  modify (over imports (name:))
+  modify (over globals (HM.insert name mod))

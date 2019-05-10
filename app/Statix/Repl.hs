@@ -27,7 +27,6 @@ import Statix.Syntax.Parser
 import Statix.Solver
 
 import Statix.Analysis.Types hiding (self)
-import Statix.Analysis.Symboltable
 import Statix.Analysis
 
 import Statix.Repl.Command
@@ -43,9 +42,11 @@ self = gen . (to $ \g → "repl-" ++ show g)
 main :: Getting String REPLState String
 main = gen . (to $ \g → "main" ++ show g)
 
-runREPL :: SymbolTable → REPL a → IO a
-runREPL sym c = runInputT (defaultSettings { historyFile = Just ".statix" }) $ evalStateT c (REPLState sym 0 [] 0)
-
+runREPL :: SymbolTable₂ → REPL a → IO a
+runREPL sym c =
+  runInputT
+    (defaultSettings { historyFile = Just ".statix" }) $
+    evalStateT c (REPLState sym 0 [] 0)
 
 prompt :: REPL Cmd
 prompt = do
@@ -110,31 +111,30 @@ handleErrors (Left err) = do
   liftIO $ report err
   loop
 
-reportImports :: Module → IO ()
+reportImports :: Module₂ → IO ()
 reportImports mod = do
   setSGR [SetColor Foreground Dull Green]
   putStrLn ""
   putStrLn $ "⟨✓⟩ Imported module "
   setSGR [Reset]
 
-
 handler :: REPL a → Cmd → REPL a
 handler κ (Main rawc) = do
   main   ← use main
   this   ← use self
   imps   ← use imports
-  symtab ← use globals
 
   -- parse and analyze the constraint as a singleton module
   c        ← handleErrors $ parseConstraint this rawc
   let c'   = desugar c
-  mod      ← withErrors $ analyze symtab (Mod this imps [Pred (this, main) [] c'])
+  mods     ← withErrors $ analyze [RawMod this imps [Pred (this, main) [] c']]
 
   -- import the module
-  importMod this mod
+  forM_ mods importMod
   modify (over gen (+1))
 
-  liftIO $ runST $ fmap printResult (solve symtab (body $ mod HM.! main))
+  symtab ← use globals
+  liftIO $ runST $ fmap printResult (solve symtab (mods^.to (HM.! this).definitions.to (HM.! main).body))
 
   -- rinse and repeat
   κ
@@ -146,10 +146,10 @@ handler κ (Define p) = do
 
   pr      ← handleErrors $ parsePredicate this p
   let pr' = desugarPred pr
-  mod     ← withErrors $ analyze symtab (Mod this imps [pr'])
+  mods    ← withErrors $ analyze [RawMod this imps [pr']]
 
   -- import the predicate into the symboltable
-  importMod this mod
+  forM_ mods importMod 
   modify (over gen (+1))
 
   -- rinse and repeat
@@ -165,14 +165,14 @@ handler κ (Import name) = do
 handler κ (Type pred) = do
   imps   ← use imports
   symtab ← use globals
-  let q = importsQualifier imps symtab
+  let q = importQualifier imps symtab
 
-  case (symtab !!!) <$> HM.lookup pred q of
+  case (\p → symtab^.getPred p) <$> HM.lookup pred q of
     Just p  → liftIO $ putStrLn $
       pred
         ++ " :: "
         ++ (intercalate " → "
-            (fmap (\(n,t) → "(" ++ n ++ " : " ++ show t ++ ")") $ reverse $ sig p))
+            (fmap (\(n,t) → "(" ++ n ++ " : " ++ show t ++ ")") $ reverse $ p^.sig))
         ++ " → Constraint"
     Nothing → liftIO $ putStrLn $ "No predicate named: " ++ pred
 

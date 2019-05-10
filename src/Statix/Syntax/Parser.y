@@ -184,7 +184,7 @@ Predicate       :
   NAME '(' Names ')' leftarrow Constraint period                {%
     do
       mod ← ask
-      return (Pred (mod , $1) (mkParams $3) $6)
+      return (Pred (mod , $1) $3 $6)
   }
 Predicates      : list(Predicate)                               { $1 }
 
@@ -194,7 +194,7 @@ Imports         : list(Import)                                  { $1 }
 Module          : Imports Predicates                            {%
     do
       mod <- ask
-      return (Mod mod $1 $2)
+      return (RawMod mod $1 $2)
   }
 
 either(p, q)    : p                                             { Left  $1 }
@@ -224,8 +224,6 @@ rev_list1(p)    : p                                             { [$1] }
 core = \c → Fix (InL c)
 ext  = \c → Fix (InR c)
 
-mkParams = fmap (\id → (id , TBot))
-
 parseError :: Token -> ParserM a
 parseError toks = do
   s ← gets input
@@ -242,7 +240,7 @@ parseConstraint mod s = evalParser mod s parseConstraintAct
 parsePredicate :: Ident → String → Either String SurfaceP
 parsePredicate mod s = evalParser mod s parsePredicateAct
 
-parseModule :: Ident → String → Either String SurfaceM
+parseModule :: Ident → String → Either String (SurfaceM SurfaceP)
 parseModule mod s = evalParser mod s parseModuleAct
 
 }

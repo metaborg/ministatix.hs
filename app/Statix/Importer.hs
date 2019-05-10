@@ -5,21 +5,20 @@ import Data.List (intercalate)
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
-import Control.Lens
 
 import System.Directory (doesFileExist, makeAbsolute)
 import System.FilePath
 
 import Statix.Syntax
-import Statix.Repl.Types (REPL, globals, importMod)
+import Statix.Repl.Types (REPL, importMod)
 import Statix.Repl.Errors
 import Statix.Analysis (analyze)
 import Statix.Analysis.Types
 import Statix.Syntax.Parser (parseModule)
-import Statix.Syntax.Surface (desugarMod)
+import Statix.Syntax.Surface (desugarMod, SurfaceM(..))
 
 type ImportStack = [Ident]
-type RawSymboltable = [(Ident, RawModule₀)]
+type RawSymboltable = [SurfaceM Predicate₀]
 type Importer = ReaderT ImportStack (StateT RawSymboltable (ExceptT ImportError IO))
 
 runImporter :: Importer a → IO (Either ImportError (a, RawSymboltable))
@@ -71,7 +70,7 @@ loadModule :: [FilePath] → Ident → Importer ()
 loadModule rootpaths name = do
   liftIO $ putStrLn $ "Loading module " ++ name ++ "..."
   path   ← resolveModule rootpaths name
-  rawmod@(Mod _ imps defs) ← loadModuleFromFile rootpaths name path
+  rawmod@(RawMod _ imps defs) ← loadModuleFromFile rootpaths name path
 
   -- push the module name to the stack
   local (name:) $ do
@@ -80,14 +79,14 @@ loadModule rootpaths name = do
     -- iterate recursively over imports that we have not seen yet
     forM_ imps $ \imp → 
       if imp `elem` stack
-      then importErr imp $ "Cyclic import while trying " ++ imp
+      then return ()
       else do
         symtab ← get
-        if any (\(name, _) → name == imp) symtab
+        if any (\(RawMod name _ _) → name == imp) symtab
           then return ()
           else loadModule rootpaths imp
 
-  modify ((name, rawmod):)
+  modify (rawmod:)
 
 typeErr :: Ident → TCError → Importer a
 typeErr name msg = do
@@ -105,12 +104,12 @@ wontParse mod msg = do
   throwError $ ParseErr (mod:stack) msg
 
 -- | Load and parse a module from file
-loadModuleFromFile :: [FilePath] → Ident → FilePath → Importer RawModule₀
+loadModuleFromFile :: [FilePath] → Ident → FilePath → Importer (SurfaceM Predicate₀)
 loadModuleFromFile rootpaths name path = do
   content ← liftIO $ readFile path
   loadModuleFromString rootpaths name content
 
-loadModuleFromString :: [FilePath] → Ident → String → Importer RawModule₀
+loadModuleFromString :: [FilePath] → Ident → String → Importer (SurfaceM Predicate₀)
 loadModuleFromString rootpaths name content = do
   rawmod  ← either (wontParse name) return $ parseModule name content
   return $ desugarMod rawmod
@@ -118,11 +117,13 @@ loadModuleFromString rootpaths name content = do
 -- | Recursively import modules into symboltable
 importModule :: [FilePath] → Ident → REPL ()
 importModule roots name = do
+  -- recursively collect the modules to be analyzed
   rawmods ← liftIO $ runImporter (loadModule roots name)
   rawmods ← liftIO $ either panic (return . snd) rawmods
-  forM_ (reverse rawmods) $ \(name, rawmod) → do
-    symtab ← use globals
-    liftIO $ putStrLn $ "Analyzing " ++ name
-    mod    ← runExceptT $ withExceptT (TypeErr name) $ analyze symtab rawmod
-    mod    ← liftIO $ either panic return mod
-    importMod name mod
+
+  -- analyze them
+  symtab  ← runExceptT $ withExceptT (TypeErr name) $ analyze rawmods
+  symtab  ← liftIO $ either panic return symtab
+
+  -- import them
+  forM_ symtab importMod

@@ -1,21 +1,13 @@
 module Statix.Solver where
 
 import Prelude hiding (lookup, null)
-import Data.Text (Text, unpack)
 import Data.Map.Strict as Map hiding (map, null)
 import Data.HashMap.Strict as HM
-import Data.HashSet as HS
 import Data.Set as Set
-import Data.Hashable
-import Data.Either
-import Data.Maybe
-import Data.STRef
-import Data.Functor.Fixedpoint
 import Data.List as List
 import Data.Default
 import Data.Sequence as Seq
 import Data.Foldable as Fold
-import qualified Data.Text as Text
 import Data.Relation as Rel
 
 import Control.Lens
@@ -23,9 +15,6 @@ import Control.Monad.ST
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
-import Control.Monad.Trans
-import Control.Monad.Equiv
-import Control.Monad.Unique
 
 import Debug.Trace
 
@@ -34,14 +23,10 @@ import Statix.Syntax as Syn
 import Statix.Graph
 import Statix.Graph.Paths
 import Statix.Graph.Types as Graph
-import Statix.Analysis.Symboltable
 import Statix.Analysis.Lexical
 import Statix.Solver.Types
-import Statix.Solver.Reify
 import Statix.Solver.Monad
 import Statix.Solver.Terms
-
-import ATerms.Syntax.ATerm
 
 import Unification as U hiding (TTm)
 
@@ -187,7 +172,7 @@ checkCritical ces (CEdge x e y)
 checkCritical ces (CApply qn ts) = do
   ts ← mapM toDag ts
   -- get type information for p
-  formals  ← view (symbols . to (!!! qn) . to sig)
+  formals  ← view (symbols.sigOf qn)
   critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
   return $ Set.unions critters
   where
@@ -361,7 +346,7 @@ solveFocus (CEvery x (Branch m c)) = do
       throwError TypeError
 
 solveFocus (CApply p ts) = do
-   (Pred _ σ c) ← getPredicate p
+   (Pred _ σ c) ← view (symbols.getPred p)
    -- normalize the parameters
    ts' ← mapM toDag ts
 
@@ -466,7 +451,7 @@ schedule = do
       unifier
 
 -- | Construct a solver for a raw constraint
-kick :: SymbolTable → Constraint₁ → SolverM s (Unifier s)
+kick :: SymbolTable₂ → Constraint₁ → SolverM s (Unifier s)
 kick sym c =
   -- convert the raw constraint to the internal representatio
   local (\_ → set symbols sym def) $ do
@@ -492,7 +477,7 @@ dumpgraph =  do
 
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
-solve :: SymbolTable → Constraint₁ → ST s (Result s)
+solve :: SymbolTable₂ → Constraint₁ → ST s (Result s)
 solve symtab c = do
   solution ← runSolver' $ do
     catchError
@@ -511,7 +496,7 @@ solve symtab c = do
   return $ either undefined (\r → r) $ fst $ solution
 
 -- | Check satisfiability of a program
-check :: SymbolTable → Constraint₁ → Bool
+check :: SymbolTable₂ → Constraint₁ → Bool
 check p c = runST $ do
                   sol ← solve p c
                   case sol of

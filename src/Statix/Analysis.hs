@@ -1,79 +1,91 @@
 module Statix.Analysis where
 
-import Data.HashMap.Strict as HM
 import Data.Default
+import Data.HashMap.Strict as HM
 
 import Control.Monad.State
+import Control.Monad.Reader
 import Control.Monad.Unique
 import Control.Monad.Except
 import Control.Monad.ST
 import Control.Lens
 
 import Statix.Syntax
+import Statix.Syntax.Surface
 
-import Statix.Analysis.Symboltable
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
 import Statix.Analysis.Typer.ST
 import Statix.Analysis.Namer
 import Statix.Analysis.Namer.Simple
 
--- | Compute the signature of a module if it is consistent.
-namecheck :: (MonadError TCError m) ⇒ Ident → Qualifier → [Predicate₀] → m Module
-namecheck mname q defs = do
-  -- collect signatures and bind them in the context,
-  -- because modules are defined as a big mutual block
-  mod ← execStateT (mapM_ collect defs) HM.empty
-  let q' = (HM.mapWithKey (\k _ → (mname, k)) mod) `HM.union` q
+    -- collect signatures and bind them in the context,
+    -- because modules are defined as a big mutual block
+    -- mod ← execStateT (mapM_ collect defs) HM.empty
+    -- let q' = (HM.mapWithKey (\k _ → (mname, k)) mod) `HM.union` q
 
-  -- namecheck it
-  liftEither $ runNC (set qualifier q' def) (mapM checkPredicate mod)
-
-  where
+  -- where
     -- | Collect a signature from a raw Predicate.
     -- Checks against duplicate definitions.
-    collect :: (MonadError TCError m) ⇒ Predicate₀ → StateT (HashMap Ident Predicate₀) m ()
-    collect p = do
-      let name = snd $ qname p
-      bound ← gets (member name)
-      if bound
-        then throwError $ DuplicatePredicate name
-        else modify (HM.insert name p)
+    -- collect :: (MonadError TCError m) ⇒ Predicate₀ → StateT (HashMap Ident Predicate₀) m ()
+    -- collect p = do
+    --   let name = p^.qname._2
+    --   bound ← gets (member name)
+    --   if bound
+    --     then throwError $ DuplicatePredicate name
+    --     else modify (HM.insert name p)
+
+
+namecheck :: (MonadError TCError m) ⇒ SymbolTable₀ → m SymbolTable₁
+namecheck symtab = do
+  forM symtab $ \(Mod name imps defs) → do
+    let q = importQualifier imps symtab
+
+    -- namecheck it
+    defs ← forM defs $ \pred → do
+      liftEither $ runNC (set qualifier q def) (checkPredicate pred)
+
+    return (Mod name imps defs)
 
 typecheck ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ Ident → Module → SymbolTable → m Module
-typecheck this mod symtab = do
+  ) ⇒ SymbolTable₁ → m SymbolTable₂
+typecheck mods = do
   i ← fresh
-  (mod, i') ← liftEither $ runST $ _type i
+
+  (symtab, i') ← liftEither $ runST $ runTC def i $ do
+    -- construct the pretying
+    table ← initialTable mods
+
+    -- run the type analysis
+    local (over symtab $ const table) $ do
+      forM mods typecheckModule
+      solution
+
   updateSeed i'
-  return mod
 
-  where
-    _type :: Integer → ST s (Either TCError (Module, Integer))
-    _type i = do
-      pretype ← evalStateT (modInitialTyping mod :: StateT Integer (ST s) (PreModuleTyping (TyRef s))) 0
-      let tyenv = def { _self = this , _modtable = pretype , _symty = symtab }
+  return symtab
 
-      runTC tyenv i $ do
-        forM mod typecheckPredicate
-        sig ← solution
-
-        case annotateModule sig mod of
-          Just annotated → return annotated
-          Nothing        → throwError $ Panic "Module signature incomplete"
+deduplicate :: (MonadError TCError m) ⇒ [SurfaceM Predicate₀] → m SymbolTable₀
+deduplicate mods = HM.fromList <$> do
+  forM mods $ \(RawMod name imps defs) → do
+    -- run a stateful computation over the list of definitions
+    -- adding things to the hashmap if we haven't seen them yet,
+    -- or throwing an error otherwise
+    mod' ← flip execStateT HM.empty $ forM_ defs $ \pred → do
+      let predName = pred^.qname._2
+      seen ← use $ to $ HM.member $ predName
+      if seen
+        then throwError $ DuplicatePredicate predName
+        else modify (HM.insert predName pred)
+    return $ (name, Mod name imps mod')
 
 analyze ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ SymbolTable → RawModule₀ → m Module
-analyze symtab (Mod name imports defs) = do
-  -- first construct the initial context from the import list
-  let q = importsQualifier imports symtab
-
-  -- namecheck the module
-  mod ← namecheck name q defs
-
-  -- typecheck the module and compute a symboltable for it
-  typecheck name mod symtab 
+  ) ⇒ [SurfaceM Predicate₀] → m SymbolTable₂
+analyze rawmods = do
+  modules   ← deduplicate rawmods
+  namedmods ← namecheck modules
+  typecheck namedmods
