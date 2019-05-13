@@ -1,4 +1,4 @@
-# Mini Statix
+# Ministatix
 
 A playground implementation of the Statix constraint language in Haskell.
 
