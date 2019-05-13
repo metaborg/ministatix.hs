@@ -21,11 +21,11 @@ To build this project, you need to have the [Haskell Toolstack][1]
 
 Enter the project's REPL using:
 
-    ./statix
+    ./statix repl
 
-Check a file `input.aterm` against the specification `spec.mstx` using:
+Check a file `input.aterm` against the specification `src/spec.mstx` using:
 
-    ./statix spec.mstx input.aterm
+    ./statix check -I src spec input.aterm
 
 Other makefile targets are:
 - `setup` to setup the build environment;
