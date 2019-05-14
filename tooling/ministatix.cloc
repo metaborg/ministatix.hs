@@ -1,0 +1,5 @@
+Statix
+    filter remove_inline //.*$
+    extension mstx
+    extension stx
+    3rd_gen_scale 3.50	
