@@ -190,7 +190,7 @@ solveFocus (CEvery x (Branch m c)) = do
   case ans of
     -- not ground enough
     (U.Var x) → throwError StuckError
-    -- expand to big conjunction conjunction
+    -- expand to big conjunction
     (SAns ps) → do
       forM ps $ \p → do
         -- bind the path
