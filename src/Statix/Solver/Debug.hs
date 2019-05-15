@@ -25,7 +25,7 @@ tracer s a = if __trace__ then trace s a else a
 formatGoal :: Goal s → SolverM s String
 formatGoal (env, c, _) = do
   local (const env) $ do
-    instantConstraint 3 c
+    instantConstraint 5 c
 
 formatQueue :: SolverM s [String]
 formatQueue = do

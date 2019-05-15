@@ -44,16 +44,16 @@ checkTerm ces t ls i =
     _           → return Set.empty
 
 checkCritical :: Map (SNode s) (Regex Label) → Constraint₁ → Int → SolverM s (Set (SNode s, Label))
-checkCritical ces (CAnd l r) i = do
+checkCritical ces (CAnd _ l r) i = do
   lc ← checkCritical ces l i
   rc ← checkCritical ces r i
   return (lc `Set.union` rc)
-checkCritical ces (CEx xs c) i = do
+checkCritical ces (CEx _ xs c) i = do
   checkCritical ces c (i + 1)
-checkCritical ces (CEdge x e y) i
+checkCritical ces (CEdge _ x e y) i
   | (Label l _) ← e = checkVar ces x (Set.singleton l) i
   | otherwise       = throwError TypeError
-checkCritical ces (CApply qn ts) i = do
+checkCritical ces (CApply _ qn ts) i = do
   -- get type information for p
   formals  ← view (symbols.sigOf qn)
   critters ← zipWithM (\t (_,ty) → checkParam t ty) ts formals
@@ -63,9 +63,9 @@ checkCritical ces (CApply qn ts) i = do
       | TNode (In ls)    ← ty = checkTerm ces t ls i
       | TNode (InOut ls) ← ty = checkTerm ces t ls i
       | otherwise             = return Set.empty
-checkCritical ces (CEvery z (Branch _ c)) i = do
+checkCritical ces (CEvery _ z (Branch _ c)) i = do
   checkCritical ces c (i + 1)
-checkCritical ces (CMatch t brs) i = do
+checkCritical ces (CMatch _ t brs) i = do
   sets ← forM brs $ \(Branch _ c) → checkCritical ces c (i + 1)
   return $ Set.unions sets
 checkCritical _ _ _ =

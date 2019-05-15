@@ -1,13 +1,17 @@
 module Statix.Syntax.Constraint where
 
 import Prelude hiding (lookup)
+
 import Data.HashMap.Strict (HashMap, lookup)
 import Data.List (concatMap, intercalate)
 import Data.Functor.Fixedpoint
 import Data.Maybe
+import Data.Functor.Compose
 
 import Control.Lens
-import Control.Applicative
+import Control.Monad
+
+import ATerms.Syntax.Types
 
 import Statix.Regex
 import Statix.Syntax.Terms
@@ -57,28 +61,10 @@ data ConstraintF p ℓ t r
   | CMatchF t [Branch t r]
   deriving (Functor, Foldable, Traversable)
 
-pattern CTrue         = Fix CTrueF
-pattern CFalse        = Fix CFalseF
-pattern CAnd l r      = Fix (CAndF l r)
-pattern CEq l r       = Fix (CEqF l r)
-pattern CNotEq l r    = Fix (CNotEqF l r)
-pattern CEx ns c      = Fix (CExF ns c)
-pattern CNew t t'     = Fix (CNewF t t')
-pattern CData x t     = Fix (CDataF x t)
-pattern CEdge n l m   = Fix (CEdgeF n l m)
-pattern CQuery t re x = Fix (CQueryF t re x)
-pattern COne x t      = Fix (COneF x t)
-pattern CNonEmpty x   = Fix (CNonEmptyF x)
-pattern CEvery x b    = Fix (CEveryF x b)
-pattern CMin x p t    = Fix (CMinF x p t)
-pattern CFilter x p t = Fix (CFilterF x p t)
-pattern CApply p ts   = Fix (CApplyF p ts)
-pattern CMatch t br   = Fix (CMatchF t br)
-
 instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) where
 
-  show CTrueF          = "⊤"
-  show CFalseF         = "⊥"
+  show CTrueF          = "true"
+  show CFalseF         = "false"
   show (CAndF c₁ c₂)   = show c₁ ++ ", " ++ show c₂
   show (CEqF t₁ t₂)    = show t₁ ++ " == " ++ show t₂
   show (CNotEqF t₁ t₂) = show t₁ ++ " != " ++ show t₂
@@ -95,61 +81,12 @@ instance (Show ℓ, Show p, Show t, Show r) ⇒ Show (ConstraintF p ℓ t r) whe
   show (CMinF x e v)   = "min " ++ show x ++ " " ++ show e ++ " " ++ show v
   show (CFilterF x e v)= "filter " ++ show x ++ " " ++ show e ++ " " ++ show v
 
-type Constraint p ℓ t = Fix (ConstraintF p ℓ t)
-
-tmapc :: (t → s) → Constraint p ℓ t → Constraint p ℓ s
-tmapc f = cata (tmapc_ f)
-  where
-    tmapc_ :: (t → s) → ConstraintF p ℓ t (Constraint p ℓ s) → Constraint p ℓ s
-    tmapc_ f (CTrueF)         = CTrue
-    tmapc_ f (CFalseF)        = CFalse
-    tmapc_ f (CEqF t₁ t₂)     = CEq (f t₁) (f t₂)
-    tmapc_ f (CNotEqF t₁ t₂)  = CNotEq (f t₁) (f t₂)
-    tmapc_ f (CNewF n t)      = CNew n (f t)
-    tmapc_ f (CDataF l t)     = CData l (f t)
-    tmapc_ f (CEdgeF n₁ l n₂) = CEdge n₁ (f l) n₂
-    tmapc_ f (CAndF c d)      = CAnd c d
-    tmapc_ f (CExF ns c)      = CEx ns c
-    tmapc_ f (CQueryF x r y)  = CQuery x r y
-    tmapc_ f (COneF x t)      = COne x (f t)
-    tmapc_ f (CNonEmptyF x)   = CNonEmpty x
-    tmapc_ f (CEveryF x (Branch m c)) = CEvery x (Branch (fmap f m) c)
-    tmapc_ f (CMinF x p t)    = CMin x p t
-    tmapc_ f (CFilterF x p t) = CFilter x (fmap f p) t
-    tmapc_ f (CApplyF p ts)   = CApply p (fmap f ts)
-    tmapc_ f (CMatchF t br)   =
-      CMatch (f t) (fmap (\(Branch m c) → Branch (fmap f m) c) br)
-
-tsequencec :: (Applicative f) ⇒ Constraint p ℓ (f t) → f (Constraint p ℓ t)
-tsequencec = cata tsequencec_
-  where
-    tseqb :: (Applicative f) ⇒ Branch (f t) (f c) → f (Branch t c)
-    tseqb (Branch t c) = liftA2 Branch (sequenceA t) c
-
-    tsequencec_ :: (Applicative f) ⇒ ConstraintF p ℓ (f t) (f (Constraint p ℓ t)) → f (Constraint p ℓ t)
-    tsequencec_ (CTrueF)         = pure CTrue
-    tsequencec_ (CFalseF)        = pure CFalse
-    tsequencec_ (CEqF t₁ t₂)     = liftA2 CEq t₁ t₂
-    tsequencec_ (CNotEqF t₁ t₂)  = liftA2 CNotEq t₁ t₂
-    tsequencec_ (CNewF n t)      = pure (CNew n) <*> t
-    tsequencec_ (CDataF l t)     = pure (CData l) <*> t
-    tsequencec_ (CEdgeF n₁ l n₂) = pure (\t → CEdge n₁ t n₂) <*> l
-    tsequencec_ (CAndF c d)      = liftA2 CAnd c d
-    tsequencec_ (CExF ns c)      = pure (CEx ns) <*> c
-    tsequencec_ (CQueryF x r y)  = pure (CQuery x r y)
-    tsequencec_ (COneF x t)      = pure (COne x) <*> t
-    tsequencec_ (CNonEmptyF x)   = pure (CNonEmpty x)
-    tsequencec_ (CEveryF x b)    = pure (CEvery x) <*> (tseqb b)
-    tsequencec_ (CMinF x p t)    = pure (CMin x p t)
-    tsequencec_ (CFilterF x p t) = pure (\p → CFilter x p t) <*> sequenceA p
-    tsequencec_ (CApplyF p ts)   = pure (CApply p) <*> sequenceA ts
-    tsequencec_ (CMatchF t brs)  = liftA2 (\t brs → CMatch t brs) t (sequenceA $ fmap tseqb brs)
-
 ------------------------------------------------------------------
 -- | Predicates and modules
 
 data Predicate σ c = Pred
-  { _qname    :: QName
+  { _position :: Pos
+  , _qname    :: QName
   , _sig      :: [σ]
   , _body     :: c
   } deriving (Show)
@@ -160,27 +97,67 @@ data Module σ c = Mod
   , _definitions   :: HashMap Ident (Predicate σ c) }
   deriving (Show)
 
-type ConstraintF₀ r = ConstraintF Ident Ident Term₀ r     -- parsed
-type ConstraintF₁ r = ConstraintF QName IPath Term₁ r     -- named
+type ConstraintF₀     = ConstraintF Ident Ident Term₀     -- parsed
+type ConstraintF₁     = ConstraintF QName IPath Term₁     -- named
 
-type Branch₀        = Branch Term₀ Constraint₀
-type Branch₁        = Branch Term₁ Constraint₁
+type Branch₀          = Branch Term₀ Constraint₀
+type Branch₁          = Branch Term₁ Constraint₁
 
-type Constraint₀    = Constraint Ident  Ident Term₀
-type Constraint₁    = Constraint QName  IPath Term₁
+type Annotated a f = Compose ((,) a) f
 
-type Predicate₀     = Predicate Ident Constraint₀
-type Predicate₁     = Predicate Ident Constraint₁
-type Predicate₂     = Predicate (Ident,Type) Constraint₁
+pattern AnnF :: a → f r → Annotated a f r
+pattern AnnF a f = Compose (a, f)
 
-type Module₀        = Module Ident Constraint₀
-type Module₁        = Module Ident Constraint₁
-type Module₂        = Module (Ident, Type) Constraint₁
+pattern Ann :: a → f (Fix (Annotated a f)) → Fix (Annotated a f)
+pattern Ann a f = Fix (Compose (a, f))
 
-type SymbolTable σ c = HashMap Ident (Module σ c)
-type SymbolTable₀   = SymbolTable Ident Constraint₀
-type SymbolTable₁   = SymbolTable Ident Constraint₁
-type SymbolTable₂   = SymbolTable (Ident, Type) Constraint₁
+adi :: Functor f
+    => (f a -> a)
+    -> ((Fix f -> a) -> Fix f -> a)
+    -> Fix f -> a
+adi f g = g (f . fmap (adi f g) . unFix)
+
+adiM :: (Traversable t, Monad m)
+     => (t a -> m a)
+     -> ((Fix t -> m a) -> Fix t -> m a)
+     -> Fix t -> m a
+adiM f g = g ((f <=< traverse (adiM f g)) . unFix)
+
+type Constraint p l t = Fix (Annotated Pos (ConstraintF p l t))
+type Constraint₀      = Fix (Annotated Pos ConstraintF₀)
+type Constraint₁      = Fix (Annotated Pos ConstraintF₁)
+
+pattern CTrue an         = Ann an CTrueF
+pattern CFalse an        = Ann an CFalseF
+pattern CAnd an l r      = Ann an (CAndF l r)
+pattern CEq an l r       = Ann an (CEqF l r)
+pattern CNotEq an l r    = Ann an (CNotEqF l r)
+pattern CEx an ns c      = Ann an (CExF ns c)
+pattern CNew an t t'     = Ann an (CNewF t t')
+pattern CData an x t     = Ann an (CDataF x t)
+pattern CEdge an n l m   = Ann an (CEdgeF n l m)
+pattern CQuery an t re x = Ann an (CQueryF t re x)
+pattern COne an x t      = Ann an (COneF x t)
+pattern CNonEmpty an x   = Ann an (CNonEmptyF x)
+pattern CEvery an x b    = Ann an (CEveryF x b)
+pattern CMin an x p t    = Ann an (CMinF x p t)
+pattern CFilter an x p t = Ann an (CFilterF x p t)
+pattern CApply an p ts   = Ann an (CApplyF p ts)
+pattern CMatch an t br   = Ann an (CMatchF t br)
+
+
+type Predicate₀       = Predicate Ident Constraint₀
+type Predicate₁       = Predicate Ident Constraint₁
+type Predicate₂       = Predicate (Ident,Type) Constraint₁
+
+type Module₀          = Module Ident Constraint₀
+type Module₁          = Module Ident Constraint₁
+type Module₂          = Module (Ident, Type) Constraint₁
+
+type SymbolTable σ c  = HashMap Ident (Module σ c)
+type SymbolTable₀     = SymbolTable Ident Constraint₀
+type SymbolTable₁     = SymbolTable Ident Constraint₁
+type SymbolTable₂     = SymbolTable (Ident, Type) Constraint₁
 
 makeLenses ''Predicate
 makeLenses ''Module

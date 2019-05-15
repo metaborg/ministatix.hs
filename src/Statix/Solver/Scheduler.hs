@@ -86,7 +86,7 @@ schedule solver = do
             -- reschedule stuck goals
             StuckError              → delay c
             Unsatisfiable tr msg → do
-              c ← instantConstraint 3 c
+              c ← instantConstraint 5 c
               throwError $ Unsatisfiable (Within c:tr) msg
             e → throwError e
           )

@@ -1,6 +1,5 @@
 module Statix.Analysis.Namer where
 
-
 import Control.Lens
 import Control.Monad.State
 import Control.Monad.Reader
@@ -66,82 +65,80 @@ checkMatch (Matcher _ g eqs) ma = do
     eqs ← forM eqs checkGuard
     return (Matcher ns g eqs, a)
 
-checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
-checkBranch (Branch m c) = do
+checkBrannch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
+checkBrannch (Branch m c) = do
   (m, c) ← checkMatch m (checkConstraint c)
   return (Branch m c)
 
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
 checkConstraint :: (MonadNamer m) ⇒ Constraint₀ → m Constraint₁
-checkConstraint CTrue =
-  return CTrue
-checkConstraint CFalse =
-  return CFalse
-checkConstraint (CEq t₁ t₂) = do
+checkConstraint (CTrue ann)  = return $ CTrue ann
+checkConstraint (CFalse ann) = return $ CFalse ann
+checkConstraint (CEq ann t₁ t₂) = do
   t₃ ← checkTerm t₁ 
   t₄ ← checkTerm t₂
-  return (CEq t₃ t₄)
-checkConstraint (CNotEq t₁ t₂) = do
+  return (CEq ann t₃ t₄)
+checkConstraint (CNotEq ann t₁ t₂) = do
   t₃ ← checkTerm t₁ 
   t₄ ← checkTerm t₂
-  return (CNotEq t₃ t₄)
-checkConstraint (CAnd c d) = do
+  return (CNotEq ann t₃ t₄)
+checkConstraint (CAnd ann c d) = do
   cc ← checkConstraint c
   cd ← checkConstraint d
-  return (CAnd cc cd)
-checkConstraint (CEx ns c) = do
+  return (CAnd ann cc cd)
+checkConstraint (CEx ann ns c) = do
   enters () ns $ do
     cc ← checkConstraint c
-    return (CEx ns cc)
-checkConstraint (CNew x t) = do
+    return (CEx ann ns cc)
+checkConstraint (CNew ann x t) = do
   p ← resolve x
   t ← checkTerm t
-  return (CNew p t)
-checkConstraint (CData x t) = do
+  return (CNew ann p t)
+checkConstraint (CData ann x t) = do
   p ← resolve x
   t ← checkTerm t
-  return (CData p t)
-checkConstraint (CEdge x l y) = do
+  return (CData ann p t)
+checkConstraint (CEdge ann x l y) = do
   p ← resolve x
   q ← resolve y
   l ← checkTerm l
-  return (CEdge p l q)
-checkConstraint (CQuery x re y) = do
+  return (CEdge ann p l q)
+checkConstraint (CQuery ann x re y) = do
   p ← resolve x
   q ← resolve y
-  return (CQuery p re q)
-checkConstraint (COne x t) = do
+  return (CQuery ann p re q)
+checkConstraint (COne ann x t) = do
   p  ← resolve x
   ct ← checkTerm t
-  return (COne p ct)
-checkConstraint (CNonEmpty x) = do
+  return (COne ann p ct)
+checkConstraint (CNonEmpty ann x) = do
   p  ← resolve x
-  return (CNonEmpty p)
-checkConstraint (CEvery x br) = do
+  return (CNonEmpty ann p)
+checkConstraint (CEvery ann x br) = do
   p ← resolve x
-  br ← checkBranch br
-  return (CEvery p br)
-checkConstraint (CMin x le y) = do
+  br ← checkBrannch br
+  return (CEvery ann p br)
+checkConstraint (CMin ann x le y) = do
   p  ← resolve x
   q  ← resolve y
-  return (CMin p le q)
-checkConstraint (CFilter x (MatchDatum m) y) = do
+  return (CMin ann p le q)
+checkConstraint (CFilter ann x (MatchDatum m) y) = do
   p  ← resolve x
   q  ← resolve y
   (m, ())  ← checkMatch m (return ())
-  return (CFilter p (MatchDatum m) q)
-checkConstraint (CApply n ts) = do
+  return (CFilter ann p (MatchDatum m) q)
+checkConstraint (CApply ann n ts) = do
   qn  ← qualify n
   cts ← mapM checkTerm ts
-  return (CApply qn cts)
-checkConstraint (CMatch t br) = do
+  return (CApply ann qn cts)
+checkConstraint (CMatch ann t br) = do
   t  ← checkTerm t
-  br ← mapM checkBranch br
-  return (CMatch t br)
+  br ← mapM checkBrannch br
+  return (CMatch ann t br)
 
 checkPredicate :: (MonadNamer m) ⇒ Predicate₀ → m Predicate₁
-checkPredicate (Pred qn σ body) = do
+checkPredicate (Pred ann qn σ body) = do
   enters () σ $ do
     body' ← checkConstraint body
-    return (Pred qn σ body')
+    return (Pred ann qn σ body')

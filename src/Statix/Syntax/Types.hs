@@ -7,7 +7,6 @@ import Control.Monad.Except
 import Control.Monad.State
 
 import Statix.Syntax.Terms
-import Statix.Syntax.Constraint
 import ATerms.Syntax.Types (remainder, input, ParseState)
 
 data Token

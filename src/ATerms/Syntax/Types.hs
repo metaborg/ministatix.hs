@@ -1,13 +1,26 @@
 module ATerms.Syntax.Types where
 
-import qualified Data.Text as Text
 import Control.Monad.State
 import Control.Monad.Except
-import Control.Monad
+
 import Data.Word
 import Data.Default
 
 import Codec.Binary.UTF8.String (encode)
+
+------------------------------------------------------------------
+-- | Positions in the source file
+
+data Pos = Pos
+  { row    :: Int
+  , column :: Int
+  } deriving (Show, Eq)
+
+instance Default Pos where
+  def = Pos 0 0
+
+------------------------------------------------------------------
+-- | The Tokens
 
 data AToken
   = TokSymbol String | TokString String 
@@ -15,17 +28,11 @@ data AToken
   | TokEOF
   deriving Show
 
-data Token 
-     = TCat
-     | TEOF
-     | TString String
-     deriving (Eq,Show)
-
 data AlexInput = AlexInput
   { prev      :: Char
   , bytes     :: [Word8]
   , remainder :: String
-  , line      :: Int
+  , position  :: Pos
   } deriving Show
 
 alexGetByte :: AlexInput → Maybe (Word8, AlexInput)
@@ -35,10 +42,16 @@ alexGetByte inp = case (bytes inp) of
     []     → Nothing
     (c:cs) →
       let
-        n      = (line inp)
-        n'     = if c == '\n' then n+1 else n
-        (b:_)  = encode [ c ]
-      in Just (b, AlexInput { prev = c, bytes = [], remainder = cs, line = n'})
+        Pos row col = position inp
+        row'        = if c == '\n' then row+1 else row
+        (b:_)       = encode [ c ]
+      in Just (b, AlexInput
+                { prev = c
+                , bytes = []
+                , remainder = cs
+                , position = Pos row' (col+1)
+                }
+              )
 
 data ParseState = ParseState
   { input    :: AlexInput
@@ -47,7 +60,7 @@ data ParseState = ParseState
   } deriving Show
 
 instance Default AlexInput where
-  def = AlexInput { prev = '\n', bytes = [], remainder = "", line = 1}
+  def = AlexInput { prev = '\n', bytes = [], remainder = "", position = Pos 1 1 }
 
 instance Default ParseState where
   def = ParseState

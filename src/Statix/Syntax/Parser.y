@@ -19,13 +19,13 @@ import Control.Monad.State
 import Statix.Regex
 
 import Statix.Syntax.Terms
-import Statix.Syntax.Constraint
+import Statix.Syntax.Constraint hiding (position)
 import Statix.Syntax.Surface as Surf
 import Statix.Syntax.Types
 import Statix.Syntax.Typing
 import Statix.Syntax.Lexer
 
-import ATerms.Syntax.Types (input, remainder, line, prev)
+import ATerms.Syntax.Types (input, remainder, position, prev, Pos(..))
 
 }
 
@@ -221,8 +221,13 @@ rev_list1(p)    : p                                             { [$1] }
 
 {
 
-core = \c → Fix (InL c)
-ext  = \c → Fix (InR c)
+core c = do
+  pos ← gets (position.input)
+  return $ Ann pos (InL c)
+
+ext c = do
+  pos ← gets (position.input)
+  return $ Ann pos (InR c)
 
 parseError :: Token -> ParserM a
 parseError toks = do
@@ -231,7 +236,7 @@ parseError toks = do
   let c = prev s
   throwError $
     "Parse error:"
-    ++ "\n" ++ show (line s) ++ " | ... " ++ c : takeWhile ((/=) '\n') rem
+    ++ "\n" ++ show (row $ position s) ++ " | ... " ++ c : takeWhile ((/=) '\n') rem
     ++ "\n" ++ take 8 (repeat ' ') ++ "^"
 
 parseConstraint :: Ident → String → Either String SurfaceC

@@ -69,7 +69,8 @@ readToken = do
 
   case alexScan (input s) (lexState s) of
     AlexEOF        → return TokEOF
-    AlexError inp' → throwError $ "Lexical error on line " ++ (show $ line inp')      
+    AlexError inp' → 
+      throwError $ "Lexical error on line " ++ (show $ row $ position inp')      
     AlexSkip inp' _ → do    
       put s { input = inp' }
       readToken

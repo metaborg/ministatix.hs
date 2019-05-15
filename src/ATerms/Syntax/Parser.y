@@ -54,7 +54,7 @@ parseError :: AToken -> ParserM a
 parseError _ = do
   s ← gets input
   let rem = remainder s
-  throwError $ "Parse error on line " ++ show (line s) ++ ": " ++ take 80 rem
+  throwError $ "Parse error on line " ++ show (row $ position s) ++ ": " ++ take 80 rem
 
 parse :: String → Either String ATerm
 parse s = evalParser parseAct s

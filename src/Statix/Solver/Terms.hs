@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ExtendedDefaultRules #-}
 module Statix.Solver.Terms where
 
 import Data.Functor.Fixedpoint
@@ -63,7 +61,7 @@ instantConstraint :: Int → Constraint₁ → SolverM s String
 instantConstraint d c = execWriterT (insta d c)
   where
     insta :: Int → Constraint₁ → WriterT String (SolverM s) ()
-    insta d (Fix c) = prettyF
+    insta d (Ann _ c) = prettyF
       (\qn → tell $ showQName qn)
       (instantVariable d)
       (\t → do

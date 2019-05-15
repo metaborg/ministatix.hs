@@ -13,6 +13,7 @@ import Statix.Syntax.Terms
 import Statix.Syntax.Constraint hiding (Matcher, Branch, PathFilter(..))
 import qualified Statix.Syntax.Constraint as Syn
 
+import ATerms.Syntax.Types
 import ATerms.Syntax.ATerm
 
 data Pattern
@@ -37,7 +38,7 @@ data Extensions r
 
 -- | The surface syntax consists of the core constraint language
 -- plus some extensions
-type SurfaceCF = Sum (ConstraintF Ident Ident Term₀) Extensions
+type SurfaceCF = Annotated Pos (Sum (ConstraintF Ident Ident Term₀) Extensions)
 type SurfaceC  = Fix SurfaceCF
 type SurfaceP  = Predicate Ident SurfaceC
 data SurfaceM p = RawMod Ident [Ident] [p]
@@ -46,7 +47,7 @@ desugar :: SurfaceC → Constraint₀
 desugar c = evalState (cataM desugarF c) 0
 
 desugarPred :: SurfaceP → Predicate₀
-desugarPred (Pred qn sig body) = Pred qn sig (desugar body)
+desugarPred (Pred pos qn sig body) = Pred pos qn sig (desugar body)
 
 desugarMod :: SurfaceM SurfaceP → SurfaceM Predicate₀
 desugarMod (RawMod name imps defs) = RawMod name imps (fmap desugarPred defs)
@@ -56,16 +57,16 @@ desugarMod (RawMod name imps defs) = RawMod name imps (fmap desugarPred defs)
 type DesugarM = StateT Integer (Writer [Ident])
 
 desugarF :: SurfaceCF (Constraint Ident Ident Term₀) → State Integer (Constraint Ident Ident Term₀)
-desugarF (InL c) = return (Fix c)
-desugarF (InR (SEveryF id br)) = do
+desugarF (AnnF pos (InL c)) = return (Fix (AnnF pos c))
+desugarF (AnnF pos (InR (SEveryF id br))) = do
   br ← desugarBranch br
-  return (CEvery id br)
-desugarF (InR (SFilterF id filt id')) = do
+  return (CEvery pos id br)
+desugarF (AnnF pos (InR (SFilterF id filt id'))) = do
   filt ← desugarFilter filt
-  return (CFilter id filt id')
-desugarF (InR (SMatchF tm branches)) = do
+  return (CFilter pos id filt id')
+desugarF (AnnF pos (InR (SMatchF tm branches))) = do
     branches ← mapM desugarBranch branches
-    return (CMatch tm branches)
+    return (CMatch pos tm branches)
 
 desugarPatATm :: ATermF Pattern → DesugarM Term₀
 desugarPatATm t = TTm <$> (mapM desugarPattern t)

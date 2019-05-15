@@ -11,9 +11,8 @@ import Statix.Syntax.Terms
 import Debug.Trace
 
 import ATerms.Syntax.Types
-  ( AlexInput(..), ParseState
+  ( AlexInput(..), ParseState, Pos(..)
   , alexGetByte, lexState, stringBuf, input)
-
 }
 
 $space       = [\ ]
@@ -122,27 +121,6 @@ beginNormal _ _ = do
   modify (\st → st { lexState = 0 })
   return Nothing
 
-/* beginString :: LexAction */
-/* beginString _ _ = do */
-/*   modify (\st → st { lexState = string }) */
-/*   return Nothing */
-
-/* escapeQuote :: LexAction */
-/* escapeQuote _ _ = do */
-/*   modify (\st → st { stringBuf = '"' : stringBuf st }) */
-/*   return Nothing */
-
-/* appendString :: LexAction */
-/* appendString _ (c:_) = do */
-/*   modify (\st → st { stringBuf = c : stringBuf st }) */
-/*   return Nothing */
-
-/* endString :: LexAction */
-/* endString _ _ = do */
-/*   s ← gets stringBuf */
-/*   modify (\st → st { lexState = 0, stringBuf = "" }) */
-/*   return (Just (TokString (pack (reverse s))))  */
-
 readToken :: ParserM Token
 readToken = do
   s ← get
@@ -150,7 +128,7 @@ readToken = do
   case alexScan (input s) (lexState s) of
     AlexEOF        → return TEOF
     AlexError inp' → 
-      throwError $ "Lexical error on line " ++ (show $ line inp') 
+      throwError $ "Lexical error on line " ++ (show $ row $ position inp') 
       		 ++ "(\"" ++ (take 5 (remainder inp')) ++ "\")"
     AlexSkip inp' _ → do    
       put s { input = inp' }

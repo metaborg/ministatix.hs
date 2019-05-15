@@ -5,6 +5,7 @@ import System.FilePath
 import System.Exit
 
 import Data.HashMap.Strict as HM
+import Data.Default
 
 import Control.Lens hiding (argument)
 import Control.Monad.Except
@@ -90,7 +91,7 @@ statix params = void $ runREPL HM.empty $ do
     symtab ← use globals
     let mod = symtab HM.! (spec params)
     let main   = (spec params, "main")
-    let wrapper = CApply main [fromATerm aterm]
+    let wrapper = CApply def main [fromATerm aterm]
 
     case HM.lookup (snd main) (mod^.definitions) of
       Nothing → handleErrors $ Left $ "Missing main in module " ++ (spec params)

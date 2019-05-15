@@ -32,8 +32,8 @@ class
   ) ⇒ MonadTyper n m | m → n where
 
 -- | Check the arity of applications against the symboltable
-checkArity :: MonadTyper n m ⇒ ConstraintF₁ r → m ()
-checkArity c@(CApplyF qn ts) = do
+checkArity :: MonadTyper n m ⇒ Annotated Pos ConstraintF₁ r → m ()
+checkArity c@(AnnF _ (CApplyF qn ts)) = do
   arity ← view (symtab.arityOf qn)
   if length ts /= arity
     then throwError $ ArityMismatch qn arity (length ts)
@@ -80,19 +80,19 @@ typeBranch (Branch m c) = do
 
 -- | Collect type constraints
 typeAnalysis :: MonadTyper n m ⇒ Constraint₁ → m ()
-typeAnalysis CTrue  = return ()
-typeAnalysis CFalse = return ()
-typeAnalysis (CEx ns c) = do
+typeAnalysis (CTrue _)  = return ()
+typeAnalysis (CFalse _) = return ()
+typeAnalysis (CEx _ ns c) = do
   bs ← mapM mkBinder ns
   enters () bs (typeAnalysis c)
-typeAnalysis (CAnd c d) = do
+typeAnalysis (CAnd _ c d) = do
   typeAnalysis c
   typeAnalysis d
-typeAnalysis (CEq t s) =
+typeAnalysis (CEq _ t s) =
   return ()
-typeAnalysis (CNotEq t s) =
+typeAnalysis (CNotEq _ t s) =
   return ()
-typeAnalysis (CEdge n e m)
+typeAnalysis (CEdge _ n e m)
   | Label l t ← e = do
       n  ← resolve n
       n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
@@ -101,56 +101,56 @@ typeAnalysis (CEdge n e m)
       unify n n'
       void $ unify m m'
   | otherwise = throwError $ TypeError "Expected label"
-typeAnalysis (CNew n t) = do
+typeAnalysis (CNew _ n t) = do
   n  ← resolve n
   m  ← construct (Tm (Const (TNode Out)))
   void $ unify n m
-typeAnalysis (CData x t) = do
+typeAnalysis (CData _ x t) = do
   n  ← resolve x
   m  ← construct (Tm (Const (TNode None)))
   void $ unify n m
-typeAnalysis (CQuery n r x) = do
+typeAnalysis (CQuery _ n r x) = do
   n  ← resolve n
   n' ← construct (Tm (Const (TNode None)))
   unify n n'
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   void $ unify x x'
-typeAnalysis (CEvery x br) = do
+typeAnalysis (CEvery _ x br) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   unify x x'
   typeBranch br 
-typeAnalysis (COne x t) = do
+typeAnalysis (COne _ x t) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   unify x x'
-typeAnalysis (CNonEmpty x) = do
+typeAnalysis (CNonEmpty _ x) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   unify x x'
-typeAnalysis (CMin x p y) = do
-  x  ← resolve x
-  x' ← construct (Tm (Const TAns))
-  y  ← resolve y
-  y' ← construct (Tm (Const TAns))
-  unify x x'
-  unify y y'
-typeAnalysis (CFilter x p y) = do
+typeAnalysis (CMin _ x p y) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   y  ← resolve y
   y' ← construct (Tm (Const TAns))
   unify x x'
   unify y y'
-typeAnalysis (CApply qn ts) = do
+typeAnalysis (CFilter _ x p y) = do
+  x  ← resolve x
+  x' ← construct (Tm (Const TAns))
+  y  ← resolve y
+  y' ← construct (Tm (Const TAns))
+  unify x x'
+  unify y y'
+typeAnalysis (CApply _ qn ts) = do
   -- compute the type nodes for the formal parameters 
   formals ← view $ symtab . sigOf qn
   actuals ← mapM termTypeAnalysis ts
 
   -- unify formals with actuals
   void (zipWithM unify (fmap snd formals) actuals)
-typeAnalysis (CMatch t br) = do
+typeAnalysis (CMatch _ t br) = do
   mapM_ typeBranch br
   
 -- | Perform type checking on a constraint in a given module.

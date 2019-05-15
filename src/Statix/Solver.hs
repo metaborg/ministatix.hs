@@ -79,27 +79,27 @@ matches t (Matcher ns g eqs) ma =
 -- This should not be a recursive function, as not to infer with scheduling.
 solveFocus :: Constraint₁ → SolverM s ()
 
-solveFocus CTrue  = return ()
-solveFocus CFalse = unsatisfiable "Say hello to Falso"
+solveFocus (CTrue _)  = return ()
+solveFocus (CFalse _) = unsatisfiable "Say hello to Falso"
 
-solveFocus (CEq t1 t2) = do
+solveFocus (CEq _ t1 t2) = do
   t1' ← toDag t1
   t2' ← toDag t2
   escalateUnificationError $ unify t1' t2'
   next
 
-solveFocus (CNotEq t1 t2) = do
+solveFocus (CNotEq _ t1 t2) = do
   escalateUnificationError $ passesGuard (GNotEq t1 t2)
   next
 
-solveFocus (CAnd l r) = do
+solveFocus (CAnd _ l r) = do
   newGoal l
   newGoal r
 
-solveFocus (CEx ns c) =
+solveFocus (CEx _ ns c) =
   openExist ns (newGoal c)
 
-solveFocus (CNew x d) = do
+solveFocus (CNew _ x d) = do
   t  ← resolve x
   d  ← toDag d
   u  ← newNode d
@@ -109,7 +109,7 @@ solveFocus (CNew x d) = do
     (\ err → unsatisfiable "Cannot get ownership of existing node")
   next
 
-solveFocus (CEdge x (Label l t) y) = do
+solveFocus (CEdge _ x (Label l t) y) = do
   t₁ ← resolve x >>= getSchema
   t₂ ← resolve y >>= getSchema
   case (t₁ , t₂) of
@@ -121,7 +121,7 @@ solveFocus (CEdge x (Label l t) y) = do
     (_ , U.Var _) → throwError StuckError
     _             → throwError TypeError
 
-solveFocus c@(CQuery x r y) = do
+solveFocus c@(CQuery _ x r y) = do
   t ← resolve x >>= getSchema
   case t of
     -- If the source node is ground
@@ -144,7 +144,7 @@ solveFocus c@(CQuery x r y) = do
     (U.Var _) → throwError StuckError
     _         → throwError TypeError
 
-solveFocus c@(COne x t) = do
+solveFocus c@(COne _ x t) = do
   t   ← toDag t
   ans ← resolve x >>= getSchema
   case ans of
@@ -161,7 +161,7 @@ solveFocus c@(COne x t) = do
     t →
       throwError TypeError
 
-solveFocus c@(CNonEmpty x) = do
+solveFocus c@(CNonEmpty _ x) = do
   ans ← resolve x >>= getSchema
   case ans of
     (U.Var x)      → throwError StuckError
@@ -169,7 +169,7 @@ solveFocus c@(CNonEmpty x) = do
     (SAns (p : _)) → next
     t              → throwError TypeError
 
-solveFocus (CData x t) = do
+solveFocus (CData _ x t) = do
   x ← resolve x >>= getSchema
 
   -- check if sufficiently ground
@@ -185,7 +185,7 @@ solveFocus (CData x t) = do
     (U.Var x) → throwError StuckError
     _         → throwError TypeError
 
-solveFocus (CEvery x (Branch m c)) = do
+solveFocus (CEvery _ x (Branch m c)) = do
   ans ← resolve x >>= getSchema
   case ans of
     -- not ground enough
@@ -200,8 +200,8 @@ solveFocus (CEvery x (Branch m c)) = do
     t →
       throwError TypeError
 
-solveFocus (CApply p ts) = do
-   (Pred _ σ c) ← view (symbols.getPred p)
+solveFocus (CApply _ p ts) = do
+   (Pred _ _ σ c) ← view (symbols.getPred p)
    -- normalize the parameters
    ts' ← mapM toDag ts
 
@@ -210,7 +210,7 @@ solveFocus (CApply p ts) = do
      -- solve the body
      tracer ("unfold " ++ show p ++ " with " ++ show ts) $ newGoal c
 
-solveFocus (CMatch t bs) = do
+solveFocus (CMatch _ t bs) = do
   t' ← tracer ("matching " ++ show t) $ toDag t
   solveBranch t' bs
 
@@ -228,7 +228,7 @@ solveFocus (CMatch t bs) = do
           e                  → throwError e
         )
 
-solveFocus (CMin x lt z) = do
+solveFocus (CMin _ x lt z) = do
   σ ← resolve x >>= getSchema
   case σ of
     (U.Var x)  → throwError StuckError
@@ -247,7 +247,7 @@ solveFocus (CMin x lt z) = do
         (labels p)
         (labels q)
 
-solveFocus (CFilter x m z) = do
+solveFocus (CFilter _ x m z) = do
   σ ← resolve x >>= getSchema
   case σ of
     (U.Var x)  → throwError StuckError
@@ -278,7 +278,7 @@ kick sym c =
   local (\_ → set symbols sym def) $ do
     case c of
       -- open the top level exists if it exists
-      (CEx ns b) → openExist ns $ do
+      (CEx _ ns b) → openExist ns $ do
         newGoal b
         schedule solveFocus
         unifier
