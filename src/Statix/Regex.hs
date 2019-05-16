@@ -13,7 +13,7 @@ data Regex l
 
 (⍮) = RSeq
 (∥) = RAlt
-(&) = RAlt
+(&) = RAnd
 rplus r = RSeq r (RStar r)
 rquestion r = RAlt Rε r
 

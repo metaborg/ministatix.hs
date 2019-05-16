@@ -73,7 +73,7 @@ runQuery :: (MonadGraph n l d m) ⇒ n → Regex l → m [Path n l d]
 runQuery n re = _resolve n re Set.empty
   where
     _resolve n re vis
-      | Re.empty re = return $ (if Re.matchε re then [ End n ] else [])
+      | Re.empty re = return []
       | otherwise   = do
        -- check if we visited this node yet on the path here
        if Set.member n vis
