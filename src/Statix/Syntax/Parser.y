@@ -10,7 +10,6 @@ import Data.List
 import Data.Char
 import Data.Default
 import Data.Functor.Sum
-import Data.Functor.Fixedpoint
 
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -132,25 +131,25 @@ Lambda          : '(' Branch ')'                                { $2 }
 LabelLT         : Label '<' Label                               { ($1, $3) }
 LabelLTs        : sep(LabelLT, ',')                             { $1 }
 PathComp        : lexico '(' LabelLTs ')'                       { Lex $3 }
-Constraint      : '{' Names '}' Constraint                      { core $ CExF $2 $4 }
-                | Constraint ',' Constraint                     { core $ CAndF $1 $3 }
-                | Term eq Term                                  { core $ CEqF $1 $3 }
-                | Term ineq Term                                { core $ CNotEqF $1 $3 }
-                | true                                          { core $ CTrueF }
-                | false                                         { core $ CFalseF }
-                | new NAME rightarrow Term                      { core $ CNewF $2 $4 }
-                | new NAME                                      { core $ CNewF $2 unitTm }
-                | NAME rightarrow Term                          { core $ CDataF $1 $3 }
-                | NAME arrL Term arrR NAME                      { core $ CEdgeF $1 $3 $5 }
-                | query NAME Regex as NAME                      { core $ CQueryF $2 $3 $5 }
-                | one  '(' NAME ',' Term ')'                    { core $ COneF $3 $5 }
-                | nempty '(' NAME  ')'                          { core $ CNonEmptyF $3 }
-                | min NAME PathComp NAME                        { core $ CMinF $2 $3 $4 }
-                | NAME '('  sep(Term, ',') ')'                  { core $ CApplyF $1 $3 }
+Constraint      : '{' Names '}' Constraint                      {% core $ CExF $2 $4 }
+                | Constraint ',' Constraint                     {% core $ CAndF $1 $3 }
+                | Term eq Term                                  {% core $ CEqF $1 $3 }
+                | Term ineq Term                                {% core $ CNotEqF $1 $3 }
+                | true                                          {% core $ CTrueF }
+                | false                                         {% core $ CFalseF }
+                | new NAME rightarrow Term                      {% core $ CNewF $2 $4 }
+                | new NAME                                      {% core $ CNewF $2 unitTm }
+                | NAME rightarrow Term                          {% core $ CDataF $1 $3 }
+                | NAME arrL Term arrR NAME                      {% core $ CEdgeF $1 $3 $5 }
+                | query NAME Regex as NAME                      {% core $ CQueryF $2 $3 $5 }
+                | one  '(' NAME ',' Term ')'                    {% core $ COneF $3 $5 }
+                | nempty '(' NAME  ')'                          {% core $ CNonEmptyF $3 }
+                | min NAME PathComp NAME                        {% core $ CMinF $2 $3 $4 }
+                | NAME '('  sep(Term, ',') ')'                  {% core $ CApplyF $1 $3 }
 
-                | every NAME Lambda                             { ext $ SEveryF $2 $3 }
-                | filter NAME '(' Matcher ')' NAME              { ext $ SFilterF $2 (Surf.MatchDatum $4) $6 }
-                | Term match '{' Branches '}'                   { ext $ SMatchF $1 $4 }
+                | every NAME Lambda                             {% ext $ SEveryF $2 $3 }
+                | filter NAME '(' Matcher ')' NAME              {% ext $ SFilterF $2 (Surf.MatchDatum $4) $6 }
+                | Term match '{' Branches '}'                   {% ext $ SMatchF $1 $4 }
 
                 | '(' Constraint ')'                            { $2 }
 
@@ -184,7 +183,8 @@ Predicate       :
   NAME '(' Names ')' leftarrow Constraint period                {%
     do
       mod ← ask
-      return (Pred (mod , $1) $3 $6)
+      pos ← gets (position.input)
+      return (Pred pos (mod , $1) $3 $6)
   }
 Predicates      : list(Predicate)                               { $1 }
 

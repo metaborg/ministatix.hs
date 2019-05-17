@@ -8,6 +8,7 @@ import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
 
+import ATerms.Syntax.Types()
 import Statix.Syntax as Syn
 
 import Statix.Solver.Types
@@ -27,7 +28,7 @@ pushGoal i c = do
 delay :: Constraint₁ → SolverM s ()
 delay c = do
   gen ← use generation
-  tracer ("Delaying " ++ show c) $ pushGoal gen c
+  tracer ("Delaying") $ pushGoal gen c
 
 newGoal :: Constraint₁ → SolverM s ()
 newGoal c = do
@@ -79,7 +80,7 @@ schedule solver = do
   st ← get
   c  ← popGoal
   case c of
-    Just (env, c, _) → do
+    Just (env, c@(Ann pos _), _) → do
       local (const env) $ do
         catchError (solver c)
           (\case
@@ -87,7 +88,7 @@ schedule solver = do
             StuckError              → delay c
             Unsatisfiable tr msg → do
               c ← instantConstraint 5 c
-              throwError $ Unsatisfiable (Within c:tr) msg
+              throwError $ Unsatisfiable (Within pos c:tr) msg
             e → throwError e
           )
 

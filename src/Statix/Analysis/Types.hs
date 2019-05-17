@@ -12,6 +12,7 @@ import Unification.ST
 data TCError
   =
   ModuleLocal String TCError
+  | WithPosition Pos TCError
   
   -- namer errors
   | DuplicatePredicate Ident

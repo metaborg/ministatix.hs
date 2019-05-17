@@ -1,10 +1,11 @@
 module Statix.Repl.Errors where
 
 import System.Exit
+import System.Console.ANSI
 
 import Data.List
 
-import Statix.Syntax.Constraint
+import Statix.Syntax
 import Statix.Analysis.Types
 import Statix.Solver.Types as RT
 
@@ -12,9 +13,23 @@ import Statix.Solver.Types as RT
 class ReplError e where
   report :: e → IO ()
 
+putBold :: String → IO ()
+putBold str = do
+  setSGR [SetConsoleIntensity BoldIntensity]
+  putStr str
+  setSGR []
+
 instance ReplError TCError where
-  report e = do
-    putStrLn $ "Typechecking failed: " ++ show e
+  report (ModuleLocal mod e) = do
+    putStr $ "In module "
+    putBold $ mod ++ " "
+    report e
+  report (WithPosition (Pos row col) e) = do
+    putStr $ "on line " 
+    putBold $ show row ++ "@" ++ show col
+    putStrLn $ ":"
+    report e
+  report e = putStrLn (show e)
 
 instance ReplError String where
   report = putStrLn
@@ -31,15 +46,23 @@ panic e = do
 printTrace :: [Traceline] → IO ()
 printTrace = mapM_ printEntry
   where
+    printQn (mod, pred) = do
+      putStr  $ mod ++ "."
+      putBold $ pred
+
     printEntry :: Traceline → IO ()
-    printEntry (Within c) = do
-      putStrLn $ "├─ " ++ show c
-    printEntry (Call qn params) = do
-      putStrLn $ "├─ " ++ showQName qn ++ "(" ++ intercalate "," params ++ ")"
+    printEntry (Within pos c) = do
+      putStr $ show pos ++ " ├─ "
+      putBold $ c ++ "\n"
+    printEntry (Call pos qn params) = do
+      putStr   $ show pos ++ " ├─ "
+      printQn  $ qn
+      putStrLn $ "(" ++ intercalate "," params ++ ")"
 
 instance ReplError StatixError where
   report (Unsatisfiable tr msg) = do
-    putStrLn $ "Constraint unsatisfiable: " ++ msg
+    putStr  $ "Constraint unsatisfiable: "
+    putBold $ msg ++ "\n\n"
     printTrace (reverse tr)
   report StuckError =
     putStrLn $ "Stuck"

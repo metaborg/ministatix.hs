@@ -105,16 +105,17 @@ runSolver c = runST $ do
   return (c, graph)
 
 -- | Get a trace entry from a frame
-getCallTrace :: Frame s → SolverM s (Maybe (QName , [STmRef s]))
+getCallTrace :: Frame s → SolverM s (Maybe (QName , Pos, [STmRef s]))
 getCallTrace fr = case desc fr of
   FrExist   → return Nothing
   FrPred qn → do
       σ ← view (symbols.sigOf qn)
+      (Pred pos _ _ _) ← view (symbols.getPred qn)
       let bs = fmap (\(id, _) → (binders fr) HM.! id) σ
-      return $ Just (qn, bs)
+      return $ Just (qn, pos, bs)
 
 -- | Create a trace from the callstack
-getTrace :: SolverM s [(QName , [STmRef s])]
+getTrace :: SolverM s [(QName , Pos, [STmRef s])]
 getTrace = do
   env ← view locals
   catMaybes <$> mapM getCallTrace env

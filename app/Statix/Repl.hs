@@ -2,11 +2,11 @@ module Statix.Repl where
 
 import System.Console.ANSI
 import System.Directory
-import System.FilePath
 import System.Console.Haskeline
 import System.Exit
 
 import Data.List
+import Data.Default
 import Data.HashMap.Strict as HM
 import Data.IntMap.Strict as IM
 import Text.Read hiding (lift, get, lex)
@@ -127,7 +127,7 @@ handler κ (Main rawc) = do
   -- parse and analyze the constraint as a singleton module
   c        ← handleErrors $ parseConstraint this rawc
   let c'   = desugar c
-  mods     ← withErrors $ analyze [RawMod this imps [Pred (this, main) [] c']]
+  mods     ← withErrors $ analyze [RawMod this imps [Pred def (this, main) [] c']]
 
   -- import the module
   forM_ mods importMod

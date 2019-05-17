@@ -20,12 +20,12 @@ class
   , FrameDesc m ~ ()
   ) ⇒ MonadNamer m where
 
-qualify :: MonadNamer m ⇒ Ident → m QName
-qualify n = do
+qualify :: MonadNamer m ⇒ Pos → Ident → m QName
+qualify pos n = do
   mq ← view (qualifier . to (HM.lookup n))
 
   case mq of
-    Nothing → throwError (UnboundPredicate n)
+    Nothing → throwError $ WithPosition pos (UnboundPredicate n)
     Just q  → return q
 
 checkTermF :: (MonadNamer m) ⇒ TermF₀ r → m (TermF₁ r)
@@ -65,10 +65,21 @@ checkMatch (Matcher _ g eqs) ma = do
     eqs ← forM eqs checkGuard
     return (Matcher ns g eqs, a)
 
-checkBrannch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
-checkBrannch (Branch m c) = do
+checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
+checkBranch (Branch m c) = do
   (m, c) ← checkMatch m (checkConstraint c)
   return (Branch m c)
+
+tryWithPosition :: (MonadNamer m) ⇒ Pos → m a → m a
+tryWithPosition pos m = do
+  catchError m (\case
+                 e@(UnboundVariable _) → throwError $ WithPosition pos e
+                 e → throwError e
+               )
+
+tryResolve :: (MonadNamer m) ⇒ Pos → Ident → m IPath
+tryResolve pos id = do
+  tryWithPosition pos (resolve id)
 
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
@@ -76,12 +87,12 @@ checkConstraint :: (MonadNamer m) ⇒ Constraint₀ → m Constraint₁
 checkConstraint (CTrue ann)  = return $ CTrue ann
 checkConstraint (CFalse ann) = return $ CFalse ann
 checkConstraint (CEq ann t₁ t₂) = do
-  t₃ ← checkTerm t₁ 
-  t₄ ← checkTerm t₂
+  t₃ ← tryWithPosition ann $ checkTerm t₁ 
+  t₄ ← tryWithPosition ann $ checkTerm t₂
   return (CEq ann t₃ t₄)
 checkConstraint (CNotEq ann t₁ t₂) = do
-  t₃ ← checkTerm t₁ 
-  t₄ ← checkTerm t₂
+  t₃ ← tryWithPosition ann $ checkTerm t₁ 
+  t₄ ← tryWithPosition ann $ checkTerm t₂
   return (CNotEq ann t₃ t₄)
 checkConstraint (CAnd ann c d) = do
   cc ← checkConstraint c
@@ -92,49 +103,49 @@ checkConstraint (CEx ann ns c) = do
     cc ← checkConstraint c
     return (CEx ann ns cc)
 checkConstraint (CNew ann x t) = do
-  p ← resolve x
+  p ← tryResolve ann x
   t ← checkTerm t
   return (CNew ann p t)
 checkConstraint (CData ann x t) = do
-  p ← resolve x
+  p ← tryResolve ann x
   t ← checkTerm t
   return (CData ann p t)
 checkConstraint (CEdge ann x l y) = do
-  p ← resolve x
-  q ← resolve y
+  p ← tryResolve ann x
+  q ← tryResolve ann y
   l ← checkTerm l
   return (CEdge ann p l q)
 checkConstraint (CQuery ann x re y) = do
-  p ← resolve x
-  q ← resolve y
+  p ← tryResolve ann x
+  q ← tryResolve ann y
   return (CQuery ann p re q)
 checkConstraint (COne ann x t) = do
-  p  ← resolve x
+  p  ← tryResolve ann x
   ct ← checkTerm t
   return (COne ann p ct)
 checkConstraint (CNonEmpty ann x) = do
-  p  ← resolve x
+  p  ← tryResolve ann x
   return (CNonEmpty ann p)
 checkConstraint (CEvery ann x br) = do
-  p ← resolve x
-  br ← checkBrannch br
+  p ← tryResolve ann x
+  br ← checkBranch br
   return (CEvery ann p br)
 checkConstraint (CMin ann x le y) = do
-  p  ← resolve x
-  q  ← resolve y
+  p  ← tryResolve ann x
+  q  ← tryResolve ann y
   return (CMin ann p le q)
 checkConstraint (CFilter ann x (MatchDatum m) y) = do
-  p  ← resolve x
-  q  ← resolve y
+  p  ← tryResolve ann x
+  q  ← tryResolve ann y
   (m, ())  ← checkMatch m (return ())
   return (CFilter ann p (MatchDatum m) q)
 checkConstraint (CApply ann n ts) = do
-  qn  ← qualify n
+  qn  ← qualify ann n
   cts ← mapM checkTerm ts
   return (CApply ann qn cts)
 checkConstraint (CMatch ann t br) = do
   t  ← checkTerm t
-  br ← mapM checkBrannch br
+  br ← mapM checkBranch br
   return (CMatch ann t br)
 
 checkPredicate :: (MonadNamer m) ⇒ Predicate₀ → m Predicate₁

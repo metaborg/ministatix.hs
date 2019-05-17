@@ -130,7 +130,7 @@ instance Default (Frame s) where
 instance Default (Env s) where
   def = Env HM.empty [def]
 
-data Traceline = Call QName [String] | Within String
+data Traceline = Call Pos QName [String] | Within Pos String
 data StatixError
   = Unsatisfiable [Traceline] String -- trace, reason
   | StuckError

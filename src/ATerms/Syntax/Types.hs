@@ -14,7 +14,12 @@ import Codec.Binary.UTF8.String (encode)
 data Pos = Pos
   { row    :: Int
   , column :: Int
-  } deriving (Show, Eq)
+  } deriving (Eq)
+
+instance Show Pos where
+  show (Pos row col) = pad 4 $ show row
+    where
+      pad n s = replicate (n - length s) ' ' ++ s
 
 instance Default Pos where
   def = Pos 0 0
@@ -43,13 +48,13 @@ alexGetByte inp = case (bytes inp) of
     (c:cs) →
       let
         Pos row col = position inp
-        row'        = if c == '\n' then row+1 else row
+        (row', col')= if c == '\n' then (row+1, 0) else (row, col+1)
         (b:_)       = encode [ c ]
       in Just (b, AlexInput
                 { prev = c
                 , bytes = []
                 , remainder = cs
-                , position = Pos row' (col+1)
+                , position = Pos row' col'
                 }
               )
 
@@ -60,7 +65,7 @@ data ParseState = ParseState
   } deriving Show
 
 instance Default AlexInput where
-  def = AlexInput { prev = '\n', bytes = [], remainder = "", position = Pos 1 1 }
+  def = AlexInput { prev = '\n', bytes = [], remainder = "", position = Pos 1 0 }
 
 instance Default ParseState where
   def = ParseState

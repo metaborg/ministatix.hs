@@ -38,9 +38,9 @@ data Extensions r
 
 -- | The surface syntax consists of the core constraint language
 -- plus some extensions
-type SurfaceCF = Annotated Pos (Sum (ConstraintF Ident Ident Term₀) Extensions)
-type SurfaceC  = Fix SurfaceCF
-type SurfaceP  = Predicate Ident SurfaceC
+type SurfaceCF  = Annotated Pos (Sum (ConstraintF Ident Ident Term₀) Extensions)
+type SurfaceC   = Fix SurfaceCF
+type SurfaceP   = Predicate Ident SurfaceC
 data SurfaceM p = RawMod Ident [Ident] [p]
 
 desugar :: SurfaceC → Constraint₀

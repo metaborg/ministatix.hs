@@ -111,18 +111,6 @@ pattern AnnF a f = Compose (a, f)
 pattern Ann :: a → f (Fix (Annotated a f)) → Fix (Annotated a f)
 pattern Ann a f = Fix (Compose (a, f))
 
-adi :: Functor f
-    => (f a -> a)
-    -> ((Fix f -> a) -> Fix f -> a)
-    -> Fix f -> a
-adi f g = g (f . fmap (adi f g) . unFix)
-
-adiM :: (Traversable t, Monad m)
-     => (t a -> m a)
-     -> ((Fix t -> m a) -> Fix t -> m a)
-     -> Fix t -> m a
-adiM f g = g ((f <=< traverse (adiM f g)) . unFix)
-
 type Constraint p l t = Fix (Annotated Pos (ConstraintF p l t))
 type Constraint₀      = Fix (Annotated Pos ConstraintF₀)
 type Constraint₁      = Fix (Annotated Pos ConstraintF₁)

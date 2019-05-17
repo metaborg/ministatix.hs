@@ -16,9 +16,9 @@ panic s = throwError (Panic s)
 unsatisfiable :: String → SolverM s a
 unsatisfiable msg = do
   trace ← getTrace
-  trace ← mapM (\(qn, params) → do
+  trace ← mapM (\(qn, pos, params) → do
                    params ← mapM (instantTerm 5) params
-                   return $ Call qn params) trace
+                   return $ Call pos qn params) trace
   throwError (Unsatisfiable trace msg)
 
 escalateUnificationError :: SolverM s a → SolverM s a

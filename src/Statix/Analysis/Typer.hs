@@ -15,6 +15,8 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Unique
 
+import ATerms.Syntax.Types (Pos(..))
+
 import Statix.Syntax as Syn
 import Statix.Analysis.Types
 import Statix.Analysis.Lexical as Lex
@@ -33,10 +35,10 @@ class
 
 -- | Check the arity of applications against the symboltable
 checkArity :: MonadTyper n m ⇒ Annotated Pos ConstraintF₁ r → m ()
-checkArity c@(AnnF _ (CApplyF qn ts)) = do
+checkArity c@(AnnF pos (CApplyF qn ts)) = do
   arity ← view (symtab.arityOf qn)
   if length ts /= arity
-    then throwError $ ArityMismatch qn arity (length ts)
+    then throwError $ WithPosition pos $ ArityMismatch qn arity (length ts)
     else return ()
 checkArity c = return ()
 
@@ -92,7 +94,7 @@ typeAnalysis (CEq _ t s) =
   return ()
 typeAnalysis (CNotEq _ t s) =
   return ()
-typeAnalysis (CEdge _ n e m)
+typeAnalysis (CEdge pos n e m)
   | Label l t ← e = do
       n  ← resolve n
       n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
@@ -100,7 +102,7 @@ typeAnalysis (CEdge _ n e m)
       m' ← construct (Tm (Const (TNode None)))
       unify n n'
       void $ unify m m'
-  | otherwise = throwError $ TypeError "Expected label"
+  | otherwise = throwError $ WithPosition pos $ TypeError "Expected label"
 typeAnalysis (CNew _ n t) = do
   n  ← resolve n
   m  ← construct (Tm (Const (TNode Out)))
