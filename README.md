@@ -27,6 +27,12 @@ Check a file `input.aterm` against the specification `src/spec.mstx` using:
 
     ./statix check -I src spec input.aterm
 
+The return code can be used to check the result of checking:
+- `0` for satisfied constraints
+- `64` for unsatisfied constraints
+- `65` for stuckness of the solver
+- `1` for other errors (spec doesn't parse, imported modules missing, etc)
+
 Other makefile targets are:
 - `setup` to setup the build environment;
 - `build` to build the project;

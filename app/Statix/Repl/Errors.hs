@@ -37,7 +37,7 @@ instance ReplError String where
 panic :: ReplError e ⇒ e → IO a
 panic e = do
   report e
-  exitFailure
+  exitWith (ExitFailure 1)
 
 
 -- 23 ├─ some-predicate (x, y, F())

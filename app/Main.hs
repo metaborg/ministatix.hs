@@ -42,7 +42,7 @@ checkerOpts = Checker <$>
   (CheckerOpts
     <$> many (option str (long "include" <> short 'I' <> help "extend include path"))
     <*> argument str (metavar "SPEC" <> help "the statix specification")
-    <*> some (argument str (metavar "FILES...")))
+    <*> many (argument str (metavar "FILES...")))
 
 replOpts :: Parser Command
 replOpts = Repl <$>
@@ -64,7 +64,7 @@ handleErrors :: (ReplError e) ⇒ Either e a → REPL a
 handleErrors (Right a) = return a
 handleErrors (Left e)  = liftIO $ do
     report e
-    exitFailure
+    exitWith (ExitFailure 1)
 
 withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a
 withErrors c = do
@@ -100,9 +100,9 @@ statix params = void $ runREPL HM.empty $ do
         liftIO $ printResult result
 
         liftIO $ case result of
-          IsUnsatisfiable _ _ → exitFailure
-          IsStuck _ → exitFailure
-          _ → exitSuccess
+          IsUnsatisfiable _ _ → exitWith (ExitFailure 64)
+          IsStuck _ → exitWith (ExitFailure 65)
+          _ → exitWith ExitSuccess
 
 main :: IO ()
 main = do
