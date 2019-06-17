@@ -48,6 +48,7 @@ prettyF pr id tm constr c = prettyF_ c
     prettyF_ (CQueryF x r y)  = do
       tell "query " 
       id x
+      tell " "
       tell $ show r
       tell " as "
       id y

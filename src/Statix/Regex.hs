@@ -9,7 +9,7 @@ data Regex l
   | REmp
   | RNeg (Regex l)
   | RAnd (Regex l) (Regex l)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 (⍮) = RSeq
 (∥) = RAlt
@@ -53,3 +53,13 @@ match l r = case r of
 
 matchₙ :: (Eq l) ⇒ [l] → Regex l → Regex l
 matchₙ xs r = foldl (flip match) r xs
+
+instance Show l => Show (Regex l) where
+  show (RMatch l)   = show l
+  show (RStar r)    = show r ++ "*"
+  show (RSeq r1 r2) = "(" ++ show r1 ++ " " ++ show r2 ++ ")"
+  show (RAlt r1 r2) = "(" ++ show r1 ++ " | " ++ show r2 ++ ")"
+  show (Rε)         = "e"
+  show (REmp)       = "0"
+  show (RNeg r)     = "~" ++ show r
+  show (RAnd r1 r2) = "(" ++ show r1 ++ " & " ++ show r2 ++ ")"
