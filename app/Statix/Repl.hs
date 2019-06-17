@@ -93,11 +93,14 @@ printResult (IsUnsatisfiable e gr) = do
   putStrLn "⟪ Graph ⟫"
   printGraph gr
   putStrLn ""
-printResult (IsStuck q) = do
+printResult (IsStuck q gr) = do
   setSGR [SetColor Foreground Vivid Yellow]
   putStrLn "⟨×⟩ Stuck, with queue:"
   setSGR [Reset]
   mapM_ putStrLn q
+  putStrLn ""
+  putStrLn "⟪ Partial graph ⟫"
+  printGraph gr
   putStrLn ""
 
 withErrors :: (ReplError e) ⇒ ExceptT e REPL a → REPL a

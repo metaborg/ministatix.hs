@@ -101,7 +101,7 @@ statix params = void $ runREPL HM.empty $ do
 
         liftIO $ case result of
           IsUnsatisfiable _ _ → exitWith (ExitFailure 64)
-          IsStuck _           → exitWith (ExitFailure 65)
+          IsStuck _ _         → exitWith (ExitFailure 65)
           _                   → exitWith ExitSuccess
 
 main :: IO ()

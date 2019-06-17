@@ -291,7 +291,7 @@ kick sym c =
 data Result s
   = IsSatisfied (Unifier s) (IntGraph Label String)
   | IsUnsatisfiable StatixError (IntGraph Label String)
-  | IsStuck [String]
+  | IsStuck [String] (IntGraph Label String)
 
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
@@ -305,7 +305,8 @@ solve symtab c = do
       (\case 
           StuckError → do
             q ← formatQueue
-            return $ IsStuck q
+            graph ← dumpgraph
+            return $ IsStuck q graph
           e → do
             graph ← dumpgraph
             return (IsUnsatisfiable e graph))
