@@ -1,8 +1,4 @@
 module Statix.Syntax.Typing where
-
-import Data.Text (Text, unpack)
-import Data.Hashable
-import Data.Functor.Fixedpoint
 import Data.Set as Set
 
 import Control.Applicative

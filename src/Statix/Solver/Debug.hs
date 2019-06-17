@@ -3,6 +3,7 @@ module Statix.Solver.Debug where
 import Data.HashMap.Strict
 import Data.Foldable as Fold
 import Data.List as List
+import Data.Maybe
 
 import Control.Lens
 import Control.Monad.Reader
@@ -22,11 +23,26 @@ __trace__ = False
 tracer :: String → a → a
 tracer s a = if __trace__ then trace s a else a
 
+-- | get the first enclosing predicate from the environment trace
+-- if there is any
+enclosingPred :: Env s → Maybe QName
+enclosingPred env =
+  let xs = fmap desc (env^.locals) in
+    listToMaybe $ concatMap (\case
+                                FrExist     → []
+                                FrPred name → [name]
+                            ) xs
+
 formatGoal :: Goal s → SolverM s String
 formatGoal (env, c, _) = do
   local (const env) $ do
-    instantConstraint 5 c
+    let qn = enclosingPred env
+    cs ← instantConstraint 5 c
+    case qn of
+      Just qn → return $ cs ++ " (in " ++ showQName qn ++ ")"
+      Nothing → return cs
 
+-- | User "friendly" string representation of the solver queue
 formatQueue :: SolverM s [String]
 formatQueue = do
   q ← use queue
