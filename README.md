@@ -1,4 +1,4 @@
-# Ministatix
+# MiniStatix -- it is not a typo!
 
 A playground implementation of the Statix constraint language in Haskell.
 
