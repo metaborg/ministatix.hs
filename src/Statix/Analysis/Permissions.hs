@@ -25,14 +25,6 @@ import Statix.Syntax
 import Statix.Analysis.Lexical
 import Statix.Analysis.Types hiding (PreSymbolTable)
 
--- data PermDep
-
--- data PrePermission v = PrePerm
---   { value :: Mode
---   , dependants :: [v]
---   }
--- type PermTable v = HashMap v (PrePermission v)
-
 data Equation a v
  = Lit a
  | Bot
@@ -67,29 +59,28 @@ type PreSymbolTable v = SymbolTable (Ident, Type, v) Constraint₁
 
 class
   ( MonadLex (Ident, v) IPath v m
-  , MonadReader (PreSymbolTable v) m
-  , MonadUnique v m
+  , MonadReader ([[(Ident, v)]], PreSymbolTable v) m
   , MonadError TCError m
+  , MonadUnique v m
   , MonadPermission m v l
   , FrameDesc m ~ ()
   ) ⇒ MonadPermAnalysis l v m | m → l v where
 
-  -- | Copy the entire local environment and add inheritance dependencies between
-  -- the fresh variables and their 'old' counterparts.
-  -- This implements the behavior add the boundary of a permission scope.
+  -- | Copy the entire local environment.
+  -- Running `f` original and copy.
   freshenEnvWith :: (v → v → m ()) → m a → m a
-
 
 scopeDependency :: MonadPermAnalysis l v m ⇒ v → v → m ()
 scopeDependency outer inner = do
   require outer (Diff inner inner)
   provide outer (V inner)
 
+mkBinder :: MonadPermAnalysis l v m ⇒ Ident → m (Ident, v)
 mkBinder id = do v ← fresh; return (id, v)
 
 getPredVars :: MonadPermAnalysis l v m ⇒ QName → m [v]
 getPredVars qn = do
- fms ← view (sigOf qn)
+ fms ← view (_2.sigOf qn)
  return (fmap (^._3) fms)
   
 permAnalysis :: MonadPermAnalysis Label v m ⇒ Constraint₁ → m ()
@@ -126,7 +117,10 @@ permAnalysis (CEx _ ns c)      = do
   enters () bs $ permAnalysis c
 
 permAnalysis (CEvery _ x (Branch m c)) = do
-  freshenEnvWith scopeDependency $ do
+  freshenEnvWith
+    (\outer inner → do
+      scopeDependency outer inner
+      provide outer (Lit False)) $ do
     permAnalysis c
 
 permAnalysis (CApply _ qn ts)  = do
