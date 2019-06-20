@@ -80,7 +80,7 @@ typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
 typeBranch (Branch m c) = do
   typeMatch m (typeAnalysis c)
 
--- | Collect type constraints
+-- | Infer types by unification and collect permission constraints.
 typeAnalysis :: MonadTyper n m ⇒ Constraint₁ → m ()
 typeAnalysis (CTrue _)  = return ()
 typeAnalysis (CFalse _) = return ()
@@ -97,23 +97,23 @@ typeAnalysis (CNotEq _ t s) =
 typeAnalysis (CEdge pos n e m)
   | Label l t ← e = do
       n  ← resolve n
-      n' ← construct (Tm (Const (TNode (In (S.singleton l)))))
+      n' ← construct (Tm (Const TNode))
       m  ← resolve m
-      m' ← construct (Tm (Const (TNode None)))
+      m' ← construct (Tm (Const TNode))
       unify n n'
       void $ unify m m'
   | otherwise = throwError $ WithPosition pos $ TypeError "Expected label"
 typeAnalysis (CNew _ n t) = do
   n  ← resolve n
-  m  ← construct (Tm (Const (TNode Out)))
+  m  ← construct (Tm (Const TNode))
   void $ unify n m
 typeAnalysis (CData _ x t) = do
   n  ← resolve x
-  m  ← construct (Tm (Const (TNode None)))
+  m  ← construct (Tm (Const TNode))
   void $ unify n m
 typeAnalysis (CQuery _ n r x) = do
   n  ← resolve n
-  n' ← construct (Tm (Const (TNode None)))
+  n' ← construct (Tm (Const TNode))
   unify n n'
   x  ← resolve x
   x' ← construct (Tm (Const TAns))

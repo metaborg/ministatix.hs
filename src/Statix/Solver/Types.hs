@@ -118,7 +118,7 @@ data Frame s = Frame
   }
 
 data Env s = Env
- { _symbols :: SymbolTable₂
+ { _symbols :: SymbolTable₃
  , _locals  :: [Frame s]
  }
 

@@ -133,10 +133,12 @@ pattern CFilter an x p t = Ann an (CFilterF x p t)
 pattern CApply an p ts   = Ann an (CApplyF p ts)
 pattern CMatch an t br   = Ann an (CMatchF t br)
 
+type FormalSig        = (Ident,Type,Mode)
 
 type Predicate₀       = Predicate Ident Constraint₀
 type Predicate₁       = Predicate Ident Constraint₁
 type Predicate₂       = Predicate (Ident,Type) Constraint₁
+type Predicate₃       = Predicate FormalSig Constraint₁
 
 type Module₀          = Module Ident Constraint₀
 type Module₁          = Module Ident Constraint₁
@@ -146,6 +148,7 @@ type SymbolTable σ c  = HashMap Ident (Module σ c)
 type SymbolTable₀     = SymbolTable Ident Constraint₀
 type SymbolTable₁     = SymbolTable Ident Constraint₁
 type SymbolTable₂     = SymbolTable (Ident, Type) Constraint₁
+type SymbolTable₃     = SymbolTable FormalSig Constraint₁
 
 makeLenses ''Predicate
 makeLenses ''Module

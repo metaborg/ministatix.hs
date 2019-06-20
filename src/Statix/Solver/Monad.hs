@@ -111,7 +111,7 @@ getCallTrace fr = case desc fr of
   FrPred qn → do
       σ ← view (symbols.sigOf qn)
       (Pred pos _ _ _) ← view (symbols.getPred qn)
-      let bs = fmap (\(id, _) → (binders fr) HM.! id) σ
+      let bs = fmap (\(id, _, _) → (binders fr) HM.! id) σ
       return $ Just (qn, pos, bs)
 
 -- | Create a trace from the callstack
