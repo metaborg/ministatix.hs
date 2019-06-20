@@ -29,6 +29,11 @@ instance ReplError TCError where
     putBold $ show row ++ "@" ++ show col
     putStrLn $ ":"
     report e
+  report (WithPredicate qn e) = do
+    putStr $ "in predicate " 
+    putBold $ showQName qn
+    putStrLn $ ":"
+    report e
   report e = putStrLn (show e)
 
 instance ReplError String where

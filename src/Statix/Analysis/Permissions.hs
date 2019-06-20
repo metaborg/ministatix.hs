@@ -16,7 +16,6 @@ module Statix.Analysis.Permissions where
 
 import Data.Set (Set, singleton)
 
-import Control.Monad.Unique
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Lens
@@ -64,27 +63,36 @@ class
   ( MonadLex (Ident, v) IPath v m
   , MonadReader ([[(Ident, v)]], PreSymbolTable v) m
   , MonadError TCError m
-  , MonadUnique v m
   , MonadPermission m v l
   , FrameDesc m ~ ()
   ) ⇒ MonadPermAnalysis l v m | m → l v where
 
+  newVar :: QName → Pos → Bool → Ident → m v
+
   -- | Copy the entire local environment.
   -- Running `f` original and copy.
-  freshenEnvWith :: (v → v → m ()) → m a → m a
+  freshenEnvWith :: Pos → (v → v → m ()) → m a → m a
 
 withSymtab :: (MonadPermAnalysis l v m) ⇒ SymbolTable₂ → m a → m a
 withSymtab symtab ma = do
-  preST ← forMOf eachFormal symtab (\(id, ty) → do v ← fresh; return (id, ty, v))
+  preST ← forMOf (each.definitions.each) symtab $
+    \(Pred pos qn sig c) → do
+      sig' ← forM sig (\ (id, ty) → do
+         v ← newVar qn pos False id
+         return (id, ty, v))
+
+      return (Pred pos qn sig' c)
   local (\(env,_) → (env, preST)) ma
 
 scopeDependency :: MonadPermAnalysis l v m ⇒ v → v → m ()
 scopeDependency outer inner = do
+  require inner (RV outer)
+  provide inner (PV outer)
   require outer (RDiff inner inner)
 
-mkBinder :: MonadPermAnalysis l v m ⇒ Ident → m (Ident, v)
-mkBinder id = do
-  v ← fresh
+mkBinder :: MonadPermAnalysis l v m ⇒ QName → Pos → Bool → Ident → m (Ident, v)
+mkBinder qn pos check id = do
+  v ← newVar qn pos check id
   return (id, v)
 
 getPredVars :: MonadPermAnalysis l v m ⇒ QName → m [v]
@@ -92,58 +100,58 @@ getPredVars qn = do
  fms ← view (_2.sigOf qn)
  return (fmap (^._3) fms)
   
-permAnalysis :: MonadPermAnalysis Label v m ⇒ Constraint₁ → m ()
+permAnalysis :: MonadPermAnalysis Label v m ⇒ QName → Constraint₁ → m ()
 
 -- uninteresting base cases
-permAnalysis (CTrue _)         = return ()
-permAnalysis (CFalse _)        = return ()
-permAnalysis (CEq _ t s)       = return ()
-permAnalysis (CNotEq _ t s)    = return ()
-permAnalysis (CData _ x t)     = return ()
-permAnalysis (CQuery _ n r x)  = return ()
-permAnalysis (COne _ x t)      = return ()
-permAnalysis (CNonEmpty _ x)   = return ()
-permAnalysis (CMin _ x p y)    = return ()
-permAnalysis (CFilter _ x p y) = return ()
+permAnalysis qn (CTrue _)         = return ()
+permAnalysis qn (CFalse _)        = return ()
+permAnalysis qn (CEq _ t s)       = return ()
+permAnalysis qn (CNotEq _ t s)    = return ()
+permAnalysis qn (CData _ x t)     = return ()
+permAnalysis qn (CQuery _ n r x)  = return ()
+permAnalysis qn (COne _ x t)      = return ()
+permAnalysis qn (CNonEmpty _ x)   = return ()
+permAnalysis qn (CMin _ x p y)    = return ()
+permAnalysis qn (CFilter _ x p y) = return ()
 
 -- interesting base cases
-permAnalysis (CEdge pos n e m)
+permAnalysis qn (CEdge pos n e m)
   | Label l t ← e = do
       nv ← resolve n
       require nv (RLit (singleton l))
   | otherwise = throwError $ Panic "Permission analysis bug, please report"
-permAnalysis (CNew _ n t)      = do
+permAnalysis qn (CNew _ n t)      = do
   nv ← resolve n
   provide nv (PLit True)
 
 -- closure
-permAnalysis (CAnd _ c d)      = do
-  permAnalysis c
-  permAnalysis d
+permAnalysis qn (CAnd _ c d)      = do
+  permAnalysis qn c
+  permAnalysis qn d
 
-permAnalysis (CEx _ ns c)      = do
-  bs ← forM ns mkBinder
-  enters () bs $ permAnalysis c
+permAnalysis qn (CEx pos ns c)      = do
+  bs ← forM ns (mkBinder qn pos True)
+  enters () bs $ permAnalysis qn c
 
-permAnalysis (CEvery _ x (Branch (Matcher ns t g) c)) = do
-  freshenEnvWith scopeDependency $ do
-    bs ← forM ns mkBinder
-    enters () bs $ permAnalysis c
+permAnalysis qn (CEvery pos x (Branch (Matcher ns t g) c)) = do
+  freshenEnvWith pos scopeDependency $ do
+    bs ← forM ns (mkBinder qn pos True)
+    enters () bs $ permAnalysis qn c
 
-permAnalysis (CApply _ qn ts)  = do
+permAnalysis _ (CApply _ qn ts)  = do
   fms ← getPredVars qn
   forM_ (zip ts fms) $ \case
     (Var x, v) → do
       xv ← resolve x
-      require xv (RV v)
+      require xv (RDiff v v)
       provide xv (PV v)
     otherwise → return ()
 
-permAnalysis (CMatch _ t brs) = do
+permAnalysis qn (CMatch pos t brs) = do
   forM_ brs $ \(Branch (Matcher ns t g) c) →
-    freshenEnvWith scopeDependency $ do
-      bs ← forM ns mkBinder
-      enters () bs $ permAnalysis c
+    freshenEnvWith pos scopeDependency $ do
+      bs ← forM ns (mkBinder qn pos True)
+      enters () bs $ permAnalysis qn c
 
   -- TODO we can take the intersection of all provided permissions for the branches
   -- to contribute permission to the outer variables
@@ -152,4 +160,4 @@ predPermAnalysis :: MonadPermAnalysis Label v m ⇒ Predicate₂ → m ()
 predPermAnalysis (Pred _ qn sig body) = do
   vs ← getPredVars qn
   let bs = zip (fmap fst sig) vs
-  enters () bs $ permAnalysis body
+  enters () bs $ permAnalysis qn body

@@ -80,8 +80,11 @@ permcheck symtab = liftEither $ runPermalizer $ do
     -- check that every variable has sufficient permissions
     forM_ table (\entry → do
                    let (up, down) = value entry
-                   if not (Set.null down || up)
-                     then throwError PermissionError
+                   if doCheck entry && not (Set.null down || up)
+                     then throwError $
+                       WithPredicate (predicate entry) $
+                       WithPosition (pos entry) $
+                       PermissionError (name entry) down
                      else return ()
                 )
 

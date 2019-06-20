@@ -39,12 +39,18 @@ data Entry v l = Entry
   , reqs  :: [ReqEqn (Set l) v]
   , prov  :: [ProvEqn Bool v]
   , dependants :: Set v
+
+  , doCheck    :: Bool
+
+  , predicate  :: QName
+  , pos   :: Pos
+  , name  :: Ident
   }
 
 deriving instance (Show v, Show l) ⇒ Show (Entry v l)
 
 instance Default (Entry v l) where
-  def = Entry (False, empty) [] [] empty
+  def = Entry (False, empty) [] [] empty False ("", "") def ""
 
 addDependant :: Int → Int → Permalizer l ()
 addDependant dep w = do
@@ -102,21 +108,29 @@ instance MonadUnique Int (Permalizer l) where
     -- update the seed
     _2 %= (+1)
 
-    -- add the new variable to the table
-    _1 %= (IM.insert v def)
-
-    -- add the new variable to the worklist
-    push (singleton v)
-
     return v
 
   updateSeed seed = _2 %= const seed
   
 instance MonadPermAnalysis l Int (Permalizer l) where
-  freshenEnvWith f c = do
+
+  newVar qn pos check id = do
+    v ← fresh
+
+    -- add the new variable to the table
+    _1 %= (IM.insert v (def { predicate = qn , pos = pos , name = id , doCheck = check }))
+
+    -- add the new variable to the worklist
+    push (singleton v)
+
+    return v
+    
+  freshenEnvWith pos f c = do
     (env, symtab) ← ask
+    table ← use _1
     newenv ← forMOf (each.each) env $ \(id,v) → do
-      v' ← fresh
+      let entry = table ! v
+      v'    ← newVar (predicate entry) pos (doCheck entry) id
       f v v'
       return (id, v')
     local (const (newenv, symtab)) c
@@ -153,7 +167,7 @@ lfp = do
       use (_1.to (fmap value))
 
     Just v  → do
-      (Entry val reqEq provEq deps) ← use (_1.to (!v))
+      (Entry val reqEq provEq deps _ _ _ _) ← use (_1.to (!v))
 
       -- build the environment for evaluation of equations
       table ← use _1
