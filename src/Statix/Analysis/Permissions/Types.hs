@@ -1,8 +1,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Statix.Analysis.Permissions.Types where
 
-import Data.Set (Set, empty, singleton, fromList, insert)
-import Data.IntMap.Strict (IntMap, update)
+import Data.Set
+  (Set
+  , empty, singleton, fromList, insert
+  , union, intersection
+  , lookupMin, deleteMin)
+import Data.IntMap.Strict (IntMap, update, (!))
 import Data.List (find)
 
 import Control.Monad.Unique
@@ -16,16 +20,21 @@ import Statix.Analysis.Lexical
 import Statix.Analysis.Permissions
 import Statix.Analysis.Types hiding (PreSymbolTable)
 
-dependencies :: (Ord v) ⇒ Equation a v → Set v
-dependencies Bot        = empty
-dependencies (Lit _)    = empty
-dependencies (V v)      = singleton v
-dependencies (Diff v w) = fromList (v:[w])
+reqDeps :: (Ord v) ⇒ ReqEqn a v → Set v
+reqDeps RBot        = empty
+reqDeps (RLit _)    = empty
+reqDeps (RV v)      = singleton v
+reqDeps (RDiff v w) = fromList (v:[w])
 
-data Entry v l = PrePerm
+provDeps :: (Ord v) ⇒ ProvEqn a v → Set v
+provDeps PBot        = empty
+provDeps (PLit _)    = empty
+provDeps (PV v)      = singleton v
+
+data Entry v l = Entry
   { value :: (Bool, Set l)
-  , reqs  :: [Equation (Set l) v]
-  , prov  :: [Equation Bool    v]
+  , reqs  :: [ReqEqn (Set l) v]
+  , prov  :: [ProvEqn Bool v]
   , dependants :: Set v
   }
 
@@ -38,7 +47,7 @@ type PermTable l = IntMap (Entry Int l)
 type Permalizer l =
   ReaderT ([[(Ident, Int)]], PreSymbolTable Int)
   (ExceptT TCError
-  (State (PermTable l, Int)))
+  (State (PermTable l, Int, Set Int)))
 
 instance MonadLex (Ident, Int) IPath Int (Permalizer l) where
   type FrameDesc (Permalizer l) = ()
@@ -63,7 +72,7 @@ instance MonadPermission (Permalizer l) Int l where
                  ) v)
 
     -- add reverse dependencies
-    forM_ (dependencies eq) (addDependant v) 
+    forM_ (reqDeps eq) (addDependant v) 
 
   provide v eq = do
     _1 %= update (\entry →
@@ -72,10 +81,23 @@ instance MonadPermission (Permalizer l) Int l where
                  ) v
 
     -- add reverse dependencies
-    forM_ (dependencies eq) (addDependant v) 
+    forM_ (provDeps eq) (addDependant v) 
 
 instance MonadUnique Int (Permalizer l) where
 
+  fresh = do
+    v ← use _2
+
+    -- update the seed
+    _2 %= (+1)
+
+    -- add the new variable to the worklist
+    push (singleton v)
+
+    return v
+
+  updateSeed seed = _2 %= const seed
+  
 instance MonadPermAnalysis l Int (Permalizer l) where
   freshenEnvWith f c = do
     (env, symtab) ← ask
@@ -84,3 +106,50 @@ instance MonadPermAnalysis l Int (Permalizer l) where
       f v v'
       return (id, v')
     local (const (newenv, symtab)) c
+
+instance SortaLattice Bool where
+  bot   = False
+  lmeet = (&&)
+  ljoin = (||)
+
+instance Ord a ⇒ SortaLattice (Set a) where
+  bot   = empty
+  lmeet = intersection
+  ljoin = union
+
+pop :: Permalizer l (Maybe Int)
+pop = do
+  vs ← use _3
+  let (v, vs') = (lookupMin vs, deleteMin vs)
+  _3 %= const vs'
+  return v
+
+push :: Set Int → Permalizer l ()
+push vs = do
+  _3 %= union vs
+
+-- | Compute the least fixedpoint over the equations in the permalizer
+lfp :: (Ord l) ⇒ Permalizer l (IntMap (Bool, Set l))
+lfp = do
+  v ← pop
+
+  case v of
+    Nothing → do
+      -- done; extract the results
+      use (_1.to (fmap value))
+
+    Just v  → do
+      (Entry val reqEq provEq deps) ← use (_1.to (!v))
+
+      -- build the environment for evaluation of equations
+      table ← use _1
+      let eqEnv = \v → value $ table ! v
+
+      -- recompute the value using the equations
+      let prov = foldl (\b eqn  → ljoin b  (provEval eqn (fst.eqEnv))) False provEq
+      let reqs = foldl (\rs eqn → ljoin rs (reqEval eqn eqEnv)) empty reqEq
+
+      -- push new work if value changed
+      if (prov, reqs) /= val then push deps else return ()
+
+      lfp

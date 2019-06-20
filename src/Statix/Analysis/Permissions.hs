@@ -25,35 +25,38 @@ import Statix.Syntax
 import Statix.Analysis.Lexical
 import Statix.Analysis.Types hiding (PreSymbolTable)
 
-data Equation a v
- = Lit a
- | Bot
- | Diff v v
- | V v
+data ReqEqn a v
+ = RLit a
+ | RBot
+ | RDiff v v
+ | RV v
+
+data ProvEqn a v
+ = PLit a
+ | PBot
+ | PV v
 
 class Eq a ⇒ SortaLattice a where
-  bot  :: a
-  meet :: a → a → a
-  join :: a → a → a
+  bot   :: a
+  lmeet :: a → a → a
+  ljoin :: a → a → a
 
-eval :: SortaLattice a ⇒ Equation a v → (v → (Bool, a)) → a
-eval Bot env            = bot
-eval (Lit s) env        = s
-eval (Diff w v) env
+reqEval :: SortaLattice a ⇒ ReqEqn a v → (v → (Bool, a)) → a
+reqEval RBot env            = bot
+reqEval (RLit s) env        = s
+reqEval (RDiff w v) env
   | True  ← fst $ env w = snd $ env v
   | False ← fst $ env w = bot
-eval (V v) env          = snd $ env v
+reqEval (RV v) env          = snd $ env v
 
--- meets :: (SortaLattice a) ⇒ [Equation a v] → (v → a) → a
--- meets eqs env = _
-
--- joins :: (SortaLattice a) ⇒ [Equation a v] → (v → a) → a
--- joins [] env = bot
--- joins (eq:eqs) env = foldl _ (fmap (flip eval env) eqs) bot
+provEval :: SortaLattice a ⇒ ProvEqn a v → (v → a) → a
+provEval PBot env     = bot
+provEval (PLit s) env = s
+provEval (PV v) env   = env v
 
 class MonadPermission m v l | m → v l where
-  require :: v → Equation (Set l) v → m () 
-  provide :: v → Equation Bool v → m ()     
+  require :: v → ReqEqn (Set l) v → m () 
+  provide :: v → ProvEqn Bool v → m ()     
 
 type PreSymbolTable v = SymbolTable (Ident, Type, v) Constraint₁
 
@@ -72,8 +75,7 @@ class
 
 scopeDependency :: MonadPermAnalysis l v m ⇒ v → v → m ()
 scopeDependency outer inner = do
-  require outer (Diff inner inner)
-  provide outer (V inner)
+  require outer (RDiff inner inner)
 
 mkBinder :: MonadPermAnalysis l v m ⇒ Ident → m (Ident, v)
 mkBinder id = do v ← fresh; return (id, v)
@@ -101,11 +103,11 @@ permAnalysis (CFilter _ x p y) = return ()
 permAnalysis (CEdge pos n e m)
   | Label l t ← e = do
       nv ← resolve n
-      require nv (Lit (singleton l))
+      require nv (RLit (singleton l))
   | otherwise = throwError $ Panic "Permission analysis bug, please report"
 permAnalysis (CNew _ n t)      = do
   nv ← resolve n
-  provide nv (Lit True)
+  provide nv (PLit True)
 
 -- closure
 permAnalysis (CAnd _ c d)      = do
@@ -117,10 +119,7 @@ permAnalysis (CEx _ ns c)      = do
   enters () bs $ permAnalysis c
 
 permAnalysis (CEvery _ x (Branch m c)) = do
-  freshenEnvWith
-    (\outer inner → do
-      scopeDependency outer inner
-      provide outer (Lit False)) $ do
+  freshenEnvWith scopeDependency $ do
     permAnalysis c
 
 permAnalysis (CApply _ qn ts)  = do
@@ -128,8 +127,8 @@ permAnalysis (CApply _ qn ts)  = do
   forM_ (zip ts fms) $ \case
     (Var x, v) → do
       xv ← resolve x
-      require xv (V v)
-      provide xv (V v)
+      require xv (RV v)
+      provide xv (PV v)
     otherwise → return ()
 
 permAnalysis (CMatch _ t brs) = do
@@ -137,6 +136,9 @@ permAnalysis (CMatch _ t brs) = do
     freshenEnvWith scopeDependency $ do
       bs ← forM ns mkBinder
       enters () bs $ permAnalysis c
+
+  -- TODO we can take the intersection of all provided permissions for the branches
+  -- to contribute permission to the outer variables
 
 predPermAnalysis :: MonadPermAnalysis Label v m ⇒ Predicate₂ → m ()
 predPermAnalysis (Pred _ qn sig body) = do
