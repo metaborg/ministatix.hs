@@ -1,7 +1,9 @@
 module Statix.Analysis where
 
 import Data.Default
+import qualified Data.Set as Set
 import Data.HashMap.Strict as HM
+import qualified Data.IntMap.Strict as IM
 
 import Control.Monad.State
 import Control.Monad.Reader
@@ -18,23 +20,8 @@ import Statix.Analysis.Typer
 import Statix.Analysis.Typer.ST
 import Statix.Analysis.Namer
 import Statix.Analysis.Namer.Simple
-
-    -- collect signatures and bind them in the context,
-    -- because modules are defined as a big mutual block
-    -- mod ← execStateT (mapM_ collect defs) HM.empty
-    -- let q' = (HM.mapWithKey (\k _ → (mname, k)) mod) `HM.union` q
-
-  -- where
-    -- | Collect a signature from a raw Predicate.
-    -- Checks against duplicate definitions.
-    -- collect :: (MonadError TCError m) ⇒ Predicate₀ → StateT (HashMap Ident Predicate₀) m ()
-    -- collect p = do
-    --   let name = p^.qname._2
-    --   bound ← gets (member name)
-    --   if bound
-    --     then throwError $ DuplicatePredicate name
-    --     else modify (HM.insert name p)
-
+import Statix.Analysis.Permissions
+import Statix.Analysis.Permissions.Types
 
 namecheck :: (MonadError TCError m) ⇒ SymbolTable₀ → m SymbolTable₁
 namecheck symtab = do
@@ -79,6 +66,32 @@ typecheck mods = do
 
   return symtab
 
+permcheck :: (MonadError TCError m) ⇒ SymbolTable₂ → m SymbolTable₃
+permcheck symtab = liftEither $ runPermalizer $ do
+  withSymtab symtab $ do
+    -- perform the analysis collection permission equations for all
+    -- predicates in the symbol table
+    forMOf_ (each.definitions.each) symtab predPermAnalysis
+
+    -- compute the least fixedpoint
+    lfp
+    table  ← use _1
+
+    -- check that every variable has sufficient permissions
+    forM_ table (\entry → do
+                   let (up, down) = value entry
+                   if doCheck entry && not (Set.null down || up)
+                     then throwError $
+                       WithPredicate (predicate entry) $
+                       WithPosition (pos entry) $
+                       PermissionError (name entry) down
+                     else return ()
+                )
+
+    -- extract the result
+    preTab ← view _2
+    return $ over (eachFormal._3) (\v → snd $ value $ table IM.! v) preTab
+
 deduplicate :: (MonadError TCError m) ⇒ [SurfaceM Predicate₀] → m SymbolTable₀
 deduplicate mods = HM.fromList <$> do
   forM mods $ \(RawMod name imps defs) → do
@@ -96,8 +109,9 @@ deduplicate mods = HM.fromList <$> do
 analyze ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ [SurfaceM Predicate₀] → m SymbolTable₂
+  ) ⇒ [SurfaceM Predicate₀] → m SymbolTable₃
 analyze rawmods = do
   modules   ← deduplicate rawmods
   namedmods ← namecheck modules
-  typecheck namedmods
+  symtab₂   ← typecheck namedmods
+  permcheck symtab₂

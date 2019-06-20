@@ -206,7 +206,7 @@ solveFocus (CApply _ p ts) = do
    ts' ← mapM toDag ts
 
    -- bind the parameters
-   enters (FrPred p) (List.zip (fmap fst σ) ts') $ do
+   enters (FrPred p) (List.zip (fmap (^._1) σ) ts') $ do
      -- solve the body
      tracer ("unfold " ++ show p ++ " with " ++ show ts) $ newGoal c
 
@@ -272,7 +272,7 @@ solveFocus (CFilter _ x m z) = do
         )
 
 -- | Construct a solver for a raw constraint
-kick :: SymbolTable₂ → Constraint₁ → SolverM s (Unifier s)
+kick :: SymbolTable₃ → Constraint₁ → SolverM s (Unifier s)
 kick sym c =
   -- convert the raw constraint to the internal representatio
   local (\_ → set symbols sym def) $ do
@@ -295,7 +295,7 @@ data Result s
 
 -- | Construct and run a solver for a constraint and
 -- extract an ST free solution
-solve :: SymbolTable₂ → Constraint₁ → ST s (Result s)
+solve :: SymbolTable₃ → Constraint₁ → ST s (Result s)
 solve symtab c = do
   solution ← runSolver' $ do
     catchError
@@ -315,7 +315,7 @@ solve symtab c = do
   return $ either undefined (\r → r) $ fst $ solution
 
 -- | Check satisfiability of a program
-check :: SymbolTable₂ → Constraint₁ → Bool
+check :: SymbolTable₃ → Constraint₁ → Bool
 check p c = runST $ do
                   sol ← solve p c
                   case sol of

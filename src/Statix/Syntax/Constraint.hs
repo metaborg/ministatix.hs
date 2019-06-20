@@ -7,6 +7,7 @@ import Data.List (concatMap, intercalate)
 import Data.Functor.Fixedpoint
 import Data.Maybe
 import Data.Functor.Compose
+import Data.Set
 
 import Control.Lens
 import Control.Monad
@@ -133,19 +134,23 @@ pattern CFilter an x p t = Ann an (CFilterF x p t)
 pattern CApply an p ts   = Ann an (CApplyF p ts)
 pattern CMatch an t br   = Ann an (CMatchF t br)
 
+type FormalSig        = (Ident,Type,Set Label)
 
 type Predicate₀       = Predicate Ident Constraint₀
 type Predicate₁       = Predicate Ident Constraint₁
 type Predicate₂       = Predicate (Ident,Type) Constraint₁
+type Predicate₃       = Predicate FormalSig Constraint₁
 
 type Module₀          = Module Ident Constraint₀
 type Module₁          = Module Ident Constraint₁
 type Module₂          = Module (Ident, Type) Constraint₁
+type Module₃          = Module (Ident, Type, Set Label) Constraint₁
 
 type SymbolTable σ c  = HashMap Ident (Module σ c)
 type SymbolTable₀     = SymbolTable Ident Constraint₀
 type SymbolTable₁     = SymbolTable Ident Constraint₁
 type SymbolTable₂     = SymbolTable (Ident, Type) Constraint₁
+type SymbolTable₃     = SymbolTable FormalSig Constraint₁
 
 makeLenses ''Predicate
 makeLenses ''Module
@@ -169,3 +174,14 @@ arityOf q = sigOf q.to length
 
 eachFormal :: Traversal (SymbolTable σ c) (SymbolTable τ c) σ τ
 eachFormal = each.definitions.each.sig.each
+
+showFormalTyping :: (Ident, Type, (Set Label)) → String
+showFormalTyping (n, TNode, p) = "(" ++ n ++ " : Node " ++ show (toList p) ++ ")"
+showFormalTyping (n, t, _)     = "(" ++ n ++ " : " ++ show t ++ ")"
+
+showPredType :: Predicate₃ → String
+showPredType p =
+  let params = reverse $ p^.sig
+  in
+    intercalate " → " (fmap showFormalTyping params)
+    ++ " → Constraint"

@@ -22,3 +22,8 @@ suffix i p
   | i == 0             = Just p
   | i > 0, Skip p' ← p = suffix (i - 1) p'
   | otherwise          = Nothing
+
+popAll :: Path id → [fr] → Maybe (id, fr)
+popAll (Skip p) (fr : frs) = popAll p frs
+popAll (End id) (fr : frs) = Just (id, fr)
+popAll _ _                 = Nothing

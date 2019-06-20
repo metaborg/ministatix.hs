@@ -16,7 +16,7 @@ type REPL =
   ( InputT IO ))
 
 data REPLState = REPLState
-  { _globals   :: SymbolTable₂
+  { _globals   :: SymbolTable₃
   , _freshId   :: Integer
   , _imports   :: [Ident]
   , _roots     :: [String]
@@ -33,7 +33,7 @@ instance MonadUnique Integer REPL where
 
   updateSeed i = modify (set freshId i)
 
-importMod :: Module₂ → REPL ()
+importMod :: Module₃ → REPL ()
 importMod mod = do
   let name = mod^.moduleName
   modify (over imports (name:))

@@ -1,6 +1,7 @@
 module Statix.Analysis.Types where
 
 import Data.Default
+import Data.Set
 import Data.HashMap.Strict as HM hiding (map)
 import Control.Lens
 
@@ -13,6 +14,7 @@ data TCError
   =
   ModuleLocal String TCError
   | WithPosition Pos TCError
+  | WithPredicate QName TCError
   
   -- namer errors
   | DuplicatePredicate Ident
@@ -22,6 +24,7 @@ data TCError
 
   -- typer errors
   | ArityMismatch QName Int Int -- pred, expected, got
+  | PermissionError Ident (Set Label)
   | TypeError String
 
   -- bug!
