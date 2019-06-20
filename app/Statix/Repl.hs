@@ -173,9 +173,7 @@ handler κ (Type pred) = do
     Just p  → liftIO $ putStrLn $
       pred
         ++ " :: "
-        ++ (intercalate " → "
-            (fmap (\(n,t,p) → "(" ++ n ++ " : " ++ show t ++ ")") $ reverse $ p^.sig))
-        ++ " → Constraint"
+        ++ showPredType p
     Nothing → liftIO $ putStrLn $ "No predicate named: " ++ pred
 
   κ
