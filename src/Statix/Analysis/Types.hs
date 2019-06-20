@@ -22,6 +22,7 @@ data TCError
 
   -- typer errors
   | ArityMismatch QName Int Int -- pred, expected, got
+  | PermissionError
   | TypeError String
 
   -- bug!

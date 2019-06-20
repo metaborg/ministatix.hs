@@ -42,7 +42,7 @@ self = gen . (to $ \g → "repl-" ++ show g)
 main :: Getting String REPLState String
 main = gen . (to $ \g → "main" ++ show g)
 
-runREPL :: SymbolTable₂ → REPL a → IO a
+runREPL :: SymbolTable₃ → REPL a → IO a
 runREPL sym c =
   runInputT
     (defaultSettings { historyFile = Just ".statix" }) $
@@ -174,7 +174,7 @@ handler κ (Type pred) = do
       pred
         ++ " :: "
         ++ (intercalate " → "
-            (fmap (\(n,t) → "(" ++ n ++ " : " ++ show t ++ ")") $ reverse $ p^.sig))
+            (fmap (\(n,t,p) → "(" ++ n ++ " : " ++ show t ++ ")") $ reverse $ p^.sig))
         ++ " → Constraint"
     Nothing → liftIO $ putStrLn $ "No predicate named: " ++ pred
 

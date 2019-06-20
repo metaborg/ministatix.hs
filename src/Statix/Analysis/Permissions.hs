@@ -29,12 +29,12 @@ data ReqEqn a v
  = RLit a
  | RBot
  | RDiff v v
- | RV v
+ | RV v deriving (Show)
 
 data ProvEqn a v
  = PLit a
  | PBot
- | PV v
+ | PV v deriving (Show)
 
 class Eq a ⇒ SortaLattice a where
   bot   :: a
@@ -73,12 +73,19 @@ class
   -- Running `f` original and copy.
   freshenEnvWith :: (v → v → m ()) → m a → m a
 
+withSymtab :: (MonadPermAnalysis l v m) ⇒ SymbolTable₂ → m a → m a
+withSymtab symtab ma = do
+  preST ← forMOf eachFormal symtab (\(id, ty) → do v ← fresh; return (id, ty, v))
+  local (\(env,_) → (env, preST)) ma
+
 scopeDependency :: MonadPermAnalysis l v m ⇒ v → v → m ()
 scopeDependency outer inner = do
   require outer (RDiff inner inner)
 
 mkBinder :: MonadPermAnalysis l v m ⇒ Ident → m (Ident, v)
-mkBinder id = do v ← fresh; return (id, v)
+mkBinder id = do
+  v ← fresh
+  return (id, v)
 
 getPredVars :: MonadPermAnalysis l v m ⇒ QName → m [v]
 getPredVars qn = do
@@ -118,9 +125,10 @@ permAnalysis (CEx _ ns c)      = do
   bs ← forM ns mkBinder
   enters () bs $ permAnalysis c
 
-permAnalysis (CEvery _ x (Branch m c)) = do
+permAnalysis (CEvery _ x (Branch (Matcher ns t g) c)) = do
   freshenEnvWith scopeDependency $ do
-    permAnalysis c
+    bs ← forM ns mkBinder
+    enters () bs $ permAnalysis c
 
 permAnalysis (CApply _ qn ts)  = do
   fms ← getPredVars qn
