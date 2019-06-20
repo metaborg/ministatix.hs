@@ -44,8 +44,8 @@ reqEval :: SortaLattice a ⇒ ReqEqn a v → (v → (Bool, a)) → a
 reqEval RBot env            = bot
 reqEval (RLit s) env        = s
 reqEval (RDiff w v) env
-  | True  ← fst $ env w = snd $ env v
-  | False ← fst $ env w = bot
+  | True  ← fst $ env w = bot
+  | False ← fst $ env w = snd $ env v
 reqEval (RV v) env          = snd $ env v
 
 provEval :: SortaLattice a ⇒ ProvEqn a v → (v → a) → a
