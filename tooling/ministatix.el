@@ -28,7 +28,7 @@
 	  (,"==\\|!=\\|->\\|\\-\\[\\|\\]->\\|:-\\||" . font-lock-keyword-face)
 	  (,"\\b\\([[:lower:]][-[:word:]]+\\)(" (1 font-lock-function-name-face))
 	  (,"\\b\\([[:upper:]][-[:word:]]+\\)(" (1 font-lock-type-face))
-	  (,"\`[[:word:]_*+]+" . font-lock-string-face)
+	  (,"\`[[:word:]_*+?]+" . font-lock-string-face)
           )))
 
 (define-derived-mode ministatix-mode prog-mode "ministatix mode"
@@ -43,3 +43,4 @@
 
 ;; add the mode to the `features' list
 (provide 'ministatix-mode)
+
