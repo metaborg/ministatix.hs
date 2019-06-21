@@ -14,6 +14,7 @@ data Token
   | TokEvery | TokNonEmpty | TokMin | TokFilter | TokMatch | TokEdge | TokEnd
   | TokPathLT | TokEpsilon
   | TokImports String | TokQName String | TokName String | TokConstructor String
+  | TokString String
   | TokTilde | TokUnderscore | TokLAngle | TokRAngle | TokBar | TokAmp
   | TokLeftArrow | TokRightArrow | TokColon | TokSemicolon
   | TokOpenArr | TokCloseArr | TokRegexQuote

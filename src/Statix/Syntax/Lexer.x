@@ -90,6 +90,11 @@ tokens :-
   <0> [\,]                          { plain TokComma }
   <0> [\?]                          { plain TokQuestionmark }
 
+  <0> \"                            { beginString }
+  <string> \"                       { endString }
+  <string> .                        { appendString }
+  <string> \\[\"]                   { escapeQuote }
+
 {
 
 type LexAction = Int → String → ParserM (Maybe Token)
@@ -121,19 +126,40 @@ beginNormal _ _ = do
   modify (\st → st { lexState = 0 })
   return Nothing
 
+beginString :: LexAction
+beginString _ _ = do
+  modify (\st → st { lexState = string })
+  return Nothing
+
+escapeQuote :: LexAction
+escapeQuote _ _ = do
+  modify (\st → st { stringBuf = '"' : stringBuf st })
+  return Nothing
+
+appendString :: LexAction
+appendString _ (c:_) = do
+  modify (\st → st { stringBuf = c : stringBuf st })
+  return Nothing
+
+endString :: LexAction
+endString _ _ = do
+  s ← gets stringBuf
+  modify (\st → st { lexState = 0, stringBuf = "" })
+  return (Just (TokString (reverse s)))
+
 readToken :: ParserM Token
 readToken = do
   s ← get
 
   case alexScan (input s) (lexState s) of
     AlexEOF        → return TEOF
-    AlexError inp' → 
-      throwError $ "Lexical error on line " ++ (show $ row $ position inp') 
+    AlexError inp' →
+      throwError $ "Lexical error on line " ++ (show $ row $ position inp')
       		 ++ "(\"" ++ (take 5 (remainder inp')) ++ "\")"
-    AlexSkip inp' _ → do    
+    AlexSkip inp' _ → do
       put s { input = inp' }
       readToken
-    AlexToken inp' n act → do 
+    AlexToken inp' n act → do
       let (AlexInput { remainder = buf }) = input s
       put s { input = inp' }
       res ← act n (take n buf)

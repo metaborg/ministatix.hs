@@ -64,6 +64,9 @@ tupleTm ts = Fix (TTmF (ATupleF ts))
 unitTm :: Fix (TermF ℓ)
 unitTm = Fix (TTmF (ATupleF []))
 
+strTm :: String → Fix (TermF ℓ)
+strTm str = Fix (TTmF (AStrF str))
+
 pattern TTm t         = Fix (TTmF t)
 pattern Label l t     = Fix (TLabelF l t)
 pattern Var x         = Fix (TVarF x)

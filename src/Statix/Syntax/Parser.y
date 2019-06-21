@@ -41,6 +41,7 @@ import ATerms.Syntax.Types (input, remainder, position, prev, Pos(..))
   NAME          { TokName $$ }
   CONSTRUCTOR   { TokConstructor $$ }
   QNAME         { TokQName $$ }
+  STRING        { TokString $$ }
   true          { TokTrue }
   false         { TokFalse }
   eq            { TokEq }
@@ -178,6 +179,7 @@ Term            : Label                                         { Label $1 Nothi
                 | '[' ']'                                       { nilTm }
                 | '(' Term ',' sep1(Term, ',') ')'              { tupleTm ($2:$4) }
                 | '(' Term ')'                                  { $2 }
+                | STRING                                        { strTm $1 }
 
 Predicate       :
   NAME '(' Names ')' leftarrow Constraint period                {%
