@@ -48,8 +48,8 @@ instance ReplError ImportError where
 resolveModule :: [FilePath] → Ident → Importer FilePath
 resolveModule rootpaths name = do
   paths ← liftIO $ mapM (\root → getModulePath root name) rootpaths
-  paths ← liftIO $ filterM doesFileExist paths
-  case paths of
+  modulePaths ← liftIO $ filterM doesFileExist paths
+  case modulePaths of
     [path]    → return path
     []        → importErr name ("Module " ++ name ++ " not found at: " ++ (intercalate ", " paths))
     mpaths    → importErr name ("Ambiguous module " ++ name ++ ": " ++ (intercalate ", " mpaths))

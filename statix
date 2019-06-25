@@ -5,6 +5,7 @@ set -o pipefail
 #set -o xtrace
 
 DIRECTORY=$(cd `dirname $0` && pwd)
+WORKDIR=$PWD
 
 make -C "${DIRECTORY}" build
-cd ${DIRECTORY} && stack exec statix "$@"
+cd ${DIRECTORY} && stack exec statix --cwd "${WORKDIR}" -- "$@"
