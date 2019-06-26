@@ -25,6 +25,7 @@ import Statix.Syntax.Surface
 import Statix.Syntax.Parser
 
 import Statix.Solver
+import Statix.Solver.Debug
 
 import Statix.Analysis.Types hiding (self)
 import Statix.Analysis
@@ -78,7 +79,7 @@ printResult (IsSatisfied φ sg) = do
   putStrLn "⟨✓⟩ Satisfiable"
   setSGR [Reset]
   putStrLn "⟪ Unifier ⟫"
-  -- TODO putStrLn (formatUnifier φ)
+  putStrLn (showUnifier φ)
   putStrLn ""
   putStrLn "⟪ Graph ⟫"
   printGraph sg

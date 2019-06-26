@@ -66,3 +66,6 @@ unifier :: SolverM s (Unifier s)
 unifier = do
   env ← view locals
   mapM toTree (binders $ head env)
+
+showUnifier :: Unifier s → String
+showUnifier = foldlWithKey' (\acc id tr → acc ++ id ++ " ↦ " ++ show tr ++ "\n") ""
