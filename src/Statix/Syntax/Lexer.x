@@ -48,7 +48,8 @@ tokens :-
   <0> match                         { plain TokMatch }
   <0> Edge                          { plain TokEdge }
   <0> End                           { plain TokEnd }
-  <0> lexico                        { plain TokPathLT }
+  <0> lexico                        { plain TokPathLex }
+  <0> reverse-lexico                { plain TokPathRevLex }
   <0> eps                           { plain TokEpsilon }
 
   <0> import                        { beginImport }

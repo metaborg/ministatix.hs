@@ -36,7 +36,8 @@ data Matcher t    = Matcher [Ident] t [Guard t]
 data Branch t c   = Branch (Matcher t) c
   deriving (Functor, Foldable, Traversable, Show)
 
-data PathComp     = Lex [(Label,Label)]
+type LexOrd       = [(Label,Label)]
+data PathComp     = Lex LexOrd | RevLex LexOrd
   deriving (Show)
 
 data PathFilter t = MatchDatum (Matcher t)

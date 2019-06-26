@@ -86,7 +86,8 @@ import ATerms.Syntax.Types (input, remainder, position, prev, Pos(..))
   end           { TokEnd }
   edge          { TokEdge }
   import        { TokImports $$ }
-  lexico        { TokPathLT }
+  lexico        { TokPathLex }
+  revlex        { TokPathRevLex }
 
 %left '|'
 %left '&'
@@ -132,6 +133,8 @@ Lambda          : '(' Branch ')'                                { $2 }
 LabelLT         : Label '<' Label                               { ($1, $3) }
 LabelLTs        : sep(LabelLT, ',')                             { $1 }
 PathComp        : lexico '(' LabelLTs ')'                       { Lex $3 }
+                | revlex '(' LabelLTs ')'                       { RevLex $3 }
+
 Constraint      : '{' Names '}' Constraint                      {% core $ CExF $2 $4 }
                 | Constraint ',' Constraint                     {% core $ CAndF $1 $3 }
                 | Term eq Term                                  {% core $ CEqF $1 $3 }

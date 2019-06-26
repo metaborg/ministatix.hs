@@ -12,7 +12,7 @@ import ATerms.Syntax.Types (remainder, input, ParseState)
 data Token
   = TokTrue | TokFalse | TokNew | TokIn | TokAs | TokWhere | TokQuery | TokOne
   | TokEvery | TokNonEmpty | TokMin | TokFilter | TokMatch | TokEdge | TokEnd
-  | TokPathLT | TokEpsilon
+  | TokPathLex | TokPathRevLex | TokEpsilon
   | TokImports String | TokQName String | TokName String | TokConstructor String
   | TokString String
   | TokTilde | TokUnderscore | TokLAngle | TokRAngle | TokBar | TokAmp

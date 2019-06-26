@@ -240,12 +240,13 @@ solveFocus (CMin _ x lt z) = do
       next
     _          → throwError TypeError
   where
-    comp :: PathComp → Rel (SPath s t) (SPath s t)
-    comp (Lex lt) p q =
+    lexico lt p q =
       reflexiveClosure
-        (pathLT (transitiveClosure (finite lt)))
-        (labels p)
-        (labels q)
+        (pathLT (transitiveClosure (finite lt))) p q
+
+    comp :: PathComp → Rel (SPath s t) (SPath s t)
+    comp (RevLex lt) p q = lexico lt (reverse $ labels p) (reverse $ labels q)
+    comp (Lex lt) p q    = lexico lt (labels p) (labels q)
 
 solveFocus (CFilter _ x m z) = do
   σ ← resolve x >>= getSchema
