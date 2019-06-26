@@ -182,7 +182,7 @@ showFormalTyping (n, t, _)     = "(" ++ n ++ " : " ++ show t ++ ")"
 
 showPredType :: Predicate₃ → String
 showPredType p =
-  let params = reverse $ p^.sig
+  let params = p^.sig
   in
     intercalate " → " (fmap showFormalTyping params)
     ++ " → Constraint"
