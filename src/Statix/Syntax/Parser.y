@@ -162,6 +162,7 @@ RegexLit        : Label                                         { RMatch $1 }
                 | RegexLit '|' RegexLit                         { RAlt $1 $3 }
                 | RegexLit '&' RegexLit                         { RAnd $1 $3 }
                 | RegexLit '*'                                  { RStar $1 }
+                | period                                        { RAny }
                 | RegexLit '+'                                  { rplus $1 }
                 | RegexLit '?'                                  { rquestion $1 }
                 | '~' RegexLit                                  { RNeg $2 }

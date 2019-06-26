@@ -9,6 +9,7 @@ data Regex l
   | REmp
   | RNeg (Regex l)
   | RAnd (Regex l) (Regex l)
+  | RAny
   deriving (Eq, Ord)
 
 (⍮) = RSeq
@@ -32,6 +33,7 @@ matchε (RSeq r₁ r₂) = matchε r₁ && matchε r₂
 matchε (RAlt r₁ r₂) = matchε r₁ || matchε r₂
 matchε REmp         = False
 matchε (RMatch _)   = False
+matchε RAny         = False
 matchε (RNeg r)     = not (matchε r)
 matchε (RAnd r₁ r₂) = matchε r₁ && matchε r₂
 
@@ -48,6 +50,7 @@ match l r = case r of
   (RAlt r₁ r₂) → (match l r₁ ∥ match l r₂)
   REmp → REmp
   Rε   → REmp
+  RAny → Rε
   RNeg r → RNeg (match l r)
   RAnd r₁ r₂ → (match l r₁) & (match l r₂)
 
@@ -60,6 +63,7 @@ instance Show l => Show (Regex l) where
   show (RSeq r1 r2) = "(" ++ show r1 ++ " " ++ show r2 ++ ")"
   show (RAlt r1 r2) = "(" ++ show r1 ++ " | " ++ show r2 ++ ")"
   show (Rε)         = "e"
+  show (RAny)       = "."
   show (REmp)       = "0"
   show (RNeg r)     = "~" ++ show r
   show (RAnd r1 r2) = "(" ++ show r1 ++ " & " ++ show r2 ++ ")"
