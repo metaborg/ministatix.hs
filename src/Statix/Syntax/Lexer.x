@@ -63,6 +63,7 @@ tokens :-
 
   <0> "~"                           { plain TokTilde }
   <0> "_"                           { plain TokUnderscore }
+  <0> "-"                           { plain TokDash }
   <0> "<"                           { plain TokLAngle }
   <0> ">"                           { plain TokRAngle }
   <0> "|"                           { plain TokBar }

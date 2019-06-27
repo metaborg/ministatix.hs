@@ -15,9 +15,9 @@ data Token
   | TokPathLex | TokPathRevLex | TokEpsilon
   | TokImports String | TokQName String | TokName String | TokConstructor String
   | TokString String
-  | TokTilde | TokUnderscore | TokLAngle | TokRAngle | TokBar | TokAmp
+  | TokTilde | TokUnderscore | TokDash | TokLAngle | TokRAngle | TokBar | TokAmp
   | TokLeftArrow | TokRightArrow | TokColon | TokSemicolon
-  | TokOpenArr | TokCloseArr | TokRegexQuote
+  | TokOpenArr | TokCloseArr | TokEpsilonArr | TokRegexQuote
   | TokOpenB | TokCloseB | TokOpenBr | TokCloseBr | TokOpenSB | TokCloseSB
   | TokQuote | TokEq | TokNotEq | TokTick | TokStar | TokPlus | TokPeriod
   | TokComma | TokQuestionmark

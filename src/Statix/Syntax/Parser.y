@@ -61,6 +61,7 @@ import ATerms.Syntax.Types (input, remainder, position, prev, Pos(..))
   '&'           { TokAmp }
   '<'           { TokLAngle }
   '_'           { TokUnderscore }
+  '-'           { TokDash }
   '~'           { TokTilde }
   'e'           { TokEpsilon }
   where         { TokWhere }

@@ -31,11 +31,11 @@ prettyPath n l t (Via (no, la, tm) p) =
 instance (Show n, Show l, Show t) ⇒ Show (Path n l t) where
   show = prettyPath show show show
 
-pathLT :: Rel a a → Rel [a] [a]
+pathLT :: (Eq a) ⇒ Rel a a → Rel [a] [a]
 pathLT lt (a:as) (b:bs) =
   if a `lt` b then True else     -- a < b
     if b `lt` a then False else  -- b < a
-      pathLT lt as bs
+      if a == b then pathLT lt as bs else False
 pathLT lt _ _ = True
 
 setLeMin :: (a → a → Bool) → [a] → [a]
