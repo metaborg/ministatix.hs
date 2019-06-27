@@ -32,6 +32,7 @@ provDeps :: (Ord v) ⇒ ProvEqn a v → Set v
 provDeps PBot        = empty
 provDeps (PLit _)    = empty
 provDeps (PV v)      = singleton v
+provDeps (PCap vs)   = fromList vs
 
 data Entry v l = Entry
   { value :: (Bool, Set l)

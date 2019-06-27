@@ -14,9 +14,10 @@
 -- then it iteratively solves them using a workslist until it reaches a fixedpoint.
 module Statix.Analysis.Permissions where
 
-import Data.Set (Set, singleton)
+import Data.Set (Set, singleton, empty)
 import Data.Default
 import Data.Maybe
+import Data.List (transpose)
 import qualified Data.HashMap.Strict as HM
 
 import Control.Monad.Except
@@ -25,7 +26,7 @@ import Control.Lens
 
 import Statix.Syntax
 import Statix.Analysis.Lexical
-import Statix.Analysis.Types hiding (PreSymbolTable, symtab)
+import Statix.Analysis.Types hiding (PreSymbolTable, symtab, locals)
 
 data ReqEqn a v
  = RLit a
@@ -36,6 +37,7 @@ data ReqEqn a v
 data ProvEqn a v
  = PLit a
  | PBot
+ | PCap [v] -- the meet of a nonempty list
  | PV v deriving (Show)
 
 class Eq a ⇒ SortaLattice a where
@@ -51,10 +53,13 @@ reqEval (RDiff w v) env
   | False ← fst $ env w = snd $ env v
 reqEval (RV v) env          = snd $ env v
 
-provEval :: SortaLattice a ⇒ ProvEqn a v → (v → a) → a
-provEval PBot env     = bot
-provEval (PLit s) env = s
-provEval (PV v) env   = env v
+provEval :: (Show a, SortaLattice a) ⇒ ProvEqn a v → (v → a) → a
+provEval PBot env        = bot
+provEval (PLit s) env    = s
+provEval (PCap as) env
+  | b:bs ← as = foldl lmeet (env b) (fmap env bs)
+  | []   ← as = bot
+provEval (PV v) env      = env v
 
 class MonadPermission m v l | m → v l where
   require :: v → ReqEqn (Set l) v → m () 
@@ -162,7 +167,7 @@ permAnalysis _ (CApply _ qn ts)  = do
       forM_ (zip ts perms) $ \case
         (Var x, (outs, ins)) → do
           xv ← resolve x
-          require xv (RLit ins)
+          require xv (RLit (if outs then empty else ins))
           provide xv (PLit outs)
         otherwise → return ()
 
@@ -175,13 +180,28 @@ permAnalysis _ (CApply _ qn ts)  = do
         otherwise → return ()
 
 permAnalysis qn (CMatch pos t brs) = do
-  forM_ brs $ \(Branch (Matcher ns t g) c) →
+  -- we analyze the branches all separately
+  -- with their own copies of the local environment.
+  branchEnvs ← forM brs $ \(Branch (Matcher ns t g) c) →
     freshenEnvWith pos scopeDependency $ do
+      env ← view locals
+
+      -- create the variables of the branch
       bs ← forM ns (mkBinder qn pos True)
+
+      -- analyze the branch
       enters () bs $ permAnalysis qn c
 
-  -- TODO we can take the intersection of all provided permissions for the branches
-  -- to contribute permission to the outer variables
+      -- return the surrounding environment of the branch
+      return env
+
+  -- together the branches provide a 'meet' of the individual
+  -- branch permissions
+  env ← view locals
+  let envs = transpose branchEnvs
+  forM_ (zip env envs) $ \(scope, brScopes) → do
+    forM_ (zip scope (transpose brScopes)) $ \(v, vs) → do
+      provide (snd v) (PCap (fmap snd vs))
 
 predPermAnalysis :: MonadPermAnalysis Label v m ⇒ Predicate₂ → m ()
 predPermAnalysis (Pred _ qn sig body) = do
