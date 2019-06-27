@@ -15,21 +15,27 @@ import Control.Lens
 import Statix.Syntax
 import Statix.Syntax.Surface
 
-import Statix.Analysis.Types
+import Statix.Analysis.Types as A
 import Statix.Analysis.Typer
 import Statix.Analysis.Typer.ST
 import Statix.Analysis.Namer
 import Statix.Analysis.Namer.Simple
-import Statix.Analysis.Permissions
+import Statix.Analysis.Permissions as P
 import Statix.Analysis.Permissions.Types
 
-namecheck :: (MonadError TCError m) ⇒ SymbolTable₀ → m SymbolTable₁
-namecheck symtab = do
-  forM symtab $ \(Mod name imps defs) → do
+namecheck :: (MonadError TCError m) ⇒ SymbolTable₀ → SymbolTable₃ → m SymbolTable₁
+namecheck presyms postsyms = do
+  forM presyms $ \(Mod name imps defs) → do
     -- build a qualifier for the predicate names in scope;
-    -- which is everything imported
-    let importQ = importQualifier imps symtab
-    -- and everything in the module
+    -- which is everything imported...
+    let importQ = importQualifier imps (\modname →
+          case HM.lookup modname presyms of
+            -- for predicates being namechecked
+            Just q  → moduleQualifier q
+            -- for predicates already namechecked
+            Nothing → moduleQualifier (postsyms ! modname))
+
+    -- and everything in the module...
     let localQ = fmap _qname defs
     let q = localQ `HM.union` importQ
 
@@ -38,23 +44,22 @@ namecheck symtab = do
       catchError (liftEither $ runNC (set qualifier q def) (checkPredicate pred)) $
         -- localize errors
         throwError . ModuleLocal name
-      
 
     return (Mod name imps defs)
 
 typecheck ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ SymbolTable₁ → m SymbolTable₂
-typecheck mods = do
+  ) ⇒ SymbolTable₁ → SymbolTable₃ → m SymbolTable₂
+typecheck mods syms = do
   i ← fresh
 
   (symtab, i') ← liftEither $ runST $ runTC def i $ do
-    -- construct the pretying
+    -- construct the pretyping
     table ← initialTable mods
 
     -- run the type analysis
-    local (over symtab $ const table) $ do
+    local (over presymtab (const table) . over A.symtab (const syms)) $ do
       -- typecheck all the modules
       forM mods $ \mod → do
         catchError (typecheckModule mod) $
@@ -66,12 +71,12 @@ typecheck mods = do
 
   return symtab
 
-permcheck :: (MonadError TCError m) ⇒ SymbolTable₂ → m SymbolTable₃
-permcheck symtab = liftEither $ runPermalizer $ do
-  withSymtab symtab $ do
+permcheck :: (MonadError TCError m) ⇒ SymbolTable₂ → SymbolTable₃ → m SymbolTable₃
+permcheck pretab syms = liftEither $ runPermalizer $ do
+  withSymtab pretab $ local (over P.symtab (const syms)) $ do
     -- perform the analysis collection permission equations for all
     -- predicates in the symbol table
-    forMOf_ (each.definitions.each) symtab predPermAnalysis
+    forMOf_ (each.definitions.each) pretab predPermAnalysis
 
     -- compute the least fixedpoint
     lfp
@@ -89,8 +94,8 @@ permcheck symtab = liftEither $ runPermalizer $ do
                 )
 
     -- extract the result
-    preTab ← view _2
-    return $ over (eachFormal._3) (\v → snd $ value $ table IM.! v) preTab
+    presyms ← view P.pretab
+    return $ over (eachFormal._3) (value . (table IM.!)) presyms
 
 deduplicate :: (MonadError TCError m) ⇒ [SurfaceM Predicate₀] → m SymbolTable₀
 deduplicate mods = HM.fromList <$> do
@@ -106,12 +111,18 @@ deduplicate mods = HM.fromList <$> do
         else modify (HM.insert predName pred)
     return $ (name, Mod name imps mod')
 
+-- | During the analysis we typically have two symboltables:
+-- one for symbols that are completely analyzed and whose type is immutable,
+-- and one for symbols that are still being analyzed in this round.
+-- At the moment the only way to find out which category a symbol is in,
+-- is to try to look it up in the latter table.
+-- If it is not in there, it should already been typechecked and exist in the former.
 analyze ::
   ( MonadError TCError m
   , MonadUnique Integer m
-  ) ⇒ [SurfaceM Predicate₀] → m SymbolTable₃
-analyze rawmods = do
+  ) ⇒ [SurfaceM Predicate₀] → SymbolTable₃ → m SymbolTable₃
+analyze rawmods syms = do
   modules   ← deduplicate rawmods
-  namedmods ← namecheck modules
-  symtab₂   ← typecheck namedmods
-  permcheck symtab₂
+  namedmods ← namecheck modules syms
+  symtab₂   ← typecheck namedmods syms
+  permcheck symtab₂ syms

@@ -56,7 +56,7 @@ checkCritical ces (CEdge _ x e y) i
 checkCritical ces (CApply _ qn ts) i = do
   -- get type information for p
   formals  ← view (symbols.sigOf qn)
-  critters ← zipWithM (\t (_,ty,perm) → checkTerm ces t perm i) ts formals
+  critters ← zipWithM (\t (_,ty,(_,perm)) → checkTerm ces t perm i) ts formals
   return $ Set.unions critters
 checkCritical ces (CEvery _ z (Branch _ c)) i = do
   checkCritical ces c (i + 1)

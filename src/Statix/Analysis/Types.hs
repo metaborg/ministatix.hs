@@ -28,6 +28,7 @@ data TCError
   | TypeError String
 
   -- bug!
+  | UncaughtSubsumptionErr
   | Panic String
   deriving (Show)
 
@@ -36,6 +37,9 @@ instance HasClashError (Const Type) TCError where
 
 instance HasCyclicError TCError where
   cyclicTerm      = Panic "Bug" -- should not occur, since types are non-recursive
+
+instance HasSubsumptionError TCError where
+  doesNotSubsume  = UncaughtSubsumptionErr
 
 data NameContext = NC
   { _qualifier :: Qualifier -- predicate names → qualified
@@ -60,17 +64,18 @@ type PreSymbolTable n  = SymbolTable (Ident, n) Constraint₁
 type TyRef s           = Class s (Const Type) ()
 
 data TyEnv n = TyEnv
-  { _symtab :: PreSymbolTable n
-  , _scopes :: [Scope n]
+  { _presymtab :: PreSymbolTable n -- for stuff being typechecked
+  , _scopes    :: [Scope n]
+  , _symtab    :: SymbolTable₃     -- for stuff already typechecked
   }
 
 instance Default (TyEnv n) where
-  def = TyEnv HM.empty [HM.empty]
+  def = TyEnv HM.empty [HM.empty] HM.empty
 
 makeLenses ''TyEnv
 
-moduleQualifier :: Ident → SymbolTable σ c → Qualifier
-moduleQualifier mod syms = (syms HM.! mod) ^. (definitions . to (fmap _qname))
+moduleQualifier :: Module σ c → Qualifier
+moduleQualifier mod = mod ^. (definitions . to (fmap _qname))
 
-importQualifier :: [Ident] → SymbolTable σ c → Qualifier
-importQualifier mods syms = HM.unions $ fmap (flip moduleQualifier syms) (mods)
+importQualifier :: [Ident] → (Ident → Qualifier) → Qualifier
+importQualifier mods modQs = HM.unions $ fmap modQs mods

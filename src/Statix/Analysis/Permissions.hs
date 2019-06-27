@@ -15,6 +15,9 @@
 module Statix.Analysis.Permissions where
 
 import Data.Set (Set, singleton)
+import Data.Default
+import Data.Maybe
+import qualified Data.HashMap.Strict as HM
 
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -22,7 +25,7 @@ import Control.Lens
 
 import Statix.Syntax
 import Statix.Analysis.Lexical
-import Statix.Analysis.Types hiding (PreSymbolTable)
+import Statix.Analysis.Types hiding (PreSymbolTable, symtab)
 
 data ReqEqn a v
  = RLit a
@@ -58,10 +61,20 @@ class MonadPermission m v l | m → v l where
   provide :: v → ProvEqn Bool v → m ()     
 
 type PreSymbolTable v = SymbolTable (Ident, Type, v) Constraint₁
+data PermEnv v = PermEnv
+  { _locals :: [[(Ident, v)]]
+  , _pretab :: PreSymbolTable v
+  , _symtab :: SymbolTable₃
+  }
+
+instance Default (PermEnv v) where
+  def = PermEnv [] HM.empty HM.empty
+
+makeLenses ''PermEnv
 
 class
   ( MonadLex (Ident, v) IPath v m
-  , MonadReader ([[(Ident, v)]], PreSymbolTable v) m
+  , MonadReader (PermEnv v) m
   , MonadError TCError m
   , MonadPermission m v l
   , FrameDesc m ~ ()
@@ -82,7 +95,7 @@ withSymtab symtab ma = do
          return (id, ty, v))
 
       return (Pred pos qn sig' c)
-  local (\(env,_) → (env, preST)) ma
+  local (over pretab (const preST)) ma
 
 scopeDependency :: MonadPermAnalysis l v m ⇒ v → v → m ()
 scopeDependency outer inner = do
@@ -95,10 +108,12 @@ mkBinder qn pos check id = do
   v ← newVar qn pos check id
   return (id, v)
 
-getPredVars :: MonadPermAnalysis l v m ⇒ QName → m [v]
+getPredVars :: MonadPermAnalysis l v m ⇒ QName → m (Maybe [v])
 getPredVars qn = do
- fms ← view (_2.sigOf qn)
- return (fmap (^._3) fms)
+ pred ← view (pretab.lookupPred qn)
+ forM pred $ \ pred → do
+   let fms = pred^.sig
+   return (fmap (^._3) fms)
   
 permAnalysis :: MonadPermAnalysis Label v m ⇒ QName → Constraint₁ → m ()
 
@@ -140,12 +155,24 @@ permAnalysis qn (CEvery pos x (Branch (Matcher ns t g) c)) = do
 
 permAnalysis _ (CApply _ qn ts)  = do
   fms ← getPredVars qn
-  forM_ (zip ts fms) $ \case
-    (Var x, v) → do
-      xv ← resolve x
-      require xv (RDiff v v)
-      provide xv (PV v)
-    otherwise → return ()
+  case fms of
+    -- apparently a symbol that is already tc'ed
+    Nothing → do
+      perms ← view (symtab.sigOf qn.to (fmap (^._3)))
+      forM_ (zip ts perms) $ \case
+        (Var x, (outs, ins)) → do
+          xv ← resolve x
+          require xv (RLit ins)
+          provide xv (PLit outs)
+        otherwise → return ()
+
+    Just fms → 
+      forM_ (zip ts fms) $ \case
+        (Var x, v) → do
+          xv ← resolve x
+          require xv (RDiff v v)
+          provide xv (PV v)
+        otherwise → return ()
 
 permAnalysis qn (CMatch pos t brs) = do
   forM_ brs $ \(Branch (Matcher ns t g) c) →
@@ -158,6 +185,6 @@ permAnalysis qn (CMatch pos t brs) = do
 
 predPermAnalysis :: MonadPermAnalysis Label v m ⇒ Predicate₂ → m ()
 predPermAnalysis (Pred _ qn sig body) = do
-  vs ← getPredVars qn
+  vs ← fromJust <$> getPredVars qn
   let bs = zip (fmap fst sig) vs
   enters () bs $ permAnalysis qn body

@@ -127,18 +127,22 @@ handler κ (Main rawc) = do
   main   ← use main
   this   ← use self
   imps   ← use imports
+  symtab ← use globals
 
   -- parse and analyze the constraint as a singleton module
   c        ← handleErrors $ parseConstraint this rawc
   let c'   = desugar c
-  mods     ← withErrors $ analyze [RawMod this imps [Pred def (this, main) [] c']]
+  mods     ← withErrors $ analyze [RawMod this imps [Pred def (this, main) [] c']] symtab
+
 
   -- import the module
   forM_ mods importMod
   modify (over gen (+1))
 
+  -- run the defined main
   symtab ← use globals
-  liftIO $ runST $ fmap printResult (solve symtab (mods^.to (HM.! this).definitions.to (HM.! main).body))
+  liftIO $ runST $ fmap printResult
+    (solve symtab (mods^.to (HM.! this).definitions.to (HM.! main).body))
 
   -- rinse and repeat
   κ
@@ -150,7 +154,7 @@ handler κ (Define p) = do
 
   pr      ← handleErrors $ parsePredicate this p
   let pr' = desugarPred pr
-  mods    ← withErrors $ analyze [RawMod this imps [pr']]
+  mods    ← withErrors $ analyze [RawMod this imps [pr']] symtab
 
   -- import the predicate into the symboltable
   forM_ mods importMod 
@@ -160,18 +164,18 @@ handler κ (Define p) = do
   κ
 
 handler κ (Import name) = do
-  -- Load the imported module
+  -- load the imported module
   here ← liftIO getCurrentDirectory
   rts  ← use roots
   withErrors $ importModule rts name
 
-  -- Rinse and repeat
+  -- rinse and repeat
   κ
 
 handler κ (Type pred) = do
   imps   ← use imports
   symtab ← use globals
-  let q = importQualifier imps symtab
+  let q = importQualifier imps (\m → moduleQualifier $ symtab HM.! m)
 
   case HM.lookup pred q >>= \qn → symtab^.lookupPred qn of
     Just p  → liftIO $ putStrLn $

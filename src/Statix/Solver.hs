@@ -275,7 +275,6 @@ solveFocus (CFilter _ x m z) = do
 -- | Construct a solver for a raw constraint
 kick :: SymbolTable₃ → Constraint₁ → SolverM s (Unifier s)
 kick sym c =
-  -- convert the raw constraint to the internal representatio
   local (\_ → set symbols sym def) $ do
     case c of
       -- open the top level exists if it exists

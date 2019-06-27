@@ -14,6 +14,7 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Unique
+import Control.Monad.Equiv
 
 import ATerms.Syntax.Types (Pos(..))
 
@@ -22,6 +23,8 @@ import Statix.Analysis.Types
 import Statix.Analysis.Lexical as Lex
 
 import Unification as Unif
+
+import Debug.Trace
 
 -- | Abstract typer monad class as a composition of various other monads.
 class
@@ -34,16 +37,16 @@ class
   ) ⇒ MonadTyper n m | m → n where
 
 -- | Check the arity of applications against the symboltable
-checkArity :: MonadTyper n m ⇒ Annotated Pos ConstraintF₁ r → m ()
-checkArity c@(AnnF pos (CApplyF qn ts)) = do
-  arity ← view (symtab.arityOf qn)
-  if length ts /= arity
-    then throwError $ WithPosition pos $ ArityMismatch qn arity (length ts)
-    else return ()
-checkArity c = return ()
+-- checkArity :: MonadTyper n m ⇒ Annotated Pos ConstraintF₁ r → m ()
+-- checkArity c@(AnnF pos (CApplyF qn ts)) = do
+--   arity ← view (presymtab.arityOf qn)
+--   if length ts /= arity
+--     then throwError $ WithPosition pos $ ArityMismatch qn arity (length ts)
+--     else return ()
+-- checkArity c = return ()
 
 initialTable :: MonadTyper n m ⇒ SymbolTable₁ → m (PreSymbolTable n)
-initialTable symtab = forMOf eachFormal symtab mkBinder 
+initialTable presymtab = forMOf eachFormal presymtab mkBinder 
 
 -- | Convert a type node from the unification dag to a ground type
 groundType :: MonadTyper n m ⇒ n → m Type
@@ -56,7 +59,7 @@ groundType ref = do
 -- | Extract a grounded module signature from the typer
 solution :: forall n m. MonadTyper n m ⇒ m SymbolTable₂
 solution = do
-  syms ← view symtab
+  syms ← view presymtab
   mapMOf (eachFormal._2) groundType syms
 
 termTypeAnalysis :: MonadTyper n m ⇒ Term₁ → m n
@@ -79,6 +82,11 @@ typeMatch (Matcher ps t eqs) ma = do
 typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
 typeBranch (Branch m c) = do
   typeMatch m (typeAnalysis c)
+
+typeNode :: MonadTyper n m ⇒ Type → m n 
+typeNode typ = do
+  id ← fresh
+  newClass (Rep (Tm (Const typ)) id)
 
 -- | Infer types by unification and collect permission constraints.
 typeAnalysis :: MonadTyper n m ⇒ Constraint₁ → m ()
@@ -145,13 +153,44 @@ typeAnalysis (CFilter _ x p y) = do
   y' ← construct (Tm (Const TAns))
   unify x x'
   unify y y'
-typeAnalysis (CApply _ qn ts) = do
-  -- compute the type nodes for the formal parameters 
-  formals ← view $ symtab . sigOf qn
+typeAnalysis (CApply pos qn ts) = do
+  -- compute the type nodes for the actual parameters
   actuals ← mapM termTypeAnalysis ts
 
-  -- unify formals with actuals
-  void (zipWithM unify (fmap snd formals) actuals)
+  presyms ← view presymtab
+  case presyms^.lookupPred qn of
+    -- apparently a predicate that we are typechecking
+    Just pred → do
+      -- compute the type nodes for the formal parameters 
+      let formals = pred^.sig
+
+      -- arity check
+      if length ts /= length formals
+        then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
+        else return ()
+
+      -- unify formals with actuals
+      void (zipWithM unify (fmap snd formals) actuals)
+
+    -- apparently a predicate that should already be typechecked
+    Nothing   → do
+      formals ← view (symtab.sigOf qn)
+      formals ← forM (fmap (^._2) formals) typeNode
+
+      -- arity check
+      if length ts /= length formals
+        then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
+        else return ()
+
+      -- check actuals against formals
+      catchError
+        (void (zipWithM subsumes actuals formals))
+        (\case
+            UncaughtSubsumptionErr →
+              throwError $ TypeError $ "Application of " ++ showQName qn ++ " type mismatch"
+            e → throwError e
+        )
+    
 typeAnalysis (CMatch _ t br) = do
   mapM_ typeBranch br
   
@@ -159,16 +198,11 @@ typeAnalysis (CMatch _ t br) = do
 -- TODO Think hard about fusion of passses
 typecheckConstraint :: (MonadTyper n m) ⇒ Constraint₁ → m ()
 typecheckConstraint c = do
-  -- we run some checks on the constranit that do not
-  -- require additional type annotations
-  cataM checkArity c
-
-  -- constraint based type analysis
   typeAnalysis c
 
 typecheckPredicate :: (MonadTyper n m) ⇒ Predicate₁ → m ()
 typecheckPredicate p = do
-  bs ← view (symtab.getPred (p^.qname).sig)
+  bs ← view (presymtab.getPred (p^.qname).sig)
   enters () bs $ do
     void $ typecheckConstraint (p^.body)
 

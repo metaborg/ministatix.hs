@@ -1,6 +1,7 @@
 module Statix.Importer where
 
 import Data.List (intercalate)
+import qualified Data.HashMap.Strict as HM
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -122,7 +123,7 @@ importModule roots name = do
   (_, rawmods) ← liftEither rawmods
 
   -- analyze them
-  symtab ← withExceptT (TypeErr name) $ analyze rawmods
+  symtab ← withExceptT (TypeErr name) $ analyze rawmods HM.empty
 
   -- import them
   lift $ forM_ symtab importMod

@@ -272,4 +272,3 @@ toTree n = do
     Tm tm  → do
       subtree ← mapM toTree tm
       return (Fix (Tm subtree))
-

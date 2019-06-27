@@ -3,6 +3,7 @@ module Statix.Syntax.Constraint where
 import Prelude hiding (lookup)
 
 import Data.HashMap.Strict (HashMap, lookup)
+import qualified Data.HashMap.Strict as HM
 import Data.List (concatMap, intercalate)
 import Data.Functor.Fixedpoint
 import Data.Maybe
@@ -10,7 +11,6 @@ import Data.Functor.Compose
 import Data.Set
 
 import Control.Lens
-import Control.Monad
 
 import ATerms.Syntax.Types
 
@@ -135,7 +135,8 @@ pattern CFilter an x p t = Ann an (CFilterF x p t)
 pattern CApply an p ts   = Ann an (CApplyF p ts)
 pattern CMatch an t br   = Ann an (CMatchF t br)
 
-type FormalSig        = (Ident,Type,Set Label)
+type Perm             = (Bool, Set Label)
+type FormalSig        = (Ident,Type,Perm)
 
 type Predicate₀       = Predicate Ident Constraint₀
 type Predicate₁       = Predicate Ident Constraint₁
@@ -145,7 +146,7 @@ type Predicate₃       = Predicate FormalSig Constraint₁
 type Module₀          = Module Ident Constraint₀
 type Module₁          = Module Ident Constraint₁
 type Module₂          = Module (Ident, Type) Constraint₁
-type Module₃          = Module (Ident, Type, Set Label) Constraint₁
+type Module₃          = Module (Ident, Type, Perm) Constraint₁
 
 type SymbolTable σ c  = HashMap Ident (Module σ c)
 type SymbolTable₀     = SymbolTable Ident Constraint₀
@@ -155,6 +156,11 @@ type SymbolTable₃     = SymbolTable FormalSig Constraint₁
 
 makeLenses ''Predicate
 makeLenses ''Module
+
+listSyms :: SymbolTable σ c → [QName]
+listSyms = concatMap
+  (\mod → fmap (\id → (mod^.moduleName, id))
+  (mod^.definitions.to HM.keys))
 
 lookupPred :: QName → Getter (SymbolTable σ c) (Maybe (Predicate σ c))
 lookupPred (mod, pred) = to f
@@ -176,9 +182,11 @@ arityOf q = sigOf q.to length
 eachFormal :: Traversal (SymbolTable σ c) (SymbolTable τ c) σ τ
 eachFormal = each.definitions.each.sig.each
 
-showFormalTyping :: (Ident, Type, (Set Label)) → String
-showFormalTyping (n, TNode, p) = "(" ++ n ++ " : Node " ++ show (toList p) ++ ")"
-showFormalTyping (n, t, _)     = "(" ++ n ++ " : " ++ show t ++ ")"
+showFormalTyping :: (Ident, Type, Perm) → String
+showFormalTyping (n, TNode, (out, ins)) =
+  "(" ++ n ++ " : Node " ++ show out ++ " " ++ show (toList ins) ++ ")"
+showFormalTyping (n, t, _) =
+  "(" ++ n ++ " : " ++ show t ++ ")"
 
 showPredType :: Predicate₃ → String
 showPredType p =

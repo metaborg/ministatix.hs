@@ -9,7 +9,6 @@ import Data.Set
 import Data.IntMap.Strict (IntMap, update, (!))
 import qualified Data.IntMap.Strict as IM
 import Data.List (find)
-import qualified Data.HashMap.Strict as HM
 import Data.Default
 
 import Control.Monad.Unique
@@ -20,7 +19,7 @@ import Control.Lens
 
 import Statix.Syntax
 import Statix.Analysis.Lexical
-import Statix.Analysis.Permissions
+import Statix.Analysis.Permissions as P
 import Statix.Analysis.Types hiding (PreSymbolTable)
 
 reqDeps :: (Ord v) ⇒ ReqEqn a v → Set v
@@ -59,22 +58,22 @@ addDependant dep w = do
 type PermTable l = IntMap (Entry Int l)
 
 type Permalizer l =
-  ReaderT ([[(Ident, Int)]], PreSymbolTable Int)
+  ReaderT (PermEnv Int)
   (ExceptT TCError
   (State (PermTable l, Int, Set Int)))
 
 runPermalizer :: Permalizer l a → Either TCError a
-runPermalizer c = evalState (runExceptT (runReaderT c ([], HM.empty))) (IM.empty, 0, empty)
+runPermalizer c = evalState (runExceptT (runReaderT c def)) (IM.empty, 0, empty)
 
 instance MonadLex (Ident, Int) IPath Int (Permalizer l) where
   type FrameDesc (Permalizer l) = ()
 
-  enter _ = local (\(env, st) → ([]:env, st))
+  enter _ = local (over P.locals ([]:))
 
-  intros bs = local (\(sc:env, st) → ((bs ++ sc):env, st))
+  intros bs = local (over P.locals $ \(sc:env) → (bs ++ sc):env)
 
   resolve pth = do
-    env ← asks fst
+    env ← view P.locals
     let v = (popAll pth env) >>= \(id, vs) → find ((==) id . fst) vs
     case v of
       Just (id, v) → return v
@@ -126,14 +125,14 @@ instance MonadPermAnalysis l Int (Permalizer l) where
     return v
     
   freshenEnvWith pos f c = do
-    (env, symtab) ← ask
+    env   ← view P.locals
     table ← use _1
     newenv ← forMOf (each.each) env $ \(id,v) → do
       let entry = table ! v
       v'    ← newVar (predicate entry) pos (doCheck entry) id
       f v v'
       return (id, v')
-    local (const (newenv, symtab)) c
+    local (over P.locals (const newenv))  c
 
 instance SortaLattice Bool where
   bot   = False
