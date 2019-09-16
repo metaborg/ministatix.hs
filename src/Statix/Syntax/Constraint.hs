@@ -37,7 +37,7 @@ data Branch t c   = Branch (Matcher t) c
   deriving (Functor, Foldable, Traversable, Show)
 
 type LexOrd       = [(Label,Label)]
-data PathComp     = Lex LexOrd | RevLex LexOrd
+data PathComp     = Lex LexOrd | RevLex LexOrd | ScalaOrd
   deriving (Show)
 
 data PathFilter t = MatchDatum (Matcher t)

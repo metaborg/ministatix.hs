@@ -4,10 +4,6 @@ import Data.Relation
 import Data.Map as Map hiding (toList, foldl)
 import Data.Set as Set hiding (toList, foldl)
 
-
-import Control.Monad.Reader
-import Control.Monad.Trans
-
 import Statix.Regex as Re
 import Statix.Graph.Types
 
@@ -48,6 +44,18 @@ setLeMin le (x:xs) = snd $ foldl f (x , [x]) xs
         then (rep, e:acc)
         else (e, [e])     -- RIP king, long live the king
       else (rep, acc)
+
+setLtMin :: (a → a → Bool) → [a] → [a]
+setLtMin lt []     = []
+setLtMin lt (x:xs) = snd $ foldl f (x , [x]) xs
+  where
+    f (rep, acc) e =
+      if e `lt` rep
+        then (e, [e])
+        else
+          if rep `lt` e
+          then (rep, acc)
+          else (rep, e:acc)
 
 -- | Find reachable nodes in the graph over a regex.
 -- Together with the regex derivative in that node

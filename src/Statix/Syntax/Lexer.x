@@ -51,6 +51,7 @@ tokens :-
   <0> reverse\-lexico                { plain TokPathRevLex }
   <0> lexico                        { plain TokPathLex }
   <0> eps                           { plain TokEpsilon }
+  <0> scala                         { plain TokScalaOrd }
 
   <0> import                        { beginImport }
   <imports> $space+                 ;

@@ -20,7 +20,7 @@ data Token
   | TokOpenArr | TokCloseArr | TokEpsilonArr | TokRegexQuote
   | TokOpenB | TokCloseB | TokOpenBr | TokCloseBr | TokOpenSB | TokCloseSB
   | TokQuote | TokEq | TokNotEq | TokTick | TokStar | TokPlus | TokPeriod
-  | TokComma | TokQuestionmark
+  | TokComma | TokQuestionmark | TokScalaOrd
   | TEOF
   deriving Show
 

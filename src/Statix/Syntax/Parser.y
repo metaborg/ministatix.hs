@@ -89,6 +89,7 @@ import ATerms.Syntax.Types (input, remainder, position, prev, Pos(..))
   import        { TokImports $$ }
   lexico        { TokPathLex }
   revlex        { TokPathRevLex }
+  scala         { TokScalaOrd }
 
 %left '|'
 %left '&'
@@ -135,6 +136,7 @@ LabelLT         : Label '<' Label                               { ($1, $3) }
 LabelLTs        : sep(LabelLT, ',')                             { $1 }
 PathComp        : lexico '(' LabelLTs ')'                       { Lex $3 }
                 | revlex '(' LabelLTs ')'                       { RevLex $3 }
+                | scala                                         { ScalaOrd }
 
 Constraint      : '{' Names '}' Constraint                      {% core $ CExF $2 $4 }
                 | Constraint ',' Constraint                     {% core $ CAndF $1 $3 }
