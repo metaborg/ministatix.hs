@@ -26,6 +26,7 @@ import Statix.Solver.Guard
 import Statix.Solver.Errors
 import Statix.Solver.Scheduler
 import Statix.Solver.Debug
+import Statix.Solver.Scala
 
 import Unification as U hiding (TTm)
 
@@ -244,37 +245,6 @@ solveFocus (CMin _ x lt z) = do
     lexico lt p q =
       reflexiveClosure
         (pathLT (transitiveClosure (finite lt))) p q
-
-    scala :: Rel [Label] [Label]
-    scala p q =
-      let
-        (bs , p1) = span (== (Lab "B")) p
-        (bs', q1) = span (== (Lab "B")) q
-
-        (ps , p2) = span (== (Lab "P")) p1
-        (ps', q2) = span (== (Lab "P")) q1
-
-        imps = span (\l → l == Lab "I" || l == Lab "W")
-        (is  , p3) = imps p2
-        (is' , q3) = imps q2
-
-        i  = listToMaybe is
-        i' = listToMaybe is'
-
-        -- [] < [I] < [W]
-        lt :: Maybe Label → Maybe Label → Bool
-        lt _ Nothing                         = False
-        lt Nothing _                         = True
-        lt (Just (Lab "I")) (Just (Lab "W")) = True
-        lt _ _                               = False
-      in
-        (ps == ps' && lt i i')
-        || (ps < ps' && (i == i' || lt i i'))
-
-    -- comp :: PathComp → Rel (SPath s t) (SPath s t)
-    -- comp (RevLex lt) p q = lexico lt (reverse $ labels p) (reverse $ labels q)
-    -- comp (Lex lt) p q    = lexico lt (labels p) (labels q)
-    -- comp ScalaOrd p q    = scala (labels p) (labels q)
 
     setMin (RevLex lt) ans = setLeMin (\ p q → lexico lt (reverse $ labels p) (reverse $ labels q)) ans
     setMin (Lex lt) ans = setLeMin (\ p q → lexico lt (labels p) (labels q)) ans

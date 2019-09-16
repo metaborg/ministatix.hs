@@ -61,14 +61,16 @@ instantConstraint :: Int → Constraint₁ → SolverM s String
 instantConstraint d c = execWriterT (insta d c)
   where
     insta :: Int → Constraint₁ → WriterT String (SolverM s) ()
-    insta d (Ann _ c) = prettyF
-      (\qn → tell $ showQName qn)
-      (instantVariable d)
-      (\t → do
+    insta d (Ann pos c) = do
+      tell $ show pos ++ " | "
+      prettyF
+        (\qn → tell $ showQName qn)
+        (instantVariable d)
+        (\t → do
           t ← lift (toDag t)
           t ← lift (instantTerm d t)
           tell t)
-      (\ ns c → case ns of
-        (Just ns) → tell "_"  -- dont move under binders
-        Nothing   → insta d c)
-      c
+        (\ ns c → case ns of
+          (Just ns) → tell "_"  -- dont move under binders
+          Nothing   → insta d c)
+        c

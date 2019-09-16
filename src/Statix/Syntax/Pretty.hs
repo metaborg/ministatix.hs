@@ -7,9 +7,13 @@ import Control.Monad.Writer
 import Statix.Syntax.Terms
 import Statix.Syntax.Constraint
 
+-- prettyMatcher :: forall t c m. (MonadWriter String m) ⇒ (t → m ()) → (Maybe [Ident] → c → m ()) → Matcher t → m ()
+-- prettyMatcher tm id (Matcher ids t g) = do
+--   tell 
+
 prettyBranch :: forall t c m. (MonadWriter String m) ⇒ (t → m ()) → (Maybe [Ident] → c → m ()) → Branch t c → m ()
 prettyBranch tm id (Branch mtch c) = do
-  tell "_ -> _"
+  tell ("_ -> _")
 
 prettyF :: forall p t l m c. (MonadWriter String m) ⇒ (p → m ()) → (l → m ()) → (t → m ()) → (Maybe [Ident] → c → m ()) → ConstraintF p l t c → m ()
 prettyF pr id tm constr c = prettyF_ c
