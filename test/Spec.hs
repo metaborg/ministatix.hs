@@ -22,7 +22,6 @@ import Statix.Syntax.Parser
 import Statix.Analysis.Types
 import Statix.Analysis.Typer
 import Statix.Analysis.Namer
-import Statix.Analysis.Symboltable
 import Statix.Analysis
 import Statix.Solver
 
@@ -43,17 +42,17 @@ specmod :: String
 specmod = "spec"
 
 
-testMod :: Bool → RawModule₀ → String → Spec
+testMod :: Bool → SurfaceM Predicate₀ → String → Spec
 testMod o rawmod main = do
   let mod      = runIdentity $ runExceptT $
-        evalStateT (analyze HM.empty rawmod) (0 :: Integer)
+        evalStateT (analyze [rawmod] HM.empty) (0 :: Integer)
 
   it "analyzes" $
     isRight mod `shouldBe` True
 
   -- dynamic semantics
   it "evaluates" $
-    check HM.empty (body $ (HM.! main) $ fromRight undefined mod) `shouldBe` o
+    check HM.empty ((^.body) $ (HM.! main) $ (^.definitions) $ (HM.! specmod) $ fromRight undefined mod) `shouldBe` o
 
 run :: Bool → String → Spec
 run o c = do
@@ -67,7 +66,7 @@ run o c = do
     let rawbody  = desugar $ fromRight undefined parsed
     let testpred = "test"
     let qn       = (specmod, testpred)
-    let rawmod   = Mod specmod [] [Pred qn [] rawbody]
+    let rawmod   = RawMod specmod [] [Pred def qn [] rawbody]
 
     testMod o rawmod testpred
 
