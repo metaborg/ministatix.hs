@@ -58,7 +58,7 @@ commands = subparser
      (info (replOpts <**> helper) (fullDesc
                                    <> progDesc "Run constraints interactively"
                                    <> header "ministatix repl"))
-   )
+   ) <|> replOpts <**> helper
 
 handleErrors :: (ReplError e) ⇒ Either e a → REPL a
 handleErrors (Right a) = return a
