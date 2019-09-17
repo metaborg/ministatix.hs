@@ -32,10 +32,10 @@ Other makefile targets are:
 - `setup` to setup the build environment;
 - `build` to build the project;
 - `test` to run the test specifications in `test/`;
-- `clean` to remove the build artifacts;
+- `clean` to remove the artifacts;
 - `doc` to build and show the generated documentation;
 - `ghci` to open a Haskell Interactive propt in the project directory;
-- `install` to install the built artifacts.
+- `install` to install the binary in your user's local bin.
 
 
 [1]: https://www.haskellstack.org/
