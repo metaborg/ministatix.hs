@@ -96,6 +96,7 @@ data Predicate σ c = Pred
 data Module σ c = Mod 
   { _moduleName    :: Ident
   , _moduleImports :: [Ident]
+  , _orderDefs     :: [(Ident, PathComp)]
   , _definitions   :: HashMap Ident (Predicate σ c) }
   deriving (Show)
 
@@ -166,7 +167,7 @@ lookupPred :: QName → Getter (SymbolTable σ c) (Maybe (Predicate σ c))
 lookupPred (mod, pred) = to f
   where
     f symtab = do
-      (Mod _ _ defs) ← lookup mod symtab
+      (Mod _ _ _ defs) ← lookup mod symtab
       lookup pred defs
 
 getPred :: QName → Getter (SymbolTable σ c) (Predicate σ c)

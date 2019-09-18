@@ -71,7 +71,7 @@ loadModule :: [FilePath] → Ident → Importer ()
 loadModule rootpaths name = do
   liftIO $ putStrLn $ "Loading module " ++ name ++ "..."
   path   ← resolveModule rootpaths name
-  rawmod@(RawMod _ imps defs) ← loadModuleFromFile rootpaths name path
+  rawmod@(RawMod _ imps orders defs) ← loadModuleFromFile rootpaths name path
 
   -- push the module name to the stack
   local (name:) $ do
@@ -83,7 +83,7 @@ loadModule rootpaths name = do
       then return ()
       else do
         symtab ← get
-        if any (\(RawMod name _ _) → name == imp) symtab
+        if any (\(RawMod name _ _ _) → name == imp) symtab
           then return ()
           else loadModule rootpaths imp
 

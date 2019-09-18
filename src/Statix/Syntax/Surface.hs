@@ -41,7 +41,8 @@ data Extensions r
 type SurfaceCF  = Annotated Pos (Sum (ConstraintF Ident Ident Term₀) Extensions)
 type SurfaceC   = Fix SurfaceCF
 type SurfaceP   = Predicate Ident SurfaceC
-data SurfaceM p = RawMod Ident [Ident] [p]
+type OrderDef   = (Ident, PathComp)
+data SurfaceM p = RawMod Ident [Ident] [OrderDef] [p]
 
 desugar :: SurfaceC → Constraint₀
 desugar c = evalState (cataM desugarF c) 0
@@ -50,7 +51,7 @@ desugarPred :: SurfaceP → Predicate₀
 desugarPred (Pred pos qn sig body) = Pred pos qn sig (desugar body)
 
 desugarMod :: SurfaceM SurfaceP → SurfaceM Predicate₀
-desugarMod (RawMod name imps defs) = RawMod name imps (fmap desugarPred defs)
+desugarMod (RawMod name imps orders defs) = RawMod name imps orders (fmap desugarPred defs)
 
 -- | Implementation of desguaring
 

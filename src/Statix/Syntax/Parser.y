@@ -87,6 +87,7 @@ import ATerms.Syntax.Types (input, remainder, position, prev, Pos(..))
   end           { TokEnd }
   edge          { TokEdge }
   import        { TokImports $$ }
+  order         { TokOrder }
   lexico        { TokPathLex }
   revlex        { TokPathRevLex }
   scala         { TokScalaOrd }
@@ -200,10 +201,13 @@ Predicates      : list(Predicate)                               { $1 }
 Import          : import                                        { $1 }
 Imports         : list(Import)                                  { $1 }
 
-Module          : Imports Predicates                            {%
+Order           : order NAME PathComp                           { ($2, $3) }
+Orders          : list(Order)                                   { $1 }
+
+Module          : Imports Orders Predicates                     {%
     do
       mod <- ask
-      return (RawMod mod $1 $2)
+      return (RawMod mod $1 $2 $3)
   }
 
 either(p, q)    : p                                             { Left  $1 }

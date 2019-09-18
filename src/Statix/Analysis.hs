@@ -25,7 +25,7 @@ import Statix.Analysis.Permissions.Types
 
 namecheck :: (MonadError TCError m) ⇒ SymbolTable₀ → SymbolTable₃ → m SymbolTable₁
 namecheck presyms postsyms = do
-  forM presyms $ \(Mod name imps defs) → do
+  forM presyms $ \(Mod name imps orders defs) → do
     -- build a qualifier for the predicate names in scope;
     -- which is everything imported...
     let importQ = importQualifier imps (\modname →
@@ -45,7 +45,7 @@ namecheck presyms postsyms = do
         -- localize errors
         throwError . ModuleLocal name
 
-    return (Mod name imps defs)
+    return (Mod name imps orders defs)
 
 typecheck ::
   ( MonadError TCError m
@@ -99,7 +99,7 @@ permcheck pretab syms = liftEither $ runPermalizer $ do
 
 deduplicate :: (MonadError TCError m) ⇒ [SurfaceM Predicate₀] → m SymbolTable₀
 deduplicate mods = HM.fromList <$> do
-  forM mods $ \(RawMod name imps defs) → do
+  forM mods $ \(RawMod name imps orders defs) → do
     -- run a stateful computation over the list of definitions
     -- adding things to the hashmap if we haven't seen them yet,
     -- or throwing an error otherwise
@@ -109,7 +109,7 @@ deduplicate mods = HM.fromList <$> do
       if seen
         then throwError $ DuplicatePredicate predName
         else modify (HM.insert predName pred)
-    return $ (name, Mod name imps mod')
+    return $ (name, Mod name imps orders mod')
 
 -- | During the analysis we typically have two symboltables:
 -- one for symbols that are completely analyzed and whose type is immutable,

@@ -132,7 +132,7 @@ handler κ (Main rawc) = do
   -- parse and analyze the constraint as a singleton module
   c        ← handleErrors $ parseConstraint this rawc
   let c'   = desugar c
-  mods     ← withErrors $ analyze [RawMod this imps [Pred def (this, main) [] c']] symtab
+  mods     ← withErrors $ analyze [RawMod this imps [] [Pred def (this, main) [] c']] symtab
 
 
   -- import the module
@@ -154,7 +154,7 @@ handler κ (Define p) = do
 
   pr      ← handleErrors $ parsePredicate this p
   let pr' = desugarPred pr
-  mods    ← withErrors $ analyze [RawMod this imps [pr']] symtab
+  mods    ← withErrors $ analyze [RawMod this imps [] [pr']] symtab
 
   -- import the predicate into the symboltable
   forM_ mods importMod 

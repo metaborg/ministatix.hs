@@ -21,6 +21,7 @@ data Token
   | TokOpenB | TokCloseB | TokOpenBr | TokCloseBr | TokOpenSB | TokCloseSB
   | TokQuote | TokEq | TokNotEq | TokTick | TokStar | TokPlus | TokPeriod
   | TokComma | TokQuestionmark | TokScalaOrd
+  | TokOrder
   | TEOF
   deriving Show
 

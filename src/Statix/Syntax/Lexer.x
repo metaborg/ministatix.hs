@@ -48,7 +48,7 @@ tokens :-
   <0> match                         { plain TokMatch }
   <0> Edge                          { plain TokEdge }
   <0> End                           { plain TokEnd }
-  <0> reverse\-lexico                { plain TokPathRevLex }
+  <0> reverse\-lexico               { plain TokPathRevLex }
   <0> lexico                        { plain TokPathLex }
   <0> eps                           { plain TokEpsilon }
   <0> scala                         { plain TokScalaOrd }
@@ -57,6 +57,8 @@ tokens :-
   <imports> $space+                 ;
   <imports> @qname                  { importing }
   <imports> @name                   { importing }
+
+  <0> order                         { plain TokOrder }
 
   <0> @qname                        { qname }
   <0> @name                         { name }
