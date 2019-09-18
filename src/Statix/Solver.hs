@@ -235,7 +235,7 @@ solveFocus (CMin _ x lt z) = do
   case σ of
     (U.Var x)  → throwError StuckError
     (SAns ans) → do
-      let min = setMin lt ans
+      min     ← setMin lt ans
       ansRef  ← construct (Tm (SAnsF min))
       b       ← resolve z
       unify b ansRef
@@ -246,9 +246,15 @@ solveFocus (CMin _ x lt z) = do
       reflexiveClosure
         (pathLT (transitiveClosure (finite lt))) p q
 
-    setMin (RevLex lt) ans = setLeMin (\ p q → lexico lt (reverse $ labels p) (reverse $ labels q)) ans
-    setMin (Lex lt) ans = setLeMin (\ p q → lexico lt (labels p) (labels q)) ans
-    setMin ScalaOrd ans = setLtMin (\ p q → scala (labels p) (labels q)) ans
+    setMin (RevLex lt) ans   = do
+      return $ setLeMin (\ p q → lexico lt (reverse $ labels p) (reverse $ labels q)) ans
+    setMin (Lex lt) ans      = do
+      return $ setLeMin (\ p q → lexico lt (labels p) (labels q)) ans
+    setMin ScalaOrd ans      = do
+      return $ setLtMin (\ p q → scala (labels p) (labels q)) ans
+    setMin (NamedOrd qn) ans = do
+      order ← view (symbols . getOrder qn)
+      setMin order ans
 
 solveFocus (CFilter _ x m z) = do
   σ ← resolve x >>= getSchema

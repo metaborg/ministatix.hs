@@ -46,6 +46,7 @@ import ATerms.Syntax.Types (input, remainder, position, prev, Pos(..))
   false         { TokFalse }
   eq            { TokEq }
   ineq          { TokNotEq }
+  '@'           { TokAt }
   ','           { TokComma }
   '{'           { TokOpenBr }
   '}'           { TokCloseBr }
@@ -138,6 +139,7 @@ LabelLTs        : sep(LabelLT, ',')                             { $1 }
 PathComp        : lexico '(' LabelLTs ')'                       { Lex $3 }
                 | revlex '(' LabelLTs ')'                       { RevLex $3 }
                 | scala                                         { ScalaOrd }
+                | '@' NAME                                      { NamedOrd $2 }
 
 Constraint      : '{' Names '}' Constraint                      {% core $ CExF $2 $4 }
                 | Constraint ',' Constraint                     {% core $ CAndF $1 $3 }

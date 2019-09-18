@@ -64,6 +64,7 @@ tokens :-
   <0> @name                         { name }
   <0> @constructor                  { constructor }
 
+  <0> "@"                           { plain TokAt }
   <0> "~"                           { plain TokTilde }
   <0> "_"                           { plain TokUnderscore }
   <0> "-"                           { plain TokDash }

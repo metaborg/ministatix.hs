@@ -41,8 +41,7 @@ data Extensions r
 type SurfaceCF  = Annotated Pos (Sum (ConstraintF Ident Ident Term₀) Extensions)
 type SurfaceC   = Fix SurfaceCF
 type SurfaceP   = Predicate Ident SurfaceC
-type OrderDef   = (Ident, PathComp)
-data SurfaceM p = RawMod Ident [Ident] [OrderDef] [p]
+data SurfaceM p = RawMod Ident [Ident] [OrderDef Ident] [p]
 
 desugar :: SurfaceC → Constraint₀
 desugar c = evalState (cataM desugarF c) 0

@@ -37,7 +37,7 @@ data Branch t c   = Branch (Matcher t) c
   deriving (Functor, Foldable, Traversable, Show)
 
 type LexOrd       = [(Label,Label)]
-data PathComp     = Lex LexOrd | RevLex LexOrd | ScalaOrd
+data PathComp ℓ    = Lex LexOrd | RevLex LexOrd | ScalaOrd | NamedOrd ℓ
   deriving (Show)
 
 data PathFilter t = MatchDatum (Matcher t)
@@ -57,7 +57,7 @@ data ConstraintF p ℓ t r
   | COneF ℓ t
   | CNonEmptyF ℓ
   | CEveryF ℓ (Branch t r)
-  | CMinF ℓ PathComp ℓ
+  | CMinF ℓ (PathComp p) ℓ
   | CFilterF ℓ (PathFilter t) ℓ
   | CApplyF p [t]
   | CMatchF t [Branch t r]
@@ -93,10 +93,11 @@ data Predicate σ c = Pred
   , _body     :: c
   } deriving (Show)
 
-data Module σ c = Mod 
+type OrderDef ℓ = (Ident, PathComp ℓ)
+data Module ℓ σ c = Mod 
   { _moduleName    :: Ident
   , _moduleImports :: [Ident]
-  , _orderDefs     :: [(Ident, PathComp)]
+  , _orderDefs     :: HashMap Ident (PathComp ℓ)
   , _definitions   :: HashMap Ident (Predicate σ c) }
   deriving (Show)
 
@@ -144,43 +145,46 @@ type Predicate₁       = Predicate Ident Constraint₁
 type Predicate₂       = Predicate (Ident,Type) Constraint₁
 type Predicate₃       = Predicate FormalSig Constraint₁
 
-type Module₀          = Module Ident Constraint₀
-type Module₁          = Module Ident Constraint₁
-type Module₂          = Module (Ident, Type) Constraint₁
-type Module₃          = Module (Ident, Type, Perm) Constraint₁
+type Module₀          = Module Ident Ident Constraint₀
+type Module₁          = Module QName Ident Constraint₁
+type Module₂          = Module QName (Ident, Type) Constraint₁
+type Module₃          = Module QName (Ident, Type, Perm) Constraint₁
 
-type SymbolTable σ c  = HashMap Ident (Module σ c)
-type SymbolTable₀     = SymbolTable Ident Constraint₀
-type SymbolTable₁     = SymbolTable Ident Constraint₁
-type SymbolTable₂     = SymbolTable (Ident, Type) Constraint₁
-type SymbolTable₃     = SymbolTable FormalSig Constraint₁
+type SymbolTable ℓ σ c  = HashMap Ident (Module ℓ σ c)
+type SymbolTable₀     = SymbolTable Ident Ident Constraint₀
+type SymbolTable₁     = SymbolTable QName Ident Constraint₁
+type SymbolTable₂     = SymbolTable QName (Ident, Type) Constraint₁
+type SymbolTable₃     = SymbolTable QName FormalSig Constraint₁
 
 makeLenses ''Predicate
 makeLenses ''Module
 
-listSyms :: SymbolTable σ c → [QName]
+listSyms :: SymbolTable ℓ σ c → [QName]
 listSyms = concatMap
   (\mod → fmap (\id → (mod^.moduleName, id))
   (mod^.definitions.to HM.keys))
 
-lookupPred :: QName → Getter (SymbolTable σ c) (Maybe (Predicate σ c))
+lookupPred :: QName → Getter (SymbolTable ℓ σ c) (Maybe (Predicate σ c))
 lookupPred (mod, pred) = to f
   where
     f symtab = do
       (Mod _ _ _ defs) ← lookup mod symtab
       lookup pred defs
 
-getPred :: QName → Getter (SymbolTable σ c) (Predicate σ c)
+getPred :: QName → Getter (SymbolTable ℓ σ c) (Predicate σ c)
 getPred qn = lookupPred qn . to fromJust
 
-sigOf :: QName → Getter (SymbolTable σ c) [σ]
+getOrder :: QName → Getter (SymbolTable ℓ σ c) (PathComp ℓ)
+getOrder (mod, ord) = to (HM.! mod) . orderDefs . to (HM.! ord)
+
+sigOf :: QName → Getter (SymbolTable ℓ σ c) [σ]
 sigOf q = getPred q . sig
 
 -- | Get the arity of a predicate
-arityOf :: QName → Getter (SymbolTable σ c) Int
+arityOf :: QName → Getter (SymbolTable ℓ σ c) Int
 arityOf q = sigOf q.to length
 
-eachFormal :: Traversal (SymbolTable σ c) (SymbolTable τ c) σ τ
+eachFormal :: Traversal (SymbolTable ℓ σ c) (SymbolTable ℓ τ c) σ τ
 eachFormal = each.definitions.each.sig.each
 
 showFormalTyping :: (Ident, Type, Perm) → String

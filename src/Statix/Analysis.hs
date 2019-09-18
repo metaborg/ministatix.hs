@@ -23,27 +23,44 @@ import Statix.Analysis.Namer.Simple
 import Statix.Analysis.Permissions as P
 import Statix.Analysis.Permissions.Types
 
+onMod :: SymbolTable₀ → SymbolTable₃ → (forall ℓ σ c. Module ℓ σ c → r) → Ident → r
+onMod presyms postsyms f modname =
+  case HM.lookup modname presyms of
+    -- for predicates being namechecked
+    Just q  → f q
+    -- for predicates already namechecked
+    Nothing → f (postsyms ! modname)
+
+-- localize errors
+withLocalError name ma = catchError ma (throwError . ModuleLocal name)
+
 namecheck :: (MonadError TCError m) ⇒ SymbolTable₀ → SymbolTable₃ → m SymbolTable₁
 namecheck presyms postsyms = do
   forM presyms $ \(Mod name imps orders defs) → do
     -- build a qualifier for the predicate names in scope;
     -- which is everything imported...
-    let importQ = importQualifier imps (\modname →
-          case HM.lookup modname presyms of
-            -- for predicates being namechecked
-            Just q  → moduleQualifier q
-            -- for predicates already namechecked
-            Nothing → moduleQualifier (postsyms ! modname))
+    let importQ = importQualifier imps (onMod presyms postsyms moduleQualifier) 
 
     -- and everything in the module...
     let localQ = fmap _qname defs
     let q = localQ `HM.union` importQ
 
-    -- namecheck it
+    -- similarly build a qualifier for the order names in scope 
+    let localOrderQ = mapWithKey (\k v → (name, k)) orders
+    let orderQ =
+          localOrderQ `HM.union`
+          (importQualifier imps (onMod presyms postsyms moduleOrderQualifier))
+
+    -- build the name context
+    let nc = set orderQualifier orderQ $ set qualifier q $ def
+
+    -- namecheck the definitions
     defs ← forM defs $ \pred → do
-      catchError (liftEither $ runNC (set qualifier q def) (checkPredicate pred)) $
-        -- localize errors
-        throwError . ModuleLocal name
+      withLocalError name (liftEither $ runNC nc (checkPredicate pred))
+
+    -- namecheck the orders
+    orders ← forM orders $ \ord → do
+      withLocalError name (liftEither $ runNC nc (checkComp ord))
 
     return (Mod name imps orders defs)
 
@@ -103,13 +120,21 @@ deduplicate mods = HM.fromList <$> do
     -- run a stateful computation over the list of definitions
     -- adding things to the hashmap if we haven't seen them yet,
     -- or throwing an error otherwise
-    mod' ← flip execStateT HM.empty $ forM_ defs $ \pred → do
+    defs' ← flip execStateT HM.empty $ forM_ defs $ \pred → do
       let predName = pred^.qname._2
       seen ← use $ to $ HM.member $ predName
       if seen
         then throwError $ DuplicatePredicate predName
         else modify (HM.insert predName pred)
-    return $ (name, Mod name imps orders mod')
+
+    -- do the same for orders/regexes
+    orders' ← flip execStateT HM.empty $ forM_ orders $ \(name, ord) → do
+      seen ← use $ to (HM.member name)
+      if seen
+        then throwError $ DuplicateOrder name
+        else modify (HM.insert name ord)
+
+    return $ (name, Mod name imps orders' defs')
 
 -- | During the analysis we typically have two symboltables:
 -- one for symbols that are completely analyzed and whose type is immutable,

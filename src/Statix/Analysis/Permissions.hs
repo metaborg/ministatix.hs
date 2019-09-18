@@ -65,7 +65,7 @@ class MonadPermission m v l | m → v l where
   require :: v → ReqEqn (Set l) v → m () 
   provide :: v → ProvEqn Bool v → m ()     
 
-type PreSymbolTable v = SymbolTable (Ident, Type, v) Constraint₁
+type PreSymbolTable v = SymbolTable QName (Ident, Type, v) Constraint₁
 data PermEnv v = PermEnv
   { _locals :: [[(Ident, v)]]
   , _pretab :: PreSymbolTable v

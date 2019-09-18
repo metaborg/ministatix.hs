@@ -18,6 +18,7 @@ data TCError
   
   -- namer errors
   | DuplicatePredicate Ident
+  | DuplicateOrder Ident
   | UnboundPredicate Ident
   | UnboundVariable Ident
   | MatchCaptures Ident
@@ -42,15 +43,17 @@ instance HasSubsumptionError TCError where
   doesNotSubsume  = UncaughtSubsumptionErr
 
 data NameContext = NC
-  { _qualifier :: Qualifier -- predicate names → qualified
-  , _locals    :: [[Ident]] -- local environment
+  { _qualifier      :: Qualifier      -- predicate names → qualified
+  , _orderQualifier :: Qualifier      -- order names → qualified
+  , _locals    :: [[Ident]]           -- local environment
   }
+
 type Qualifier = HashMap Ident QName
 
 instance Default NameContext where
   -- Any namecontext should have at least one scope,
   -- the LexicalM interface ensures that the list of active scopes is never empty
-  def = NC HM.empty [[]]
+  def = NC HM.empty HM.empty [[]]
  
 makeLenses ''NameContext
 
@@ -59,7 +62,7 @@ type Scope n           = HashMap Ident n
 type PreSignature n    = [ (Ident, n) ]
 type PrePredicate n    = Predicate (Ident, n) Constraint₁
 type PreModule n       = Module Ident Constraint₁
-type PreSymbolTable n  = SymbolTable (Ident, n) Constraint₁
+type PreSymbolTable n  = SymbolTable QName (Ident, n) Constraint₁
 
 type TyRef s           = Class s (Const Type) ()
 
@@ -74,8 +77,11 @@ instance Default (TyEnv n) where
 
 makeLenses ''TyEnv
 
-moduleQualifier :: Module σ c → Qualifier
-moduleQualifier mod = mod ^. (definitions . to (fmap _qname))
+moduleQualifier :: Module ℓ σ c → Qualifier
+moduleQualifier mod = mod ^. definitions ^. to (fmap _qname)
+
+moduleOrderQualifier :: Module ℓ σ c → Qualifier
+moduleOrderQualifier mod = mod ^. orderDefs ^. to (mapWithKey $ \k v → (mod^.moduleName, k))
 
 importQualifier :: [Ident] → (Ident → Qualifier) → Qualifier
 importQualifier mods modQs = HM.unions $ fmap modQs mods

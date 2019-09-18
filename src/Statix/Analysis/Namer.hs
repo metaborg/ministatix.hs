@@ -81,6 +81,21 @@ tryResolve :: (MonadNamer m) ⇒ Pos → Ident → m IPath
 tryResolve pos id = do
   tryWithPosition pos (resolve id)
 
+resolveOrder :: (MonadNamer m) ⇒ Ident → m QName
+resolveOrder id = do
+  v ← view (orderQualifier.to (HM.lookup id))
+  case v of
+    Nothing → throwError (UnboundVariable id)
+    Just qn → return qn
+
+checkComp :: (MonadNamer m) ⇒ PathComp Ident → m (PathComp QName)
+checkComp ScalaOrd   = return ScalaOrd
+checkComp (Lex l)    = return $ Lex l
+checkComp (RevLex l) = return $ RevLex l
+checkComp (NamedOrd n) = do
+  qn ← resolveOrder n
+  return $ NamedOrd qn
+
 -- Convert a constraint with unqualified predicate names
 -- to one with qualified predicate names
 checkConstraint :: (MonadNamer m) ⇒ Constraint₀ → m Constraint₁
@@ -133,7 +148,8 @@ checkConstraint (CEvery ann x br) = do
 checkConstraint (CMin ann x le y) = do
   p  ← tryResolve ann x
   q  ← tryResolve ann y
-  return (CMin ann p le q)
+  le' ← tryWithPosition ann $ checkComp le
+  return (CMin ann p le' q)
 checkConstraint (CFilter ann x (MatchDatum m) y) = do
   p  ← tryResolve ann x
   q  ← tryResolve ann y
