@@ -136,7 +136,7 @@ semiclosure s t = do
               modifyDesc s (\_ → Rep (Tm σ) i) 
               return s
 
-equiv :: (HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m n
+equiv :: (HasSubsumptionError e, MonadUnify f n v e m, Eq v) ⇒ n → n → m n
 equiv s t = do
   (Rep st _, s) ← repr s
   (Rep tt i, t) ← repr t
@@ -145,9 +145,10 @@ equiv s t = do
     then return s
     else do
       case (st, tt) of
-        (Var _, Var _) → do
-          union s t
+        (Var x, Var y) | x == y → do
           return s
+        (Var x, Var y) | x /= y → do
+          throwError $ doesNotSubsume
         (Var _, Tm tm) → do
           throwError $ doesNotSubsume
         (Tm tm, Var _) → do
@@ -165,7 +166,7 @@ equiv s t = do
               modifyDesc s (\_ → Rep (Tm σ) i) 
               return s
 
-notequiv :: (HasSubsumptionError e, MonadUnify f n v e m) ⇒ n → n → m Bool
+notequiv :: (HasSubsumptionError e, MonadUnify f n v e m, Eq v) ⇒ n → n → m Bool
 notequiv s t = do
   (Rep st _, s) ← repr s
   (Rep tt i, t) ← repr t
@@ -174,7 +175,9 @@ notequiv s t = do
     then return False
     else do
       case (st, tt) of
-        (Var x, Var y) → do
+        (Var x, Var y) | x == y → do
+          return False
+        (Var x, Var y) | x /= y → do
           throwError $ doesNotSubsume
         (Var _, Tm tm) → do
           throwError $ doesNotSubsume
