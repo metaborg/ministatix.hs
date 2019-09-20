@@ -1,8 +1,9 @@
 STACK        ?= stack
 SETUP_ARGS   ?=
-BUILD_ARGS   ?=
+BUILD_ARGS   ?= --test --no-run-tests --bench --no-run-benchmarks
 RUN_ARGS     ?=
 TEST_ARGS    ?=
+BENCH_ARGS   ?=
 DOC_ARGS     ?= --keep-going --open
 CLEAN_ARGS   ?= --full
 GHCI_ARGS    ?=
@@ -24,6 +25,9 @@ run: build
 test: build
 	$(STACK) test $(TEST_ARGS) $(STACK_ARGS)
 
+bench: build
+	$(STACK) bench $(BENCH_ARGS) $(STACK_ARGS)
+
 doc:
 	$(STACK) haddock $(DOC_ARGS) $(STACK_ARGS)
 
@@ -37,5 +41,5 @@ ghci:
 install:
 	$(STACK) install $(INSTALL_ARGS) $(STACK_ARGS)
 
-.PHONY: all setup build run test doc clean ghci install
+.PHONY: all setup build run test bench doc clean ghci install
 .SILENT:

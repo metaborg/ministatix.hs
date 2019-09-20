@@ -66,7 +66,7 @@ run o c = do
     let rawbody  = desugar $ fromRight undefined parsed
     let testpred = "test"
     let qn       = (specmod, testpred)
-    let rawmod   = RawMod specmod [] [Pred def qn [] rawbody]
+    let rawmod   = RawMod specmod [] [] [Pred def qn [] rawbody]
 
     testMod o rawmod testpred
 
