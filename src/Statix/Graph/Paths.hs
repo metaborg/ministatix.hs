@@ -62,9 +62,7 @@ setLtMin lt (x:xs) = snd $ foldl f (x , [x]) xs
 findReachable :: (Ord l, MonadGraph n l d m) ⇒ n → Regex l → m (Map n (Regex l))
 findReachable n re = _find n re Set.empty
   where
-    _find n re vis
-      | Re.empty re = return Map.empty
-      | otherwise   = do
+    _find n re vis = do
        -- check if we visited this node yet on the path here
        if Set.member n vis
          then return Map.empty
@@ -80,9 +78,7 @@ findReachable n re = _find n re Set.empty
 runQuery :: (MonadGraph n l d m) ⇒ n → Regex l → m [Path n l d]
 runQuery n re = _resolve n re Set.empty
   where
-    _resolve n re vis
-      | Re.empty re = return []
-      | otherwise   = do
+    _resolve n re vis = do
        -- check if we visited this node yet on the path here
        if Set.member n vis
          then return (if Re.nullable re then [End n] else [] )

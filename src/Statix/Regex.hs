@@ -18,14 +18,6 @@ data Regex l
 rplus r = RSeq r (RStar r)
 rquestion r = RAlt Rε r
 
-empty :: Regex l → Bool
-empty REmp = True
-empty (RAnd r₁ r₂) = empty r₁ || empty r₂
-empty (RAlt r₁ r₂) = empty r₁ && empty r₂
-empty (RSeq r₁ r₂) = empty r₁ || empty r₂
-empty (RNeg r) = full r
-empty _ = False
-
 nullable :: Regex l → Bool
 nullable Rε           = True
 nullable (RStar r)    = True
@@ -36,17 +28,6 @@ nullable (RMatch _)   = False
 nullable RAny         = False
 nullable (RNeg r)     = not (nullable r)
 nullable (RAnd r₁ r₂) = nullable r₁ && nullable r₂
-
-full :: Regex l → Bool
-full Rε           = False
-full (RStar r)    = full r
-full (RSeq r₁ r₂) = full r₁ || (nullable r₁ && full r₂)
-full (RAlt r₁ r₂) = full r₁ || full r₂
-full REmp         = False
-full (RMatch _)   = False
-full RAny         = False
-full (RNeg r)     = empty r
-full (RAnd r₁ r₂) = full r₁ && full r₂
 
 match :: (Eq l) ⇒ l → Regex l → Regex l
 match l r = case r of
@@ -64,6 +45,18 @@ match l r = case r of
   RAny → Rε
   RNeg r → RNeg (match l r)
   RAnd r₁ r₂ → (match l r₁) & (match l r₂)
+
+nomatch :: (Eq l) ⇒ l → Regex l → Bool
+nomatch l r = case r of
+  (RMatch l') → not (l == l')
+  (RStar r) → nomatch l r
+  (RSeq r₁ r₂) → nomatch l r₁ && (not (nullable r₁) || nomatch l r₂) 
+  (RAlt r₁ r₂) → nomatch l r₁ && nomatch l r₂
+  REmp → True
+  Rε   → True
+  RAny → False
+  RNeg r → not (nomatch l r)
+  RAnd r₁ r₂ → nomatch l r₁ || nomatch l r₂
 
 matchₙ :: (Eq l) ⇒ [l] → Regex l → Regex l
 matchₙ xs r = foldl (flip match) r xs

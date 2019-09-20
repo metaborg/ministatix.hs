@@ -20,7 +20,7 @@ checkNode ces n ls =
   case ces Map.!? n of
     Nothing  → Set.empty
     Just re  →
-      let checkLabel = \l → if not $ Re.empty $ match l re then Set.singleton (n, l) else Set.empty
+      let checkLabel = \l → if nomatch l re then Set.empty else Set.singleton (n, l)
           critics = checkLabel <$> (Set.toList ls)
       in Set.unions critics
 
