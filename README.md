@@ -37,5 +37,15 @@ Other makefile targets are:
 - `ghci` to open a Haskell Interactive propt in the project directory;
 - `install` to install the binary in your user's local bin.
 
+## Editor support
+
+There is barely any for this research language, but you can find an emacs syntax
+highlighting definition in [tooling/](./tooling/).
+
+## Example specifications
+
+- [Scala modules and imports](https://github.com/MetaBorgCube/scala.mstx)
+- [Java subset with e.g. packages](https://github.com/MetaBorgCube/java.mstx)
+- [LMR](https://github.com/MetaBorgCube/metaborg-lmr/tree/master/lang.lmr.mstx)
 
 [1]: https://www.haskellstack.org/
