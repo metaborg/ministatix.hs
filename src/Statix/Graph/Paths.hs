@@ -85,7 +85,7 @@ runQuery n re = _resolve n re Set.empty
       | otherwise   = do
        -- check if we visited this node yet on the path here
        if Set.member n vis
-         then return (if Re.matchε re then [End n] else [] )
+         then return (if Re.nullable re then [End n] else [] )
          else do
            -- get the edges out of here
            es ← getOutEdges n
@@ -96,4 +96,4 @@ runQuery n re = _resolve n re Set.empty
                    ) es
            let ps = concat pss
            -- add the loop if it exists
-           return (if Re.matchε re then (End n : ps) else ps)
+           return (if Re.nullable re then (End n : ps) else ps)

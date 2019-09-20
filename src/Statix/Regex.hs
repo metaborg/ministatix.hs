@@ -23,19 +23,30 @@ empty REmp = True
 empty (RAnd r₁ r₂) = empty r₁ || empty r₂
 empty (RAlt r₁ r₂) = empty r₁ && empty r₂
 empty (RSeq r₁ r₂) = empty r₁ || empty r₂
-empty (RNeg r) = not (empty r)
+empty (RNeg r) = full r
 empty _ = False
 
-matchε :: Regex l → Bool
-matchε Rε           = True
-matchε (RStar r)    = True
-matchε (RSeq r₁ r₂) = matchε r₁ && matchε r₂
-matchε (RAlt r₁ r₂) = matchε r₁ || matchε r₂
-matchε REmp         = False
-matchε (RMatch _)   = False
-matchε RAny         = False
-matchε (RNeg r)     = not (matchε r)
-matchε (RAnd r₁ r₂) = matchε r₁ && matchε r₂
+nullable :: Regex l → Bool
+nullable Rε           = True
+nullable (RStar r)    = True
+nullable (RSeq r₁ r₂) = nullable r₁ && nullable r₂
+nullable (RAlt r₁ r₂) = nullable r₁ || nullable r₂
+nullable REmp         = False
+nullable (RMatch _)   = False
+nullable RAny         = False
+nullable (RNeg r)     = not (nullable r)
+nullable (RAnd r₁ r₂) = nullable r₁ && nullable r₂
+
+full :: Regex l → Bool
+full Rε           = False
+full (RStar r)    = full r
+full (RSeq r₁ r₂) = full r₁ || (nullable r₁ && full r₂)
+full (RAlt r₁ r₂) = full r₁ || full r₂
+full REmp         = False
+full (RMatch _)   = False
+full RAny         = False
+full (RNeg r)     = empty r
+full (RAnd r₁ r₂) = full r₁ && full r₂
 
 match :: (Eq l) ⇒ l → Regex l → Regex l
 match l r = case r of
@@ -44,7 +55,7 @@ match l r = case r of
   (RStar r) → match l r ⍮ (RStar r)
   (RSeq r₁ r₂) →
     let left = (match l r₁) ⍮ r₂
-    in if matchε r₁
+    in if nullable r₁
       then left ∥ (match l r₂)
       else left
   (RAlt r₁ r₂) → (match l r₁ ∥ match l r₂)
