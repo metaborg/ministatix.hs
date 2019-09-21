@@ -147,7 +147,13 @@ analyze ::
   , MonadUnique Integer m
   ) ⇒ [SurfaceM Predicate₀] → SymbolTable₃ → m SymbolTable₃
 analyze rawmods syms = do
+  -- First reorganize top-level definitions into hashmaps.
+  -- This errors on duplicate entries
   modules   ← deduplicate rawmods
+
+  -- resolve names and perform a simple type analysis
   namedmods ← namecheck modules syms
   symtab₂   ← typecheck namedmods syms
+
+  -- perform the permission analysis as described in the paper
   permcheck symtab₂ syms

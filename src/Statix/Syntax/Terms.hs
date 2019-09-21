@@ -74,17 +74,20 @@ pattern PathCons t l t'   = Fix (TPathConsF t l t')
 pattern PathEnd l         = Fix (TPathEndF l)
 
 fv :: (Hashable ℓ, Eq ℓ) ⇒ Fix (TermF ℓ) → HashSet ℓ
-fv = cata fvF
+fv = HSet.fromList . fv'
+
+fv' :: (Hashable ℓ, Eq ℓ) ⇒ Fix (TermF ℓ) → [ℓ]
+fv' = cata fvF
   where
-    fvTmF (AFuncF sym ts)      = HSet.unions ts
-    fvTmF (AStrF _)            = HSet.empty
-    fvTmF (AConsF t ts)        = t `HSet.union` ts
-    fvTmF ANilF                = HSet.empty
-    fvTmF (ATupleF ts)         = HSet.unions ts
+    fvTmF (AFuncF sym ts)      = concat ts
+    fvTmF (AStrF _)            = []
+    fvTmF (AConsF t ts)        = t `mappend` ts
+    fvTmF ANilF                = []
+    fvTmF (ATupleF ts)         = concat ts
 
     fvF (TTmF t)              = fvTmF t
-    fvF (TVarF l)             = HSet.singleton l
-    fvF (TPathConsF r₀ r₁ r₂) = r₀ `HSet.union` r₁ `HSet.union` r₂
+    fvF (TVarF l)             = [ l ]
+    fvF (TPathConsF r₀ r₁ r₂) = r₀ `mappend` r₁ `mappend` r₂
     fvF (TPathEndF r)         = r
     fvF (TLabelF l (Just r))  = r
-    fvF _                     = HSet.empty
+    fvF _                     = []

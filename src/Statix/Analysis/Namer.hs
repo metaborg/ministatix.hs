@@ -5,6 +5,7 @@ import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
 
+import Data.Hashable
 import Data.HashMap.Strict as HM
 import Data.HashSet as HSet
 import Data.Functor.Fixedpoint
@@ -56,14 +57,18 @@ checkGuard (GNotEq lhs rhs) = do
 checkMatch  :: MonadNamer m ⇒ Matcher Term₀ → m a → m (Matcher Term₁, a)
 checkMatch (Matcher _ g eqs) ma = do
   -- first extract free variables from g
-  let ns = HSet.toList $ fv g
+  let ns = fv' g
 
-  -- introduce those variables
-  enters () ns $ do
-    g ← checkTerm g
-    a ← ma
-    eqs ← forM eqs checkGuard
-    return (Matcher ns g eqs, a)
+  -- check that there are no duplicates
+  case findDuplicate ns of
+    Just dup → throwError $ NonLinearPattern dup
+    Nothing  → do
+      -- introduce those variables and check body
+      enters () ns $ do
+        g ← checkTerm g
+        a ← ma
+        eqs ← forM eqs checkGuard
+        return (Matcher ns g eqs, a)
 
 checkBranch :: (MonadNamer m) ⇒ Branch Term₀ Constraint₀ → m (Branch Term₁ Constraint₁) 
 checkBranch (Branch m c) = do
@@ -143,7 +148,7 @@ checkConstraint (CNonEmpty ann x) = do
   return (CNonEmpty ann p)
 checkConstraint (CEvery ann x br) = do
   p ← tryResolve ann x
-  br ← checkBranch br
+  br ← tryWithPosition ann $ checkBranch br
   return (CEvery ann p br)
 checkConstraint (CMin ann x le y) = do
   p  ← tryResolve ann x
@@ -153,7 +158,7 @@ checkConstraint (CMin ann x le y) = do
 checkConstraint (CFilter ann x (MatchDatum m) y) = do
   p  ← tryResolve ann x
   q  ← tryResolve ann y
-  (m, ())  ← checkMatch m (return ())
+  (m, ())  ← tryWithPosition ann $ checkMatch m (return ())
   return (CFilter ann p (MatchDatum m) q)
 checkConstraint (CApply ann n ts) = do
   qn  ← qualify ann n
@@ -161,11 +166,31 @@ checkConstraint (CApply ann n ts) = do
   return (CApply ann qn cts)
 checkConstraint (CMatch ann t br) = do
   t  ← checkTerm t
-  br ← mapM checkBranch br
+  br ← tryWithPosition ann $ mapM checkBranch br
   return (CMatch ann t br)
+
+findDuplicate :: (Eq a, Hashable a) ⇒ [a] → Maybe a
+findDuplicate as = evalState (_find as) HSet.empty
+  where
+    _find :: (Eq a, Hashable a) ⇒ [a] → State (HashSet a) (Maybe a)
+    _find []     = return Nothing
+    _find (a:as) = do
+      seen ← get
+      if HSet.member a seen
+        then return (Just a)
+        else do
+          modify (HSet.insert a)
+          _find as
 
 checkPredicate :: (MonadNamer m) ⇒ Predicate₀ → m Predicate₁
 checkPredicate (Pred ann qn σ body) = do
-  enters () σ $ do
-    body' ← checkConstraint body
-    return (Pred ann qn σ body')
+  -- ensure linear binders
+  case findDuplicate σ of
+    Just dup → throwError $ WithPosition ann (NonLinearPattern dup)
+    Nothing  → do
+      -- check the body
+      enters () σ $ do
+        body' ← catchError (checkConstraint body) $ \e →
+          throwError $ WithPredicate qn e
+          
+        return (Pred ann qn σ body')
