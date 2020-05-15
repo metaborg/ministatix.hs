@@ -1,14 +1,13 @@
 name:                statix
 version:             0.1.0.0
-github:              "ajrouvoet/ministatix.hs"
-author:              Arjen Rouvoet, Hendrik van Antwerpen, Daniel Pelsmaeker, et al
-maintainer:          "a.j.rouvoet@gmail.com"
-copyright:           "2019 A.J. Rouvoet"
+author:              Anon
+maintainer:          "anon@anon.com"
+copyright:           "2019 Anon"
 
 extra-source-files:
 - README.md
 
-description: Please see the README at https://github.com/ajrouvoet/ministatix.hs
+description: See README.md
 
 dependencies:
 - base >= 4.7 && < 5
