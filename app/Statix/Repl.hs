@@ -59,9 +59,9 @@ prompt = do
 printGraph :: IntGraph Label String → IO ()
 printGraph (IntGraph sg) =
   forM_ (IM.elems sg) $ \(IntNode id es d) → do
-    putStr "∇ "
+    putStr "new "
       >> putStr (show id)
-      >> putStr " ─◾ " >> putStr d
+      >> putStr " -> " >> putStr d
       >> putStr "\n"
 
     forM_ es $ \(IntEdge l d n) → do
@@ -76,31 +76,31 @@ printGraph (IntGraph sg) =
 printResult :: Result s → IO ()
 printResult (IsSatisfied φ sg) = do
   setSGR [SetColor Foreground Dull Green]
-  putStrLn "⟨✓⟩ Satisfiable"
+  putStrLn "Satisfiable"
   setSGR [Reset]
-  putStrLn "⟪ Unifier ⟫"
+  putStrLn "Unifier:"
   putStrLn (showUnifier φ)
   putStrLn ""
-  putStrLn "⟪ Graph ⟫"
+  putStrLn "Graph:"
   printGraph sg
   putStrLn ""
 printResult (IsUnsatisfiable e gr) = do
   setSGR [SetColor Foreground Vivid Red]
-  putStrLn "⟨×⟩ Unsatisfiable"
+  putStrLn "Unsatisfiable"
   setSGR [Reset]
-  putStrLn "⟪ Trace ⟫"
+  putStrLn "Trace:"
   report e
   putStrLn ""
-  putStrLn "⟪ Graph ⟫"
+  putStrLn "Graph:"
   printGraph gr
   putStrLn ""
 printResult (IsStuck q gr) = do
   setSGR [SetColor Foreground Vivid Yellow]
-  putStrLn "⟨×⟩ Stuck, with queue:"
+  putStrLn "Stuck, with queue:"
   setSGR [Reset]
   mapM_ putStrLn q
   putStrLn ""
-  putStrLn "⟪ Partial graph ⟫"
+  putStrLn "Partial graph:"
   printGraph gr
   putStrLn ""
 
@@ -119,7 +119,7 @@ reportImports :: Module₂ → IO ()
 reportImports mod = do
   setSGR [SetColor Foreground Dull Green]
   putStrLn ""
-  putStrLn $ "⟨✓⟩ Imported module "
+  putStrLn $ "Imported module "
   setSGR [Reset]
 
 handler :: REPL a → Cmd → REPL a
@@ -157,7 +157,7 @@ handler κ (Define p) = do
   mods    ← withErrors $ analyze [RawMod this imps [] [pr']] symtab
 
   -- import the predicate into the symboltable
-  forM_ mods importMod 
+  forM_ mods importMod
   modify (over gen (+1))
 
   -- rinse and repeat

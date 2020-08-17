@@ -25,12 +25,12 @@ instance ReplError TCError where
     putBold $ mod ++ " "
     report e
   report (WithPosition (Pos row col) e) = do
-    putStr $ "on line " 
+    putStr $ "on line "
     putBold $ show row ++ "@" ++ show col
     putStrLn $ ":"
     report e
   report (WithPredicate qn e) = do
-    putStr $ "in predicate " 
+    putStr $ "in predicate "
     putBold $ showQName qn
     putStrLn $ ":"
     report e
@@ -57,10 +57,10 @@ printTrace = mapM_ printEntry
 
     printEntry :: Traceline → IO ()
     printEntry (Within pos c) = do
-      putStr $ show pos ++ " ├─ "
+      putStr $ show pos ++ " |- "
       putBold $ c ++ "\n"
     printEntry (Call pos qn params) = do
-      putStr   $ show pos ++ " ├─ "
+      putStr   $ show pos ++ " |- "
       printQn  $ qn
       putStrLn $ "(" ++ intercalate "," params ++ ")"
 
