@@ -25,16 +25,9 @@ packages:
       sha256: 515a7ca364af167cbf3f766cfe3dbe06da47bb31fc9d360ecd297d7d57834e30
   original:
     hackage: equivalence-0.3.4
-- completed:
-    hackage: intero-0.1.39@sha256:23adde845e710438236638a9ccc2a5d5a87a2c28830eeae79901aa0a89c19d5a,1879
-    pantry-tree:
-      size: 1131
-      sha256: 338c29c4558cae71f635d4c6038362b6bc3058da403560086d8c77ccab847c23
-  original:
-    hackage: intero-0.1.39
 snapshots:
 - completed:
-    size: 495203
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/13/8.yaml
-    sha256: 91139b0de6b320b13e27d5e6e6c368e239974b06fb9dc86d8d96da08697972ac
-  original: lts-13.8
+    size: 532383
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/10.yaml
+    sha256: 469d781ab6d2a4eceed6b31b6e4ec842dcd3cd1d11577972e86902603dce24df
+  original: lts-16.10
