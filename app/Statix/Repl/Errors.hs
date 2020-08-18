@@ -44,7 +44,6 @@ panic e = do
   report e
   exitWith (ExitFailure 1)
 
-
 -- 23 ├─ some-predicate (x, y, F())
 -- 25 ├─ some-other-predicate (Q(), X())
 -- 99 ├─ G() == F()

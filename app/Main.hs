@@ -19,6 +19,7 @@ import Statix.Repl.Errors
 import Statix.Solver
 import Statix.Importer
 
+import ATerms.Syntax.ATerm
 import ATerms.Syntax.Parser as AParser
 
 import Options.Applicative
@@ -79,30 +80,30 @@ statix params = void $ runREPL HM.empty $ do
   liftIO $ putStrLn "Loading specification..."
   withErrors $ importModule path (spec params)
 
-  -- Parse and typecheck the specification module
-  forM (files params) $ \file → do
-    liftIO $ putStrLn $ "Checking " ++ file ++ "..."
+  -- Parse the specified files into a list of aterms
+  aterms ← forM (files params) $ \file → do
+    liftIO $ putStrLn $ "Parsing " ++ file ++ "..."
 
     -- Parse the aterm file
     doc   ← liftIO $ readFile (here </> file)
-    aterm ← handleErrors $ AParser.parse doc
+    handleErrors $ AParser.parse doc
 
-    -- Solve the main - if it is defined
-    symtab ← use globals
-    let mod = symtab HM.! (spec params)
-    let main   = (spec params, "main")
-    let wrapper = CApply def main [fromATerm aterm]
+  -- Solve the main - if it is defined
+  symtab ← use globals
+  let mod = symtab HM.! (spec params)
+  let main   = (spec params, "main")
+  let wrapper = CApply def main [ fromATerm $ atermList aterms ]
 
-    case HM.lookup (snd main) (mod^.definitions) of
-      Nothing → handleErrors $ Left $ "Missing main in module " ++ (spec params)
-      Just p  → do
-        result ← liftIO $ unsafeSTToIO $ solve symtab wrapper
-        liftIO $ printResult result
+  case HM.lookup (snd main) (mod^.definitions) of
+    Nothing → handleErrors $ Left $ "Missing main in module " ++ (spec params)
+    Just p  → do
+      result ← liftIO $ unsafeSTToIO $ solve symtab wrapper
+      liftIO $ printResult result
 
-        liftIO $ case result of
-          IsUnsatisfiable _ _ → exitWith (ExitFailure 64)
-          IsStuck _ _         → exitWith (ExitFailure 65)
-          _                   → exitWith ExitSuccess
+      liftIO $ case result of
+        IsUnsatisfiable _ _ → exitWith (ExitFailure 64)
+        IsStuck _ _         → exitWith (ExitFailure 65)
+        _                   → exitWith ExitSuccess
 
 main :: IO ()
 main = do

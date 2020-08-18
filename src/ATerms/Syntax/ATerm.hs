@@ -45,3 +45,7 @@ pretty f (ATupleF ts)    = "(" ++ intercalate "," (fmap f ts) ++ ")"
 
 instance (Show r) ⇒ Show (ATermF r) where
   show = pretty show
+
+atermList :: [ATerm] → ATerm
+atermList []       = ANil
+atermList (at:ats) = ACons at $ atermList ats
