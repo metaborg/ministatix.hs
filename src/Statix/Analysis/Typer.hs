@@ -165,36 +165,38 @@ typeAnalysis (CApply pos qn ts) = do
   actuals ← mapM termTypeAnalysis ts
 
   presyms ← view presymtab
-  formals ← case presyms^.lookupPred qn of
+  case presyms^.lookupPred qn of
     -- apparently a predicate that we are typechecking
     Just pred → do
       -- compute the type nodes for the formal parameters
-      return $ fmap snd $ pred^.sig
+      let formals = pred^.sig
+
+      -- arity check
+      if length ts /= length formals
+        then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
+        else return ()
+
+      -- unify formals with actuals
+      void (zipWithM unify (fmap snd formals) actuals)
 
     -- apparently a predicate that should already be typechecked
     Nothing   → do
       formals ← view (symtab.sigOf qn)
-      forM (fmap (^._2) formals) typeNode
+      formals ← forM (fmap (^._2) formals) typeNode
 
-  -- arity check
-  if length ts /= length formals
-    then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
-    else return ()
+      -- arity check
+      if length ts /= length formals
+        then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
+        else return ()
 
-  -- check actuals against formals
-  catchError
-    (void (zipWithM subsumes actuals formals))
-    (\case
-        UncaughtSubsumptionErr → do
-          fms <- mapM debugType formals
-          acs <- mapM debugType actuals
-          throwError $
-            WithPosition pos $
-            TypeError $ "Application of " ++ showQName qn ++ " type mismatch"
-                      <> "\nexpected: " <> (show fms)
-                      <> "\ngot: " <> (show acs)
-        e → throwError e
-    )
+      -- check actuals against formals
+      catchError
+        (void (zipWithM subsumes actuals formals))
+        (\case
+            UncaughtSubsumptionErr →
+              throwError $ TypeError $ "Application of " ++ showQName qn ++ " type mismatch"
+            e → throwError e
+        )
 
 typeAnalysis (CMatch _ t br) = do
   mapM_ typeBranch br
