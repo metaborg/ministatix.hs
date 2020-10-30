@@ -39,13 +39,13 @@ namecheck presyms postsyms = do
   forM presyms $ \(Mod name imps orders defs) → do
     -- build a qualifier for the predicate names in scope;
     -- which is everything imported...
-    let importQ = importQualifier imps (onMod presyms postsyms moduleQualifier) 
+    let importQ = importQualifier imps (onMod presyms postsyms moduleQualifier)
 
     -- and everything in the module...
     let localQ = fmap _qname defs
     let q = localQ `HM.union` importQ
 
-    -- similarly build a qualifier for the order names in scope 
+    -- similarly build a qualifier for the order names in scope
     let localOrderQ = mapWithKey (\k v → (name, k)) orders
     let orderQ =
           localOrderQ `HM.union`

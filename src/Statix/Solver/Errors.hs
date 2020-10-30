@@ -4,6 +4,7 @@ import Prelude hiding (lookup, null)
 
 import Control.Monad.Except
 
+import Statix.Syntax
 import Statix.Solver.Types
 import Statix.Solver.Monad
 import Statix.Solver.Terms

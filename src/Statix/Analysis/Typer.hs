@@ -46,7 +46,7 @@ class
 -- checkArity c = return ()
 
 initialTable :: MonadTyper n m ⇒ SymbolTable₁ → m (PreSymbolTable n)
-initialTable presymtab = forMOf eachFormal presymtab mkBinder 
+initialTable presymtab = forMOf eachFormal presymtab mkBinder
 
 -- | Convert a type node from the unification dag to a ground type
 groundType :: MonadTyper n m ⇒ n → m Type
@@ -55,6 +55,13 @@ groundType ref = do
   return $ case τ of
     Unif.Tm  ty → getConst ty
     Unif.Var _  → TBot        -- variables indicate we don't know anything
+
+debugType :: MonadTyper n m ⇒ n → m String
+debugType ref = do
+  τ ← getSchema ref
+  return $ case τ of
+    Unif.Tm  ty → show $ getConst ty
+    Unif.Var n  → "uvar"
 
 -- | Extract a grounded module signature from the typer
 solution :: forall n m. MonadTyper n m ⇒ m SymbolTable₂
@@ -83,7 +90,7 @@ typeBranch :: MonadTyper n m ⇒ Branch₁ → m ()
 typeBranch (Branch m c) = do
   typeMatch m (typeAnalysis c)
 
-typeNode :: MonadTyper n m ⇒ Type → m n 
+typeNode :: MonadTyper n m ⇒ Type → m n
 typeNode typ = do
   id ← fresh
   newClass (Rep (Tm (Const typ)) id)
@@ -130,7 +137,7 @@ typeAnalysis (CEvery _ x br) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
   unify x x'
-  typeBranch br 
+  typeBranch br
 typeAnalysis (COne _ x t) = do
   x  ← resolve x
   x' ← construct (Tm (Const TAns))
@@ -158,42 +165,40 @@ typeAnalysis (CApply pos qn ts) = do
   actuals ← mapM termTypeAnalysis ts
 
   presyms ← view presymtab
-  case presyms^.lookupPred qn of
+  formals ← case presyms^.lookupPred qn of
     -- apparently a predicate that we are typechecking
     Just pred → do
-      -- compute the type nodes for the formal parameters 
-      let formals = pred^.sig
-
-      -- arity check
-      if length ts /= length formals
-        then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
-        else return ()
-
-      -- unify formals with actuals
-      void (zipWithM unify (fmap snd formals) actuals)
+      -- compute the type nodes for the formal parameters
+      return $ fmap snd $ pred^.sig
 
     -- apparently a predicate that should already be typechecked
     Nothing   → do
       formals ← view (symtab.sigOf qn)
-      formals ← forM (fmap (^._2) formals) typeNode
+      forM (fmap (^._2) formals) typeNode
 
-      -- arity check
-      if length ts /= length formals
-        then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
-        else return ()
+  -- arity check
+  if length ts /= length formals
+    then throwError $ WithPosition pos $ ArityMismatch qn (length formals) (length ts)
+    else return ()
 
-      -- check actuals against formals
-      catchError
-        (void (zipWithM subsumes actuals formals))
-        (\case
-            UncaughtSubsumptionErr →
-              throwError $ TypeError $ "Application of " ++ showQName qn ++ " type mismatch"
-            e → throwError e
-        )
-    
+  -- check actuals against formals
+  catchError
+    (void (zipWithM subsumes actuals formals))
+    (\case
+        UncaughtSubsumptionErr → do
+          fms <- mapM debugType formals
+          acs <- mapM debugType actuals
+          throwError $
+            WithPosition pos $
+            TypeError $ "Application of " ++ showQName qn ++ " type mismatch"
+                      <> "\nexpected: " <> (show fms)
+                      <> "\ngot: " <> (show acs)
+        e → throwError e
+    )
+
 typeAnalysis (CMatch _ t br) = do
   mapM_ typeBranch br
-  
+
 -- | Perform type checking on a constraint in a given module.
 -- TODO Think hard about fusion of passses
 typecheckConstraint :: (MonadTyper n m) ⇒ Constraint₁ → m ()

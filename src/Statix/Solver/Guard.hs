@@ -52,7 +52,7 @@ checkCritical ces (CEx _ xs c) i = do
   checkCritical ces c (i + 1)
 checkCritical ces (CEdge _ x e y) i
   | (Label l _) ← e = checkVar ces x (Set.singleton l) i
-  | otherwise       = throwError TypeError
+  | otherwise       = throwError $ TypeError "Expected label in edge constraint"
 checkCritical ces (CApply _ qn ts) i = do
   -- get type information for p
   formals  ← view (symbols.sigOf qn)

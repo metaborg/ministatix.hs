@@ -45,7 +45,7 @@ instantTerm :: Int → STmRef s → SolverM s String
 instantTerm depth n
   | depth >= 1 = do
       t ← getSchema n
-      case t of 
+      case t of
         U.Var v → return v
         U.Tm tm → do
           tm ← mapM (instantTerm (depth - 1)) tm

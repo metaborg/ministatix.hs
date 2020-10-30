@@ -74,5 +74,5 @@ instance ReplError StatixError where
     putStrLn $ "Unification failed: " ++ msg
   report (RT.Panic msg) =
     putStrLn $ "Bug: " ++ msg
-  report RT.TypeError =
-    putStrLn $ "Type error at runtime"
+  report (RT.TypeError msg) =
+    putStrLn $ "Type error at runtime: " ++ msg

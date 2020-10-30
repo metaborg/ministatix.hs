@@ -25,7 +25,7 @@ instance Show Type where
   show TNode  = "Node"
   show TPath  = "Path"
   show TAns   = "{Path}"
-  show TBot   = "⊥"
+  show TBot   = "Bottom"
   show TLabel = "Label"
 
 -- | Node permission modes:

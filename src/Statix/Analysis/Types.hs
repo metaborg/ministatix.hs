@@ -15,7 +15,7 @@ data TCError
   ModuleLocal String TCError
   | WithPosition Pos TCError
   | WithPredicate QName TCError
-  
+
   -- namer errors
   | DuplicatePredicate Ident
   | DuplicateOrder Ident
@@ -55,7 +55,7 @@ instance Default NameContext where
   -- Any namecontext should have at least one scope,
   -- the LexicalM interface ensures that the list of active scopes is never empty
   def = NC HM.empty HM.empty [[]]
- 
+
 makeLenses ''NameContext
 
 type Scope n           = HashMap Ident n

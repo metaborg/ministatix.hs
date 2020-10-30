@@ -28,7 +28,7 @@ instance Default Pos where
 -- | The Tokens
 
 data AToken
-  = TokSymbol String | TokString String 
+  = TokSymbol String | TokString String
   | TokColon | TokComma | TokOpenB | TokCloseB | TokOpenSB | TokCloseSB | TokQuote
   | TokEOF
   deriving Show
@@ -78,4 +78,3 @@ type ParserM a = StateT ParseState (Except String) a
 
 evalParser :: ParserM a → String → Either String a
 evalParser m s = runExcept $ evalStateT m (def { input = def { remainder = s }})
-

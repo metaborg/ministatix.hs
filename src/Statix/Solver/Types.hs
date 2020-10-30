@@ -8,6 +8,7 @@ import Data.List as List
 import qualified Data.Sequence as Seq
 import Data.HashMap.Strict as HM
 
+import Unification ()
 import Control.Lens
 import Control.Monad.ST
 import Control.Monad.State
@@ -25,7 +26,7 @@ import qualified ATerms.Syntax.ATerm as ATerm
 import Unification
 import Unification.ST
 
--- | Graph node references in ST 
+-- | Graph node references in ST
 type SNode s = STNodeRef s Label (STmRef s)
 
 -- | Graph paths in ST
@@ -74,7 +75,7 @@ pretty f (SPathEndF n)      =
 
 instance (Show c) ⇒ Show (STermF s c) where
   show = pretty show
- 
+
 pattern STm t           = Tm (STmF t)
 pattern SNode n         = Tm (SNodeF n)
 pattern SLabel l t      = Tm (SLabelF l t)
@@ -134,17 +135,17 @@ data Traceline = Call Pos QName [String] | Within Pos String
 data StatixError
   = Unsatisfiable [Traceline] String -- trace, reason
   | StuckError
-  | TypeError
+  | TypeError String
   | Panic String
   | UnificationError String
 
 instance Show StatixError where
-  show TypeError              = "Constraint unsatisfiable: type error"
+  show (TypeError m)          = "Constraint unsatisfiable: type error"
   show (UnificationError e)   = "Constraint unsatisfiable: unification error (" ++ e ++ ")"
   show (Unsatisfiable tr msg) = "Constraint unsatisfiable: " ++ msg
   show StuckError             = "Stuck"
   show (Panic x)              = "Panic: " ++ x
- 
+
 instance HasClashError (STermF s) StatixError where
   symbolClash l r = UnificationError $ "Symbol clash: " ++ show l ++ " != " ++ show r
 
