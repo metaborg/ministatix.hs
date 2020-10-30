@@ -88,7 +88,8 @@ class
   newVar :: QName → Pos → Bool → Ident → m v
 
   -- | Copy the entire local environment.
-  -- Running `f` original and copy.
+  -- `f` receives the original and the copy in that order.
+  -- `g` is run inside the freshened environment
   freshenEnvWith :: Pos → (v → v → m ()) → m a → m a
 
 withSymtab :: (MonadPermAnalysis l v m) ⇒ SymbolTable₂ → m a → m a

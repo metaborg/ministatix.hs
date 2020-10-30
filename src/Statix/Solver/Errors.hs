@@ -25,6 +25,11 @@ unsatisfiable msg = do
   trace ← tanteTrees
   throwError (Unsatisfiable trace msg)
 
+typeError :: String → SolverM s a
+typeError msg = do
+  trace ← tanteTrees
+  throwError (TypeError trace msg)
+
 escalateUnificationError :: SolverM s a → SolverM s a
 escalateUnificationError ma =
   catchError ma

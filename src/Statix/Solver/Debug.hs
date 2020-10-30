@@ -34,12 +34,14 @@ enclosingPred env =
                             ) xs
 
 formatGoal :: Goal s → SolverM s String
-formatGoal (env, c, _) = do
+formatGoal (env, c, gen) = do
   local (const env) $ do
     let qn = enclosingPred env
     cs ← instantConstraint 5 c
     case qn of
-      Just qn → return $ cs ++ " (in " ++ showQName qn ++ ")"
+      Just qn → return $
+        cs ++ " (in " ++ showQName qn ++
+        ", generation: " ++ show gen ++ ")"
       Nothing → return cs
 
 -- | User "friendly" string representation of the solver queue

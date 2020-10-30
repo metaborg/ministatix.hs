@@ -6,13 +6,13 @@ import Data.Set as Set
 import Control.Lens
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Except
 
 import Statix.Regex as Re
 import Statix.Syntax as Syn
 import Statix.Analysis.Lexical
 import Statix.Solver.Types
 import Statix.Solver.Monad ()
+import Statix.Solver.Errors
 
 import Unification as U hiding (TTm)
 
@@ -52,7 +52,7 @@ checkCritical ces (CEx _ xs c) i = do
   checkCritical ces c (i + 1)
 checkCritical ces (CEdge _ x e y) i
   | (Label l _) ← e = checkVar ces x (Set.singleton l) i
-  | otherwise       = throwError $ TypeError "Expected label in edge constraint"
+  | otherwise       = typeError "Expected label in edge constraint"
 checkCritical ces (CApply _ qn ts) i = do
   -- get type information for p
   formals  ← view (symbols.sigOf qn)

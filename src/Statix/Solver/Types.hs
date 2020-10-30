@@ -47,7 +47,7 @@ type STmRef s = Class s (STermF s) VarInfo
 type STree s  = Tree (STermF s) VarInfo
 
 -- | Solver generation
-type SGen = Int
+type SGen = Integer
 
 -- | The constructors of the term language
 data STermF s c =
@@ -135,12 +135,12 @@ data Traceline = Call Pos QName [String] | Within Pos String
 data StatixError
   = Unsatisfiable [Traceline] String -- trace, reason
   | StuckError
-  | TypeError String
+  | TypeError [Traceline] String
   | Panic String
   | UnificationError String
 
 instance Show StatixError where
-  show (TypeError m)          = "Constraint unsatisfiable: type error"
+  show (TypeError tr m)       = "Constraint unsatisfiable: type error"
   show (UnificationError e)   = "Constraint unsatisfiable: unification error (" ++ e ++ ")"
   show (Unsatisfiable tr msg) = "Constraint unsatisfiable: " ++ msg
   show StuckError             = "Stuck"
@@ -168,7 +168,7 @@ instance Default (Solver s) where
     { _queue  = Seq.empty
     , _nextFresh = 0
     , _graph  = []
-    , _generation = minBound + 1
+    , _generation = 1
     }
 
 -- | The monad that we use to solve Statix constraints

@@ -28,11 +28,12 @@ pushGoal i c = do
 delay :: Constraint₁ → SolverM s ()
 delay c = do
   gen ← use generation
-  tracer ("Delaying") $ pushGoal gen c
+  c'  ← instantConstraint 3 c
+  tracer ("Delaying " ++ c' ++ " at gen " ++ show gen) $ pushGoal gen c
 
 newGoal :: Constraint₁ → SolverM s ()
 newGoal c = do
-  pushGoal minBound c
+  pushGoal 0 c
   next -- fresh meat
 
 -- | Pop a constraint from the work queue if it is non-empty,

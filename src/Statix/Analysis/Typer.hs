@@ -56,13 +56,6 @@ groundType ref = do
     Unif.Tm  ty → getConst ty
     Unif.Var _  → TBot        -- variables indicate we don't know anything
 
-debugType :: MonadTyper n m ⇒ n → m String
-debugType ref = do
-  τ ← getSchema ref
-  return $ case τ of
-    Unif.Tm  ty → show $ getConst ty
-    Unif.Var n  → "uvar"
-
 -- | Extract a grounded module signature from the typer
 solution :: forall n m. MonadTyper n m ⇒ m SymbolTable₂
 solution = do

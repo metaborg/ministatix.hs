@@ -121,7 +121,7 @@ solveFocus (CEdge _ x (Label l t) y) = do
       next
     (U.Var _, _)  → throwError StuckError
     (_ , U.Var _) → throwError StuckError
-    _             → throwError $ TypeError "Expected nodes in edge assertion"
+    _             → typeError "Expected nodes in edge assertion"
 
 solveFocus c@(CQuery _ x r y) = do
   t ← resolve x >>= getSchema
@@ -144,7 +144,7 @@ solveFocus c@(CQuery _ x r y) = do
         throwError StuckError
 
     (U.Var _) → throwError StuckError
-    _         → throwError $ TypeError "Expected node in query"
+    _         → typeError "Expected node in query"
 
 solveFocus c@(COne _ x t) = do
   t   ← toDag t
@@ -161,7 +161,7 @@ solveFocus c@(COne _ x t) = do
     (SAns ps) →
       unsatisfiable "More than one path in answer set"
     t →
-      throwError $ TypeError "Expected answer set in only(..)"
+      typeError "Expected answer set in only(..)"
 
 solveFocus c@(CNonEmpty _ x) = do
   ans ← resolve x >>= getSchema
@@ -169,7 +169,7 @@ solveFocus c@(CNonEmpty _ x) = do
     (U.Var x)      → throwError StuckError
     (SAns [])      → unsatisfiable "No paths in answer set"
     (SAns (p : _)) → next
-    t              → throwError $ TypeError "Expected answer set in non-empty constraint"
+    t              → typeError "Expected answer set in non-empty constraint"
 
 solveFocus (CData _ x t) = do
   x ← resolve x >>= getSchema
@@ -185,7 +185,7 @@ solveFocus (CData _ x t) = do
       escalateUnificationError $ unify t t'
       next
     (U.Var x) → throwError StuckError
-    _         → throwError $ TypeError "Expected node in datum constraint"
+    _         → typeError "Expected node in datum constraint"
 
 solveFocus (CEvery _ x (Branch m c)) = do
   ans ← resolve x >>= getSchema
@@ -200,7 +200,7 @@ solveFocus (CEvery _ x (Branch m c)) = do
         matches pn m (newGoal c)
       next
     t →
-      throwError $ TypeError "Expected node in every .. constraint"
+      typeError "Expected node in every .. constraint"
 
 solveFocus (CApply _ p ts) = do
    (Pred _ _ σ c) ← view (symbols.getPred p)
@@ -240,7 +240,7 @@ solveFocus (CMin _ x lt z) = do
       b       ← resolve z
       unify b ansRef
       next
-    _          → throwError $ TypeError "Expected node in min constraint"
+    _          → typeError "Expected node in min constraint"
   where
     lexico lt p q =
       reflexiveClosure
@@ -266,7 +266,7 @@ solveFocus (CFilter _ x m z) = do
       b      ← resolve z
       unify b ansRef
       next
-    _          → throwError $ TypeError "Expected answer set in filter constraint"
+    _          → typeError "Expected answer set in filter constraint"
   where
     filt :: PathFilter Term₁ → SPath s t → SolverM s Bool
     filt (MatchDatum m) p = do

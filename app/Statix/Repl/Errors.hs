@@ -68,11 +68,13 @@ instance ReplError StatixError where
     putStr  $ "Constraint unsatisfiable: "
     putBold $ msg ++ "\n\n"
     printTrace (reverse tr)
-  report StuckError =
+  report StuckError = do
     putStrLn $ "Stuck"
-  report (UnificationError msg) =
+  report (UnificationError msg) = do
     putStrLn $ "Unification failed: " ++ msg
-  report (RT.Panic msg) =
+  report (RT.Panic msg) = do
     putStrLn $ "Bug: " ++ msg
-  report (RT.TypeError msg) =
+  report (RT.TypeError tr msg) = do
     putStrLn $ "Type error at runtime: " ++ msg
+    printTrace (reverse tr)
+

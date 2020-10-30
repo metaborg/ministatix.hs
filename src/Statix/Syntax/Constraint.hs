@@ -4,7 +4,7 @@ import Prelude hiding (lookup)
 
 import Data.HashMap.Strict (HashMap, lookup)
 import qualified Data.HashMap.Strict as HM
-import Data.List (concatMap, intercalate)
+import Data.List (intercalate)
 import Data.Functor.Fixedpoint
 import Data.Maybe
 import Data.Functor.Compose
